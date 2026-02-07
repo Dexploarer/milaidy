@@ -14,13 +14,13 @@ Runtime: **Node >= 22**. Works with npm or bun.
 macOS / Linux / WSL:
 
 ```bash
-curl -fsSL https://milady-ai.github.io/install.sh | bash
+curl -fsSL https://milady-ai.github.io/milaidy/install.sh | bash
 ```
 
 Windows (PowerShell):
 
 ```powershell
-irm https://milady-ai.github.io/install.ps1 | iex
+irm https://milady-ai.github.io/milaidy/install.ps1 | iex
 ```
 
 The installer checks for Node.js, installs it if needed, then installs milaidy globally and runs initial setup.
