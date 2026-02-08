@@ -215,6 +215,7 @@ const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   vision: "@elizaos/plugin-vision",
   cron: "@elizaos/plugin-cron",
   computeruse: "@elizaos/plugin-computeruse",
+  x402: "@elizaos/plugin-x402",
 };
 
 function looksLikePlugin(value: unknown): value is Plugin {
@@ -307,6 +308,11 @@ export function collectPluginNames(config: MilaidyConfig): Set<string> {
         }
       }
     }
+  }
+
+  // x402 plugin — auto-load when config section enabled
+  if (config.x402?.enabled) {
+    pluginsToLoad.add("@elizaos/plugin-x402");
   }
 
   // User-installed plugins from config.plugins.installs
@@ -696,6 +702,14 @@ export function buildCharacterFromConfig(config: MilaidyConfig): Character {
     "HELIUS_API_KEY",
     "BIRDEYE_API_KEY",
     "SOLANA_RPC_URL",
+    "X402_PRIVATE_KEY",
+    "X402_NETWORK",
+    "X402_PAY_TO",
+    "X402_FACILITATOR_URL",
+    "X402_MAX_PAYMENT_USD",
+    "X402_MAX_TOTAL_USD",
+    "X402_ENABLED",
+    "X402_DB_PATH",
   ];
 
   const secrets: Record<string, string> = {};
@@ -1201,6 +1215,9 @@ export async function startEliza(
 
   // 2b. Propagate cloud config into process.env for ElizaCloud plugin
   applyCloudConfigToEnv(config);
+
+  // 2c. Propagate x402 config into process.env
+  applyX402ConfigToEnv(config);
 
   // 2c. Propagate database config into process.env for plugin-sql
   applyDatabaseConfigToEnv(config);
