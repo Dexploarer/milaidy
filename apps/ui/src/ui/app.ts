@@ -97,6 +97,7 @@ export class MilaidyApp extends LitElement {
       flex-direction: column;
       flex: 1;
       min-height: 0;
+      overflow: hidden;
       max-width: 900px;
       margin: 0 auto;
       padding: 0 20px;
