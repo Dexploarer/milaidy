@@ -22,6 +22,7 @@ import {
   type WalletConfigStatus,
   type WalletExportResult,
   type RegistryPlugin,
+  type CatalogSkill,
 } from "./api-client.js";
 import { tabFromPath, pathForTab, type Tab, TAB_GROUPS, titleForTab } from "./navigation.js";
 
@@ -81,6 +82,22 @@ export class MilaidyApp extends LitElement {
   @state() storeUninstalling: Set<string> = new Set();
   @state() storeError: string | null = null;
   @state() storeDetailPlugin: RegistryPlugin | null = null;
+
+  // Store sub-tab: plugins vs skills
+  @state() storeSubTab: "plugins" | "skills" = "plugins";
+
+  // Skill Catalog state
+  @state() catalogSkills: CatalogSkill[] = [];
+  @state() catalogTotal = 0;
+  @state() catalogPage = 1;
+  @state() catalogTotalPages = 1;
+  @state() catalogSort: "downloads" | "stars" | "updated" | "name" = "downloads";
+  @state() catalogSearch = "";
+  @state() catalogLoading = false;
+  @state() catalogError: string | null = null;
+  @state() catalogDetailSkill: CatalogSkill | null = null;
+  @state() catalogInstalling: Set<string> = new Set();
+  @state() catalogUninstalling: Set<string> = new Set();
 
   // Onboarding wizard state
   @state() onboardingStep = 0;
@@ -1392,6 +1409,11 @@ export class MilaidyApp extends LitElement {
       this.storeError = `Failed to load plugin registry: ${err instanceof Error ? err.message : "network error"}`;
     }
     this.storeLoading = false;
+
+    // Also load skill catalog if not already loaded
+    if (this.catalogSkills.length === 0 && !this.catalogLoading) {
+      this.loadCatalog();
+    }
   }
 
   private async handleStoreInstall(pluginName: string): Promise<void> {
@@ -1459,6 +1481,147 @@ export class MilaidyApp extends LitElement {
     }
   }
 
+  // --- Skill Catalog ---
+
+  private async loadCatalog(): Promise<void> {
+    this.catalogLoading = true;
+    this.catalogError = null;
+    try {
+      if (this.catalogSearch) {
+        const { results } = await client.searchSkillCatalog(this.catalogSearch, 50);
+        // Convert search results into CatalogSkill-like objects for unified rendering
+        this.catalogSkills = results.map((r) => ({
+          slug: r.slug,
+          displayName: r.displayName,
+          summary: r.summary,
+          tags: r.latestVersion ? { latest: r.latestVersion } : {},
+          stats: {
+            comments: 0,
+            downloads: r.downloads,
+            installsAllTime: r.installs,
+            installsCurrent: 0,
+            stars: r.stars,
+            versions: 0,
+          },
+          createdAt: 0,
+          updatedAt: 0,
+          latestVersion: r.latestVersion
+            ? { version: r.latestVersion, createdAt: 0, changelog: "" }
+            : null,
+        }));
+        this.catalogTotal = results.length;
+        this.catalogTotalPages = 1;
+        this.catalogPage = 1;
+      } else {
+        const data = await client.getSkillCatalog({
+          page: this.catalogPage,
+          perPage: 50,
+          sort: this.catalogSort,
+        });
+        this.catalogSkills = data.skills;
+        this.catalogTotal = data.total;
+        this.catalogPage = data.page;
+        this.catalogTotalPages = data.totalPages;
+      }
+    } catch (err) {
+      this.catalogError = `Failed to load skill catalog: ${err instanceof Error ? err.message : "network error"}`;
+    }
+    this.catalogLoading = false;
+  }
+
+  private async handleCatalogRefresh(): Promise<void> {
+    this.catalogLoading = true;
+    this.catalogError = null;
+    try {
+      await client.refreshSkillCatalog();
+      await this.loadCatalog();
+    } catch (err) {
+      this.catalogError = `Refresh failed: ${err instanceof Error ? err.message : "network error"}`;
+      this.catalogLoading = false;
+    }
+  }
+
+  private handleCatalogSearch(): void {
+    this.catalogPage = 1;
+    this.loadCatalog();
+  }
+
+  private handleCatalogPageChange(page: number): void {
+    this.catalogPage = page;
+    this.loadCatalog();
+  }
+
+  private handleCatalogSortChange(sort: "downloads" | "stars" | "updated" | "name"): void {
+    this.catalogSort = sort;
+    this.catalogPage = 1;
+    this.loadCatalog();
+  }
+
+  private async handleCatalogInstall(slug: string): Promise<void> {
+    const next = new Set(this.catalogInstalling);
+    next.add(slug);
+    this.catalogInstalling = next;
+    this.catalogError = null;
+
+    try {
+      const result = await client.installCatalogSkill(slug);
+      if (!result.ok) {
+        this.catalogError = result.message ?? `Failed to install ${slug}`;
+      } else {
+        // Update the local skill's installed flag
+        this.catalogSkills = this.catalogSkills.map((s) =>
+          s.slug === slug ? { ...s, installed: true } : s,
+        );
+        // Also update the detail panel if open
+        if (this.catalogDetailSkill?.slug === slug) {
+          this.catalogDetailSkill = { ...this.catalogDetailSkill, installed: true };
+        }
+        // Refresh the installed skills list
+        this.loadSkills();
+      }
+    } catch (err) {
+      this.catalogError = `Install failed: ${err instanceof Error ? err.message : "network error"}`;
+    }
+
+    const done = new Set(this.catalogInstalling);
+    done.delete(slug);
+    this.catalogInstalling = done;
+  }
+
+  private async handleCatalogUninstall(slug: string): Promise<void> {
+    const confirmed = window.confirm(
+      `Uninstall skill "${slug}"?\n\nThis will remove the skill from the agent.`,
+    );
+    if (!confirmed) return;
+
+    const next = new Set(this.catalogUninstalling);
+    next.add(slug);
+    this.catalogUninstalling = next;
+    this.catalogError = null;
+
+    try {
+      const result = await client.uninstallCatalogSkill(slug);
+      if (!result.ok) {
+        this.catalogError = result.message ?? `Failed to uninstall ${slug}`;
+      } else {
+        // Update local state
+        this.catalogSkills = this.catalogSkills.map((s) =>
+          s.slug === slug ? { ...s, installed: false } : s,
+        );
+        if (this.catalogDetailSkill?.slug === slug) {
+          this.catalogDetailSkill = { ...this.catalogDetailSkill, installed: false };
+        }
+        this.loadSkills();
+      }
+    } catch (err) {
+      this.catalogError = `Uninstall failed: ${err instanceof Error ? err.message : "network error"}`;
+    }
+
+    const done = new Set(this.catalogUninstalling);
+    done.delete(slug);
+    this.catalogUninstalling = done;
+  }
+
   private categorizeStorePlugin(name: string): string {
     const aiProviders = ["openai", "anthropic", "groq", "xai", "ollama", "openrouter", "google", "deepseek", "mistral", "together", "cohere", "perplexity", "qwen", "minimax"];
     const connectors = ["discord", "telegram", "slack", "whatsapp", "signal", "imessage", "bluebubbles", "msteams", "mattermost", "google-chat", "farcaster", "lens", "twitter", "nostr", "matrix", "feishu"];
@@ -1469,6 +1632,37 @@ export class MilaidyApp extends LitElement {
   }
 
   private renderStore() {
+    return html`
+      <h2>Store</h2>
+      <p class="subtitle">Browse, search, and install plugins and skills.</p>
+
+      <!-- Sub-tab toggle: Plugins / Skills -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);width:fit-content;">
+        <button
+          style="
+            padding:6px 20px;font-size:13px;font-family:var(--mono);
+            border:none;cursor:pointer;
+            background:${this.storeSubTab === "plugins" ? "var(--accent)" : "var(--bg)"};
+            color:${this.storeSubTab === "plugins" ? "var(--accent-foreground)" : "var(--text)"};
+          "
+          @click=${() => { this.storeSubTab = "plugins"; }}
+        >Plugins ${this.storePlugins.length > 0 ? html`<span style="font-size:10px;opacity:0.7;">(${this.storePlugins.length})</span>` : ""}</button>
+        <button
+          style="
+            padding:6px 20px;font-size:13px;font-family:var(--mono);
+            border:none;border-left:1px solid var(--border);cursor:pointer;
+            background:${this.storeSubTab === "skills" ? "var(--accent)" : "var(--bg)"};
+            color:${this.storeSubTab === "skills" ? "var(--accent-foreground)" : "var(--text)"};
+          "
+          @click=${() => { this.storeSubTab = "skills"; if (this.catalogSkills.length === 0) this.loadCatalog(); }}
+        >Skills ${this.catalogTotal > 0 ? html`<span style="font-size:10px;opacity:0.7;">(${this.catalogTotal.toLocaleString()})</span>` : ""}</button>
+      </div>
+
+      ${this.storeSubTab === "plugins" ? this.renderStorePlugins() : this.renderStoreCatalog()}
+    `;
+  }
+
+  private renderStorePlugins() {
     const searchLower = this.storeSearch.toLowerCase();
 
     // Base pool: hide bundled plugins unless toggled on or searching
@@ -1513,8 +1707,6 @@ export class MilaidyApp extends LitElement {
     };
 
     return html`
-      <h2>Plugin Store</h2>
-      <p class="subtitle">Browse, search, and install plugins from the ElizaOS registry.</p>
 
       ${this.storeError ? html`
         <div style="margin-bottom:12px;padding:10px 14px;border:1px solid var(--danger, #e74c3c);background:rgba(231,76,60,0.06);font-size:12px;color:var(--danger, #e74c3c);">
@@ -1757,6 +1949,273 @@ export class MilaidyApp extends LitElement {
               class="btn btn-outline"
               style="font-size:11px;padding:4px 14px;margin:0;"
               @click=${() => { this.storeDetailPlugin = null; }}
+            >Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderStoreCatalog() {
+    const sortOptions = [
+      { key: "downloads" as const, label: "Downloads" },
+      { key: "stars" as const, label: "Stars" },
+      { key: "updated" as const, label: "Recent" },
+      { key: "name" as const, label: "Name" },
+    ];
+
+    return html`
+      ${this.catalogError ? html`
+        <div style="margin-bottom:12px;padding:10px 14px;border:1px solid var(--danger, #e74c3c);background:rgba(231,76,60,0.06);font-size:12px;color:var(--danger, #e74c3c);">
+          ${this.catalogError}
+          <button style="float:right;background:none;border:none;color:var(--danger, #e74c3c);cursor:pointer;font-size:14px;" @click=${() => { this.catalogError = null; }}>✕</button>
+        </div>
+      ` : ""}
+
+      <div class="store-summary-bar">
+        <div class="store-summary-stat">
+          <span class="stat-value">${this.catalogTotal.toLocaleString()}</span>
+          <span class="stat-label">skills available</span>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn" style="font-size:11px;padding:3px 10px;margin:0;" @click=${this.handleCatalogRefresh} ?disabled=${this.catalogLoading}>
+            ${this.catalogLoading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+        <input
+          class="plugin-search"
+          type="text"
+          placeholder="Search skills by name or description..."
+          style="margin-bottom:0;flex:1;"
+          .value=${this.catalogSearch}
+          @input=${(e: Event) => { this.catalogSearch = (e.target as HTMLInputElement).value; }}
+          @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") this.handleCatalogSearch(); }}
+        />
+        <button class="btn" style="font-size:12px;padding:6px 14px;margin:0;white-space:nowrap;" @click=${this.handleCatalogSearch}>
+          Search
+        </button>
+      </div>
+
+      ${!this.catalogSearch ? html`
+        <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Sort:</span>
+          ${sortOptions.map(
+            (opt) => html`
+              <button
+                style="
+                  padding:4px 12px;border-radius:12px;border:1px solid var(--border);cursor:pointer;font-size:12px;
+                  background:${this.catalogSort === opt.key ? "var(--accent)" : "var(--surface)"};
+                  color:${this.catalogSort === opt.key ? "#fff" : "var(--text)"};
+                "
+                @click=${() => this.handleCatalogSortChange(opt.key)}
+              >${opt.label}</button>
+            `,
+          )}
+        </div>
+      ` : ""}
+
+      ${this.catalogLoading && this.catalogSkills.length === 0
+        ? html`<div class="empty-state">Loading skill catalog...</div>`
+        : this.catalogSkills.length === 0
+          ? html`<div class="empty-state">${this.catalogSearch ? "No skills match your search." : "No skills available."}</div>`
+          : html`
+              <div class="store-grid">
+                ${this.catalogSkills.map((s) => this.renderCatalogCard(s))}
+              </div>
+            `
+      }
+
+      ${!this.catalogSearch && this.catalogTotalPages > 1 ? html`
+        <div style="display:flex;justify-content:center;gap:8px;margin-top:16px;align-items:center;">
+          <button
+            class="lifecycle-btn"
+            style="font-size:12px;"
+            ?disabled=${this.catalogPage <= 1}
+            @click=${() => this.handleCatalogPageChange(this.catalogPage - 1)}
+          >← Prev</button>
+          <span style="font-size:12px;color:var(--muted);font-family:var(--mono);">
+            ${this.catalogPage} / ${this.catalogTotalPages}
+          </span>
+          <button
+            class="lifecycle-btn"
+            style="font-size:12px;"
+            ?disabled=${this.catalogPage >= this.catalogTotalPages}
+            @click=${() => this.handleCatalogPageChange(this.catalogPage + 1)}
+          >Next →</button>
+        </div>
+      ` : ""}
+
+      ${this.catalogDetailSkill ? this.renderCatalogDetail(this.catalogDetailSkill) : ""}
+    `;
+  }
+
+  private renderCatalogCard(s: CatalogSkill) {
+    const version = s.latestVersion?.version ?? s.tags?.latest;
+    const downloads = s.stats.downloads;
+    const stars = s.stats.stars;
+    const installs = s.stats.installsAllTime;
+    const installing = this.catalogInstalling.has(s.slug);
+    const uninstalling = this.catalogUninstalling.has(s.slug);
+
+    return html`
+      <div class="store-card">
+        <div class="store-card-header">
+          <div style="flex:1;min-width:0;">
+            <div class="store-card-name">${s.displayName || s.slug}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px;">${s.slug}</div>
+          </div>
+          ${s.installed ? html`<span class="store-badge installed">installed</span>` : ""}
+        </div>
+
+        <div class="store-card-desc">${s.summary || "No description available."}</div>
+
+        <div class="store-card-meta">
+          ${version ? html`<span class="meta-item">v${version}</span>` : ""}
+          ${downloads > 0 ? html`<span class="meta-item">⬇ ${downloads.toLocaleString()}</span>` : ""}
+          ${stars > 0 ? html`<span class="meta-item">★ ${stars}</span>` : ""}
+          ${installs > 0 ? html`<span class="meta-item">📦 ${installs.toLocaleString()} installs</span>` : ""}
+        </div>
+
+        <div class="store-card-footer">
+          <button
+            style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0;text-decoration:underline;"
+            @click=${() => { this.catalogDetailSkill = s; }}
+          >Details</button>
+
+          ${s.installed
+            ? html`
+                <button
+                  class="store-install-btn uninstall"
+                  @click=${() => this.handleCatalogUninstall(s.slug)}
+                  ?disabled=${uninstalling}
+                >${uninstalling ? "Removing..." : "Uninstall"}</button>
+              `
+            : html`
+                <button
+                  class="store-install-btn ${installing ? "installing" : ""}"
+                  @click=${() => this.handleCatalogInstall(s.slug)}
+                  ?disabled=${installing}
+                >${installing ? "Installing..." : "Install"}</button>
+              `
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  private renderCatalogDetail(s: CatalogSkill) {
+    const version = s.latestVersion?.version ?? s.tags?.latest;
+    const tags = Object.entries(s.tags).filter(([k]) => k !== "latest");
+    const installing = this.catalogInstalling.has(s.slug);
+    const uninstalling = this.catalogUninstalling.has(s.slug);
+
+    return html`
+      <div class="store-detail-overlay" @click=${(e: Event) => {
+        if ((e.target as HTMLElement).classList.contains("store-detail-overlay")) {
+          this.catalogDetailSkill = null;
+        }
+      }}>
+        <div class="store-detail-panel">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+            <div>
+              <h3>${s.displayName || s.slug}</h3>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                <span style="font-size:11px;color:var(--muted);font-family:var(--mono);">${s.slug}</span>
+                ${s.installed ? html`<span class="store-badge installed">installed</span>` : ""}
+              </div>
+            </div>
+            <button
+              style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;"
+              @click=${() => { this.catalogDetailSkill = null; }}
+            >✕</button>
+          </div>
+
+          <div class="detail-desc">${s.summary || "No description available."}</div>
+
+          ${version ? html`
+            <div class="detail-row">
+              <span class="detail-label">Version</span>
+              <span>${version}</span>
+            </div>
+          ` : ""}
+          <div class="detail-row">
+            <span class="detail-label">Downloads</span>
+            <span>⬇ ${s.stats.downloads.toLocaleString()}</span>
+          </div>
+          ${s.stats.stars > 0 ? html`
+            <div class="detail-row">
+              <span class="detail-label">Stars</span>
+              <span>★ ${s.stats.stars}</span>
+            </div>
+          ` : ""}
+          ${s.stats.installsAllTime > 0 ? html`
+            <div class="detail-row">
+              <span class="detail-label">Installs</span>
+              <span>${s.stats.installsAllTime.toLocaleString()} all-time</span>
+            </div>
+          ` : ""}
+          ${s.stats.versions > 0 ? html`
+            <div class="detail-row">
+              <span class="detail-label">Versions</span>
+              <span>${s.stats.versions}</span>
+            </div>
+          ` : ""}
+          ${s.stats.comments > 0 ? html`
+            <div class="detail-row">
+              <span class="detail-label">Comments</span>
+              <span>${s.stats.comments}</span>
+            </div>
+          ` : ""}
+          ${s.createdAt ? html`
+            <div class="detail-row">
+              <span class="detail-label">Created</span>
+              <span>${new Date(s.createdAt).toLocaleDateString()}</span>
+            </div>
+          ` : ""}
+          ${s.updatedAt ? html`
+            <div class="detail-row">
+              <span class="detail-label">Updated</span>
+              <span>${new Date(s.updatedAt).toLocaleDateString()}</span>
+            </div>
+          ` : ""}
+          ${tags.length > 0 ? html`
+            <div class="detail-row" style="border-bottom:none;">
+              <span class="detail-label">Tags</span>
+              <div class="store-topics">${tags.map(([k, v]) => html`<span class="store-topic">${k}: ${v}</span>`)}</div>
+            </div>
+          ` : ""}
+
+          ${s.latestVersion?.changelog ? html`
+            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+              <div style="font-weight:600;font-size:12px;margin-bottom:6px;color:var(--text-strong);">Changelog</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto;">${s.latestVersion.changelog}</div>
+            </div>
+          ` : ""}
+
+          <div class="detail-actions">
+            ${s.installed
+              ? html`
+                  <button
+                    class="store-install-btn uninstall"
+                    @click=${() => this.handleCatalogUninstall(s.slug)}
+                    ?disabled=${uninstalling}
+                  >${uninstalling ? "Removing..." : "Uninstall"}</button>
+                `
+              : html`
+                  <button
+                    class="store-install-btn ${installing ? "installing" : ""}"
+                    @click=${() => this.handleCatalogInstall(s.slug)}
+                    ?disabled=${installing}
+                  >${installing ? "Install Skill" : "Install Skill"}</button>
+                `
+            }
+            <button
+              class="btn btn-outline"
+              style="font-size:11px;padding:4px 14px;margin:0;"
+              @click=${() => { this.catalogDetailSkill = null; }}
             >Close</button>
           </div>
         </div>

@@ -112,6 +112,46 @@ export interface SkillInfo {
   enabled: boolean;
 }
 
+// Skill Catalog types
+
+export interface CatalogSkillStats {
+  comments: number;
+  downloads: number;
+  installsAllTime: number;
+  installsCurrent: number;
+  stars: number;
+  versions: number;
+}
+
+export interface CatalogSkillVersion {
+  version: string;
+  createdAt: number;
+  changelog: string;
+}
+
+export interface CatalogSkill {
+  slug: string;
+  displayName: string;
+  summary: string | null;
+  tags: Record<string, string>;
+  stats: CatalogSkillStats;
+  createdAt: number;
+  updatedAt: number;
+  latestVersion: CatalogSkillVersion | null;
+  installed?: boolean;
+}
+
+export interface CatalogSearchResult {
+  slug: string;
+  displayName: string;
+  summary: string | null;
+  score: number;
+  latestVersion: string | null;
+  downloads: number;
+  stars: number;
+  installs: number;
+}
+
 export interface LogEntry {
   timestamp: number;
   level: string;
@@ -385,6 +425,62 @@ export class MilaidyClient {
 
   async refreshSkills(): Promise<{ ok: boolean; skills: SkillInfo[] }> {
     return this.fetch("/api/skills/refresh", { method: "POST" });
+  }
+
+  // Skill Catalog
+
+  async getSkillCatalog(opts?: { page?: number; perPage?: number; sort?: string }): Promise<{
+    total: number;
+    page: number;
+    perPage: number;
+    totalPages: number;
+    skills: CatalogSkill[];
+  }> {
+    const params = new URLSearchParams();
+    if (opts?.page) params.set("page", String(opts.page));
+    if (opts?.perPage) params.set("perPage", String(opts.perPage));
+    if (opts?.sort) params.set("sort", opts.sort);
+    const qs = params.toString();
+    return this.fetch(`/api/skills/catalog${qs ? `?${qs}` : ""}`);
+  }
+
+  async searchSkillCatalog(query: string, limit = 30): Promise<{
+    query: string;
+    count: number;
+    results: CatalogSearchResult[];
+  }> {
+    return this.fetch(`/api/skills/catalog/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  }
+
+  async getSkillCatalogDetail(slug: string): Promise<{ skill: CatalogSkill }> {
+    return this.fetch(`/api/skills/catalog/${encodeURIComponent(slug)}`);
+  }
+
+  async refreshSkillCatalog(): Promise<{ ok: boolean; count: number }> {
+    return this.fetch("/api/skills/catalog/refresh", { method: "POST" });
+  }
+
+  async installCatalogSkill(slug: string, version?: string): Promise<{
+    ok: boolean;
+    slug: string;
+    message: string;
+    alreadyInstalled?: boolean;
+  }> {
+    return this.fetch("/api/skills/catalog/install", {
+      method: "POST",
+      body: JSON.stringify({ slug, version }),
+    });
+  }
+
+  async uninstallCatalogSkill(slug: string): Promise<{
+    ok: boolean;
+    slug: string;
+    message: string;
+  }> {
+    return this.fetch("/api/skills/catalog/uninstall", {
+      method: "POST",
+      body: JSON.stringify({ slug }),
+    });
   }
 
   async getLogs(): Promise<{ entries: LogEntry[] }> {
