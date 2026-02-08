@@ -28,10 +28,19 @@ import {
 import { resolveStateDir } from "../config/paths.js";
 import { CharacterSchema } from "../config/zod-schema.js";
 import { resolveDefaultAgentWorkspaceDir } from "../providers/workspace.js";
+import { CloudManager } from "../cloud/cloud-manager.js";
+import { handleCloudRoute, type CloudRouteState } from "./cloud-routes.js";
 import {
   type PluginParamInfo,
   validatePluginConfig,
 } from "./plugin-validation.js";
+import {
+  exportAgent,
+  importAgent,
+  estimateExportSize,
+  AgentExportError,
+} from "../services/agent-export.js";
+import { handleDatabaseRoute } from "./database.js";
 import {
   fetchEvmBalances,
   fetchEvmNfts,
@@ -85,6 +94,8 @@ interface ServerState {
   logBuffer: LogEntry[];
   chatRoomId: UUID | null;
   chatUserId: UUID | null;
+  /** Cloud manager for ELIZA Cloud integration (null when cloud is disabled). */
+  cloudManager: CloudManager | null;
 }
 
 interface PluginParamDef {
@@ -596,6 +607,7 @@ function scanSkillsDir(
 
 /** Maximum request body size (1 MB) — prevents memory-based DoS. */
 const MAX_BODY_BYTES = 1_048_576;
+const MAX_IMPORT_BYTES = 512 * 1_048_576; // 512 MB for agent imports
 
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -615,6 +627,36 @@ function readBody(req: http.IncomingMessage): Promise<string> {
       chunks.push(c);
     });
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+    req.on("error", reject);
+  });
+}
+
+
+/**
+ * Read raw binary request body with a configurable size limit.
+ * Used for agent import file uploads.
+ */
+function readRawBody(
+  req: http.IncomingMessage,
+  maxBytes: number,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    req.on("data", (c: Buffer) => {
+      totalBytes += c.length;
+      if (totalBytes > maxBytes) {
+        req.destroy();
+        reject(
+          new Error(
+            `Request body exceeds maximum size (${maxBytes} bytes)`,
+          ),
+        );
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -764,6 +806,75 @@ function getProviderOptions(): Array<{
       pluginName: "@elizaos/plugin-ollama",
       keyPrefix: null,
       description: "Local models, no API key needed.",
+    },
+  ];
+}
+
+function getCloudProviderOptions(): Array<{
+  id: string;
+  name: string;
+  description: string;
+}> {
+  return [
+    {
+      id: "elizacloud",
+      name: "Eliza Cloud",
+      description: "Managed cloud infrastructure. Wallets, LLMs, and RPCs included.",
+    },
+  ];
+}
+
+function getModelOptions(): {
+  small: Array<{ id: string; name: string; provider: string; description: string }>;
+  large: Array<{ id: string; name: string; provider: string; description: string }>;
+} {
+  return {
+    small: [
+      { id: "claude-haiku", name: "Claude Haiku (latest)", provider: "anthropic", description: "Fast and efficient. Default small model." },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "openai", description: "OpenAI's compact model." },
+      { id: "gemini-flash", name: "Gemini Flash", provider: "google", description: "Google's fast model." },
+    ],
+    large: [
+      { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", provider: "anthropic", description: "Powerful reasoning. Default large model." },
+      { id: "gpt-4o", name: "GPT-4o", provider: "openai", description: "OpenAI's flagship model." },
+      { id: "claude-opus", name: "Claude Opus", provider: "anthropic", description: "Most capable Claude model." },
+      { id: "gemini-pro", name: "Gemini Pro", provider: "google", description: "Google's advanced model." },
+    ],
+  };
+}
+
+function getInventoryProviderOptions(): Array<{
+  id: string;
+  name: string;
+  description: string;
+  rpcProviders: Array<{
+    id: string;
+    name: string;
+    description: string;
+    envKey: string | null;
+    requiresKey: boolean;
+  }>;
+}> {
+  return [
+    {
+      id: "evm",
+      name: "EVM",
+      description: "Ethereum, Base, Arbitrum, Optimism, Polygon.",
+      rpcProviders: [
+        { id: "elizacloud", name: "Eliza Cloud", description: "Managed RPC. No setup needed.", envKey: null, requiresKey: false },
+        { id: "infura", name: "Infura", description: "Reliable EVM infrastructure.", envKey: "INFURA_API_KEY", requiresKey: true },
+        { id: "alchemy", name: "Alchemy", description: "Full-featured EVM data platform.", envKey: "ALCHEMY_API_KEY", requiresKey: true },
+        { id: "ankr", name: "Ankr", description: "Decentralized RPC provider.", envKey: "ANKR_API_KEY", requiresKey: true },
+      ],
+    },
+    {
+      id: "solana",
+      name: "Solana",
+      description: "Solana mainnet tokens and NFTs.",
+      rpcProviders: [
+        { id: "elizacloud", name: "Eliza Cloud", description: "Managed RPC. No setup needed.", envKey: null, requiresKey: false },
+        { id: "helius", name: "Helius", description: "Solana-native data platform.", envKey: "HELIUS_API_KEY", requiresKey: true },
+      ],
     },
   ];
 }
@@ -1005,12 +1116,25 @@ async function handleRequest(
   // ── GET /api/status ─────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/status") {
     const uptime = state.startedAt ? Date.now() - state.startedAt : undefined;
+
+    // Cloud mode: report cloud connection status alongside local state
+    const cloudProxy = state.cloudManager?.getProxy();
+    const runMode = cloudProxy ? "cloud" : "local";
+    const cloudStatus = state.cloudManager
+      ? {
+          connectionStatus: state.cloudManager.getStatus(),
+          activeAgentId: state.cloudManager.getActiveAgentId(),
+        }
+      : undefined;
+
     json(res, {
-      state: state.agentState,
-      agentName: state.agentName,
-      model: state.model,
+      state: cloudProxy ? "running" : state.agentState,
+      agentName: cloudProxy ? cloudProxy.agentName : state.agentName,
+      model: cloudProxy ? "cloud" : state.model,
       uptime,
       startedAt: state.startedAt,
+      runMode,
+      cloud: cloudStatus,
     });
     return;
   }
@@ -1028,6 +1152,9 @@ async function handleRequest(
       names: pickRandomNames(6),
       styles: STYLE_PRESETS,
       providers: getProviderOptions(),
+      cloudProviders: getCloudProviderOptions(),
+      models: getModelOptions(),
+      inventoryProviders: getInventoryProviderOptions(),
       sharedStyleRules: "Keep responses brief. Be helpful and concise.",
     });
     return;
@@ -1037,6 +1164,21 @@ async function handleRequest(
   if (method === "POST" && pathname === "/api/onboarding") {
     const body = await readJsonBody(req, res);
     if (!body) return;
+
+    // ── Validate required fields ──────────────────────────────────────────
+    if (!body.name || typeof body.name !== "string" || !body.name.trim()) {
+      error(res, "Missing or invalid agent name", 400);
+      return;
+    }
+    if (body.theme && body.theme !== "light" && body.theme !== "dark") {
+      error(res, "Invalid theme: must be 'light' or 'dark'", 400);
+      return;
+    }
+    if (body.runMode && body.runMode !== "local" && body.runMode !== "cloud") {
+      error(res, "Invalid runMode: must be 'local' or 'cloud'", 400);
+      return;
+    }
+
     const config = state.config;
 
     if (!config.agents) config.agents = {};
@@ -1048,7 +1190,7 @@ async function handleRequest(
       config.agents.list.push({ id: "main", default: true });
     }
     const agent = config.agents.list[0] as Record<string, unknown>;
-    agent.name = body.name;
+    agent.name = (body.name as string).trim();
     agent.workspace = resolveDefaultAgentWorkspaceDir();
     if (body.bio) agent.bio = body.bio;
     if (body.systemPrompt) agent.system = body.systemPrompt;
@@ -1057,29 +1199,59 @@ async function handleRequest(
     if (body.topics) agent.topics = body.topics;
     if (body.messageExamples) agent.messageExamples = body.messageExamples;
 
-    if (body.provider && body.providerApiKey) {
-      if (!config.env) config.env = {};
-      const providerOpt = getProviderOptions().find(
-        (p) => p.id === body.provider,
-      );
-      if (providerOpt?.envKey) {
-        (config.env as Record<string, string>)[providerOpt.envKey] =
-          body.providerApiKey as string;
-        process.env[providerOpt.envKey] = body.providerApiKey as string;
+    // ── Theme preference ──────────────────────────────────────────────────
+    if (body.theme) {
+      if (!config.ui) config.ui = {};
+      config.ui.theme = body.theme as "light" | "dark";
+    }
+
+    // ── Run mode & cloud configuration ────────────────────────────────────
+    const runMode = (body.runMode as string) || "local";
+    if (!config.cloud) config.cloud = {};
+    config.cloud.enabled = runMode === "cloud";
+
+    if (runMode === "cloud") {
+      if (body.cloudProvider) {
+        config.cloud.provider = body.cloudProvider as string;
+      }
+      if (body.smallModel) {
+        if (!config.models) config.models = {};
+        config.models.small = body.smallModel as string;
+      }
+      if (body.largeModel) {
+        if (!config.models) config.models = {};
+        config.models.large = body.largeModel as string;
       }
     }
 
-    if (body.telegramBotToken) {
-      if (!config.env) config.env = {};
-      (config.env as Record<string, string>).TELEGRAM_BOT_TOKEN =
-        body.telegramBotToken as string;
-      process.env.TELEGRAM_BOT_TOKEN = body.telegramBotToken as string;
+    // ── Local LLM provider ────────────────────────────────────────────────
+    if (runMode === "local" && body.provider) {
+      if (body.providerApiKey) {
+        if (!config.env) config.env = {};
+        const providerOpt = getProviderOptions().find(
+          (p) => p.id === body.provider,
+        );
+        if (providerOpt?.envKey) {
+          (config.env as Record<string, string>)[providerOpt.envKey] =
+            body.providerApiKey as string;
+          process.env[providerOpt.envKey] = body.providerApiKey as string;
+        }
+      }
     }
-    if (body.discordBotToken) {
+
+    // ── Inventory / RPC providers ─────────────────────────────────────────
+    if (Array.isArray(body.inventoryProviders)) {
       if (!config.env) config.env = {};
-      (config.env as Record<string, string>).DISCORD_API_TOKEN =
-        body.discordBotToken as string;
-      process.env.DISCORD_API_TOKEN = body.discordBotToken as string;
+      const allInventory = getInventoryProviderOptions();
+      for (const inv of body.inventoryProviders as Array<{ chain: string; rpcProvider: string; rpcApiKey?: string }>) {
+        const chainDef = allInventory.find((ip) => ip.id === inv.chain);
+        if (!chainDef) continue;
+        const rpcDef = chainDef.rpcProviders.find((rp) => rp.id === inv.rpcProvider);
+        if (rpcDef?.envKey && inv.rpcApiKey) {
+          (config.env as Record<string, string>)[rpcDef.envKey] = inv.rpcApiKey;
+          process.env[rpcDef.envKey] = inv.rpcApiKey;
+        }
+      }
     }
 
     // ── Generate wallet keys if not already present ───────────────────────
@@ -1113,7 +1285,14 @@ async function handleRequest(
 
     state.config = config;
     state.agentName = (body.name as string) ?? state.agentName;
-    saveMilaidyConfig(config);
+    try {
+      saveMilaidyConfig(config);
+    } catch (err) {
+      logger.error(`[milaidy-api] Failed to save config after onboarding: ${err}`);
+      error(res, "Failed to save configuration", 500);
+      return;
+    }
+    logger.info(`[milaidy-api] Onboarding complete for agent "${body.name}" (mode: ${(body.runMode as string) || "local"})`);
     json(res, { ok: true });
     return;
   }
@@ -1295,6 +1474,120 @@ async function handleRequest(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       error(res, `Reset failed: ${msg}`, 500);
+    }
+    return;
+  }
+
+  // ── POST /api/agent/export ─────────────────────────────────────────────
+  // Export the entire agent as a password-encrypted binary file.
+  if (method === "POST" && pathname === "/api/agent/export") {
+    if (!state.runtime) {
+      error(res, "Agent is not running — start it before exporting.", 503);
+      return;
+    }
+
+    const body = await readJsonBody<{
+      password?: string;
+      includeLogs?: boolean;
+    }>(req, res);
+    if (!body) return;
+
+    if (!body.password || typeof body.password !== "string" || body.password.length < 4) {
+      error(res, "A password of at least 4 characters is required.", 400);
+      return;
+    }
+
+    try {
+      const fileBuffer = await exportAgent(state.runtime, body.password, {
+        includeLogs: body.includeLogs === true,
+      });
+
+      const agentName = (state.runtime.character.name ?? "agent")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .toLowerCase();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const filename = `${agentName}-${timestamp}.eliza-agent`;
+
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", fileBuffer.length);
+      res.end(fileBuffer);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (err instanceof AgentExportError) {
+        error(res, msg, 400);
+      } else {
+        error(res, `Export failed: ${msg}`, 500);
+      }
+    }
+    return;
+  }
+
+  // ── GET /api/agent/export/estimate ─────────────────────────────────────────
+  // Get an estimate of the export size before downloading.
+  if (method === "GET" && pathname === "/api/agent/export/estimate") {
+    if (!state.runtime) {
+      error(res, "Agent is not running.", 503);
+      return;
+    }
+
+    try {
+      const estimate = await estimateExportSize(state.runtime);
+      json(res, estimate);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      error(res, `Estimate failed: ${msg}`, 500);
+    }
+    return;
+  }
+
+  // ── POST /api/agent/import ─────────────────────────────────────────────
+  // Import an agent from a password-encrypted .eliza-agent file.
+  if (method === "POST" && pathname === "/api/agent/import") {
+    if (!state.runtime) {
+      error(res, "Agent is not running — start it before importing.", 503);
+      return;
+    }
+
+    let rawBody: Buffer;
+    try {
+      rawBody = await readRawBody(req, MAX_IMPORT_BYTES);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      error(res, msg, 413);
+      return;
+    }
+
+    if (rawBody.length < 5) {
+      error(res, "Request body is too small — expected password + file data.", 400);
+      return;
+    }
+
+    // Parse binary envelope: [4 bytes password length][password][file data]
+    const passwordLength = rawBody.readUInt32BE(0);
+    if (passwordLength < 4 || passwordLength > 1024) {
+      error(res, "Invalid password length in request envelope.", 400);
+      return;
+    }
+    if (rawBody.length < 4 + passwordLength + 1) {
+      error(res, "Request body is incomplete — missing file data after password.", 400);
+      return;
+    }
+
+    const password = rawBody.subarray(4, 4 + passwordLength).toString("utf-8");
+    const fileBuffer = rawBody.subarray(4 + passwordLength);
+
+    try {
+      const result = await importAgent(state.runtime, fileBuffer as Buffer, password);
+      json(res, result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (err instanceof AgentExportError) {
+        error(res, msg, 400);
+      } else {
+        error(res, `Import failed: ${msg}`, 500);
+      }
     }
     return;
   }
@@ -2214,11 +2507,58 @@ async function handleRequest(
     return;
   }
 
+  // ── Cloud routes (/api/cloud/*) ─────────────────────────────────────────
+  if (pathname.startsWith("/api/cloud/")) {
+    const cloudState: CloudRouteState = {
+      config: state.config,
+      cloudManager: state.cloudManager,
+    };
+    const handled = await handleCloudRoute(req, res, pathname, method, cloudState);
+    if (handled) return;
+  }
+
   // ── POST /api/chat ──────────────────────────────────────────────────────
   // Routes messages through the full ElizaOS message pipeline so the agent
   // has conversation memory, context, and always responds (DM + client_chat
   // bypass the shouldRespond LLM evaluation).
+  //
+  // Cloud mode: when a cloud proxy is active, messages are forwarded to the
+  // remote sandbox instead of the local runtime.  Supports SSE streaming
+  // when the client sends Accept: text/event-stream.
   if (method === "POST" && pathname === "/api/chat") {
+    // ── Cloud proxy path ───────────────────────────────────────────────
+    const proxy = state.cloudManager?.getProxy();
+    if (proxy) {
+      const body = await readJsonBody<{ text?: string }>(req, res);
+      if (!body) return;
+      if (!body.text?.trim()) {
+        error(res, "text is required");
+        return;
+      }
+
+      const wantsStream = (req.headers.accept ?? "").includes("text/event-stream");
+
+      if (wantsStream) {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          "Connection": "keep-alive",
+          "X-Accel-Buffering": "no",
+        });
+
+        for await (const chunk of proxy.handleChatMessageStream(body.text.trim())) {
+          res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        }
+        res.write(`event: done\ndata: {}\n\n`);
+        res.end();
+      } else {
+        const responseText = await proxy.handleChatMessage(body.text.trim());
+        json(res, { text: responseText, agentName: proxy.agentName });
+      }
+      return;
+    }
+
+    // ── Local runtime path (existing code below) ───────────────────────
     const body = await readJsonBody<{ text?: string }>(req, res);
     if (!body) return;
     if (!body.text?.trim()) {
@@ -2288,6 +2628,78 @@ async function handleRequest(
     return;
   }
 
+  // ── Database management API ─────────────────────────────────────────────
+  if (pathname.startsWith("/api/database/")) {
+    const handled = await handleDatabaseRoute(req, res, state.runtime, pathname);
+    if (handled) return;
+  }
+
+
+  // ── GET /api/cloud/status ─────────────────────────────────────────────
+  if (method === "GET" && pathname === "/api/cloud/status") {
+    const rt = state.runtime;
+    if (!rt) {
+      json(res, { connected: false, reason: "runtime_not_started" });
+      return;
+    }
+    const cloudAuth = rt.getService("CLOUD_AUTH") as {
+      isAuthenticated: () => boolean;
+      getUserId: () => string | undefined;
+      getOrganizationId: () => string | undefined;
+    } | null;
+    if (!cloudAuth || !cloudAuth.isAuthenticated()) {
+      json(res, { connected: false, reason: "not_authenticated" });
+      return;
+    }
+    json(res, {
+      connected: true,
+      userId: cloudAuth.getUserId(),
+      organizationId: cloudAuth.getOrganizationId(),
+      topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
+    });
+    return;
+  }
+
+  // ── GET /api/cloud/credits ──────────────────────────────────────────────
+  if (method === "GET" && pathname === "/api/cloud/credits") {
+    const rt = state.runtime;
+    if (!rt) {
+      json(res, { balance: null, connected: false });
+      return;
+    }
+    const cloudAuth = rt.getService("CLOUD_AUTH") as {
+      isAuthenticated: () => boolean;
+      getClient: () => { get: <T>(path: string) => Promise<T> };
+    } | null;
+    if (!cloudAuth || !cloudAuth.isAuthenticated()) {
+      json(res, { balance: null, connected: false });
+      return;
+    }
+    let balance: number;
+    const client = cloudAuth.getClient();
+    try {
+      const creditResponse = await client.get<{
+        success: boolean;
+        data: { balance: number; currency: string };
+      }>("/credits/balance");
+      balance = creditResponse.data.balance;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "cloud API unreachable";
+      logger.warn(`[cloud/credits] Failed to fetch balance: ${msg}`);
+      json(res, { balance: null, connected: true, error: msg });
+      return;
+    }
+    const low = balance < 2.0;
+    const critical = balance < 0.5;
+    json(res, {
+      connected: true,
+      balance,
+      low,
+      critical,
+      topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
+    });
+    return;
+  }
   // ── Fallback ────────────────────────────────────────────────────────────
   error(res, "Not found", 404);
 }
@@ -2352,7 +2764,20 @@ export async function startApiServer(opts?: {
     logBuffer: [],
     chatRoomId: null,
     chatUserId: null,
+    cloudManager: null,
   };
+
+  // ── Cloud Manager initialisation ──────────────────────────────────────
+  if (config.cloud?.enabled && config.cloud?.apiKey) {
+    const mgr = new CloudManager(config.cloud, {
+      onStatusChange: (s) => {
+        addLog("info", `Cloud connection status: ${s}`, "cloud");
+      },
+    });
+    mgr.init();
+    state.cloudManager = mgr;
+    addLog("info", "Cloud manager initialised (ELIZA Cloud enabled)", "cloud");
+  }
 
   const addLog = (level: string, message: string, source = "system") => {
     let resolvedSource = source;
