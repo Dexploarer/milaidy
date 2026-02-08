@@ -431,8 +431,8 @@ describe("config path consistency across modes", () => {
     const stateDir = resolveStateDir(env, homedir);
     const configPath = resolveConfigPath(env, stateDir);
 
-    // Normalize separators for cross-platform (Windows uses backslashes)
-    const norm = (p: string) => p.replace(/\\/g, "/");
+    // Normalize for cross-platform: backslashes → slashes, strip Windows drive prefix
+    const norm = (p: string) => p.replace(/\\/g, "/").replace(/^[A-Z]:/i, "");
     expect(norm(configPath)).toBe("/mock/home/.milaidy/milaidy.json");
     expect(norm(stateDir)).toBe("/mock/home/.milaidy");
   });
@@ -447,8 +447,8 @@ describe("config path consistency across modes", () => {
     const stateDir = resolveStateDir(env, homedir);
     const configPath = resolveConfigPath(env, stateDir);
 
-    // Normalize separators for cross-platform (Windows uses backslashes)
-    const norm = (p: string) => p.replace(/\\/g, "/");
+    // Normalize for cross-platform: backslashes → slashes, strip Windows drive prefix
+    const norm = (p: string) => p.replace(/\\/g, "/").replace(/^[A-Z]:/i, "");
     expect(norm(stateDir)).toBe("/custom/state");
     expect(norm(configPath)).toBe("/custom/state/milaidy.json");
   });
