@@ -599,6 +599,8 @@ export class MilaidyApp extends LitElement {
       min-height: 0;
       padding: 24px 0;
       overflow-y: auto;
+      display: flex;
+      flex-direction: column;
     }
 
     /* When chat is active, main becomes a flex column so chat-container fills it
@@ -894,6 +896,13 @@ export class MilaidyApp extends LitElement {
 
     .plugin-search::placeholder {
       color: var(--muted);
+    }
+
+    /* Plugin list container - scrollable wrapper */
+    .plugins-scroll-container {
+      overflow-y: auto;
+      max-height: calc(100vh - 380px);
+      margin-top: 16px;
     }
 
     /* Plugin list */
@@ -1709,94 +1718,97 @@ export class MilaidyApp extends LitElement {
     const coreCount = this.plugins.filter((p) => p.isCore).length;
 
     return html`
-      <h2>Plugins</h2>
-      <p class="subtitle">Manage plugins and integrations. ${this.plugins.length} plugins discovered.</p>
+      <div style="flex-shrink: 0;">
+        <h2>Plugins</h2>
+        <p class="subtitle">Manage plugins and integrations. ${this.plugins.length} plugins discovered.</p>
 
-      <!-- View Mode Tabs -->
-      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:8px;">
-        <button
-          class="view-mode-tab ${this.pluginViewMode === "active" ? "active" : ""}"
-          @click=${() => { this.pluginViewMode = "active"; }}
-          style="
-            padding: 8px 16px;
-            border: none;
-            background: ${this.pluginViewMode === "active" ? "var(--accent)" : "transparent"};
-            color: ${this.pluginViewMode === "active" ? "#fff" : "var(--text)"};
-            cursor: pointer;
-            font-weight: ${this.pluginViewMode === "active" ? "600" : "400"};
-            border-radius: 6px;
-            transition: all 0.2s;
-          "
-        >
-          Active (${activeCount})
-        </button>
-        <button
-          class="view-mode-tab ${this.pluginViewMode === "core" ? "active" : ""}"
-          @click=${() => { this.pluginViewMode = "core"; }}
-          style="
-            padding: 8px 16px;
-            border: none;
-            background: ${this.pluginViewMode === "core" ? "var(--accent)" : "transparent"};
-            color: ${this.pluginViewMode === "core" ? "#fff" : "var(--text)"};
-            cursor: pointer;
-            font-weight: ${this.pluginViewMode === "core" ? "600" : "400"};
-            border-radius: 6px;
-            transition: all 0.2s;
-          "
-        >
-          Core (${coreCount})
-        </button>
-        <button
-          class="view-mode-tab ${this.pluginViewMode === "all" ? "active" : ""}"
-          @click=${() => { this.pluginViewMode = "all"; }}
-          style="
-            padding: 8px 16px;
-            border: none;
-            background: ${this.pluginViewMode === "all" ? "var(--accent)" : "transparent"};
-            color: ${this.pluginViewMode === "all" ? "#fff" : "var(--text)"};
-            cursor: pointer;
-            font-weight: ${this.pluginViewMode === "all" ? "600" : "400"};
-            border-radius: 6px;
-            transition: all 0.2s;
-          "
-        >
-          All (${this.plugins.length})
-        </button>
+        <!-- View Mode Tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:8px;">
+          <button
+            class="view-mode-tab ${this.pluginViewMode === "active" ? "active" : ""}"
+            @click=${() => { this.pluginViewMode = "active"; }}
+            style="
+              padding: 8px 16px;
+              border: none;
+              background: ${this.pluginViewMode === "active" ? "var(--accent)" : "transparent"};
+              color: ${this.pluginViewMode === "active" ? "#fff" : "var(--text)"};
+              cursor: pointer;
+              font-weight: ${this.pluginViewMode === "active" ? "600" : "400"};
+              border-radius: 6px;
+              transition: all 0.2s;
+            "
+          >
+            Active (${activeCount})
+          </button>
+          <button
+            class="view-mode-tab ${this.pluginViewMode === "core" ? "active" : ""}"
+            @click=${() => { this.pluginViewMode = "core"; }}
+            style="
+              padding: 8px 16px;
+              border: none;
+              background: ${this.pluginViewMode === "core" ? "var(--accent)" : "transparent"};
+              color: ${this.pluginViewMode === "core" ? "#fff" : "var(--text)"};
+              cursor: pointer;
+              font-weight: ${this.pluginViewMode === "core" ? "600" : "400"};
+              border-radius: 6px;
+              transition: all 0.2s;
+            "
+          >
+            Core (${coreCount})
+          </button>
+          <button
+            class="view-mode-tab ${this.pluginViewMode === "all" ? "active" : ""}"
+            @click=${() => { this.pluginViewMode = "all"; }}
+            style="
+              padding: 8px 16px;
+              border: none;
+              background: ${this.pluginViewMode === "all" ? "var(--accent)" : "transparent"};
+              color: ${this.pluginViewMode === "all" ? "#fff" : "var(--text)"};
+              cursor: pointer;
+              font-weight: ${this.pluginViewMode === "all" ? "600" : "400"};
+              border-radius: 6px;
+              transition: all 0.2s;
+            "
+          >
+            All (${this.plugins.length})
+          </button>
+        </div>
+
+        <input
+          class="plugin-search"
+          type="text"
+          placeholder="Search plugins by name or description..."
+          .value=${this.pluginSearch}
+          @input=${(e: Event) => { this.pluginSearch = (e.target as HTMLInputElement).value; }}
+        />
       </div>
 
-      <input
-        class="plugin-search"
-        type="text"
-        placeholder="Search plugins by name or description..."
-        .value=${this.pluginSearch}
-        @input=${(e: Event) => { this.pluginSearch = (e.target as HTMLInputElement).value; }}
-      />
+      <div class="plugins-scroll-container">
+        <div class="plugin-filters" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+          ${categories.map(
+            (cat) => html`
+              <button
+                class="filter-btn ${this.pluginFilter === cat ? "active" : ""}"
+                data-category=${cat}
+                @click=${() => { this.pluginFilter = cat; }}
+                style="
+                  padding: 4px 12px;
+                  border-radius: 12px;
+                  border: 1px solid var(--border);
+                  background: ${this.pluginFilter === cat ? "var(--accent)" : "var(--surface)"};
+                  color: ${this.pluginFilter === cat ? "#fff" : "var(--text)"};
+                  cursor: pointer;
+                  font-size: 12px;
+                "
+              >${cat === "all" ? `All (${this.plugins.length})` : `${categoryLabels[cat]} (${this.plugins.filter((p) => p.category === cat).length})`}</button>
+            `,
+          )}
+        </div>
 
-      <div class="plugin-filters" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
-        ${categories.map(
-          (cat) => html`
-            <button
-              class="filter-btn ${this.pluginFilter === cat ? "active" : ""}"
-              data-category=${cat}
-              @click=${() => { this.pluginFilter = cat; }}
-              style="
-                padding: 4px 12px;
-                border-radius: 12px;
-                border: 1px solid var(--border);
-                background: ${this.pluginFilter === cat ? "var(--accent)" : "var(--surface)"};
-                color: ${this.pluginFilter === cat ? "#fff" : "var(--text)"};
-                cursor: pointer;
-                font-size: 12px;
-              "
-            >${cat === "all" ? `All (${this.plugins.length})` : `${categoryLabels[cat]} (${this.plugins.filter((p) => p.category === cat).length})`}</button>
-          `,
-        )}
-      </div>
-
-      ${filtered.length === 0
-        ? html`<div class="empty-state">${this.pluginSearch ? "No plugins match your search." : "No plugins in this category."}</div>`
-        : html`
-            <div class="plugin-list">
+        ${filtered.length === 0
+          ? html`<div class="empty-state">${this.pluginSearch ? "No plugins match your search." : "No plugins in this category."}</div>`
+          : html`
+              <div class="plugin-list">
               ${filtered.map((p) => {
                 const hasParams = p.parameters && p.parameters.length > 0;
                 const allParamsSet = hasParams ? p.parameters.every((param) => param.isSet) : true;
@@ -1922,8 +1934,9 @@ export class MilaidyApp extends LitElement {
                   </div>
                 `;
               })}
-            </div>
-          `}
+              </div>
+            `}
+      </div>
     `;
   }
 
