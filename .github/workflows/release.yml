@@ -172,7 +172,7 @@ jobs:
           [ -z "$CSC_LINK" ] && unset CSC_LINK CSC_KEY_PASSWORD
           [ -z "$APPLE_ID" ] && unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
           [ -z "$AZURE_TENANT_ID" ] && unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
-          bunx electron-builder build ${{ matrix.platform.electron-args }} -c ./electron-builder.config.json
+          bunx electron-builder build ${{ matrix.platform.electron-args }} -c ./electron-builder.config.json -p never
         working-directory: apps/app/electron
         shell: bash
         env:

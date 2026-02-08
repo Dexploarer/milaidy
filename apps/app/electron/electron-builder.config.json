@@ -32,7 +32,6 @@
     "icon": "assets/appIcon.ico",
     "signingHashAlgorithms": ["sha256"],
     "azureSignOptions": {
-      "publisherName": "Milady AI",
       "endpoint": "https://eus.codesigning.azure.net/",
       "certificateProfileName": "milaidy-code-sign",
       "codeSigningAccountName": "milaidy"
