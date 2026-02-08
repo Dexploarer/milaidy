@@ -97,7 +97,7 @@ test.describe("Chat page", () => {
     const input = page.locator(".chat-input");
     await input.fill("Hello agent!");
     await page.locator("button").filter({ hasText: "Send" }).click();
-    await expect(page.getByText("Hello agent!")).toBeVisible();
+    await expect(page.getByText("Hello agent!", { exact: true })).toBeVisible();
 
     await simulateAgentResponse(page, "Hello! I'm here to help.");
     await expect(page.getByText("Hello! I'm here to help.")).toBeVisible();
