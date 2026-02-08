@@ -585,8 +585,6 @@ describe("scanDropInPlugins", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  // ── Happy path ──────────────────────────────────────────────────────
-
   it("discovers a plugin directory with package.json", async () => {
     const dir = path.join(tmpDir, "my-plugin");
     await fs.mkdir(dir);
@@ -626,8 +624,6 @@ describe("scanDropInPlugins", () => {
     expect(records["@myorg/plugin-cool"].version).toBe("2.0.0");
   });
 
-  // ── Empty / missing inputs ────────────────────────────────────────
-
   it("returns empty record for a nonexistent directory", async () => {
     const records = await scanDropInPlugins(path.join(tmpDir, "nope"));
     expect(Object.keys(records)).toHaveLength(0);
@@ -653,8 +649,6 @@ describe("scanDropInPlugins", () => {
     expect(records["bare-plugin"].version).toBe("0.0.0");
   });
 
-  // ── Boundary: name/version edge cases ──────────────────────────────
-
   it("falls back to directory name when name is whitespace-only", async () => {
     const dir = path.join(tmpDir, "ws-name");
     await fs.mkdir(dir);
@@ -663,7 +657,6 @@ describe("scanDropInPlugins", () => {
       JSON.stringify({ name: "   ", version: "1.0.0" }),
     );
     const records = await scanDropInPlugins(tmpDir);
-    // whitespace-only name is falsy after trim → uses dir name
     expect(records["ws-name"]).toBeDefined();
     expect(records["ws-name"].version).toBe("1.0.0");
   });
@@ -725,8 +718,6 @@ describe("scanDropInPlugins", () => {
     expect(records["no-ver-plugin"].version).toBe("0.0.0");
   });
 
-  // ── Error / invalid inputs ────────────────────────────────────────
-
   it("handles malformed JSON in package.json", async () => {
     const dir = path.join(tmpDir, "bad-json");
     await fs.mkdir(dir);
@@ -741,7 +732,6 @@ describe("scanDropInPlugins", () => {
     await fs.mkdir(dir);
     await fs.writeFile(path.join(dir, "package.json"), "");
     const records = await scanDropInPlugins(tmpDir);
-    // empty string → JSON.parse throws → falls back to dir name
     expect(records["empty-pkg"]).toBeDefined();
   });
 
@@ -750,14 +740,10 @@ describe("scanDropInPlugins", () => {
     await fs.mkdir(dir);
     await fs.writeFile(path.join(dir, "package.json"), "[1, 2, 3]");
     const records = await scanDropInPlugins(tmpDir);
-    // Array has no .name string property → falls back to dir name
     expect(records["arr-pkg"]).toBeDefined();
   });
 
-  // ── Structural edge cases ─────────────────────────────────────────
-
   it("only scans immediate children, not nested subdirectories", async () => {
-    // Create: tmpDir/parent/child/ — only parent should be found
     const parent = path.join(tmpDir, "parent");
     const child = path.join(parent, "child");
     await fs.mkdir(child, { recursive: true });
@@ -943,7 +929,6 @@ describe("findPluginExport", () => {
   });
 
   it("finds plugin from module-level CJS pattern", () => {
-    // Simulates a module where the module itself looks like a Plugin
     const mod = { name: "cjs-mod", description: "cjs module pattern" } as Record<string, unknown>;
     const result = findPluginExport(mod);
     expect(result?.name).toBe("cjs-mod");

@@ -367,11 +367,7 @@ export function registerPluginsCli(program: Command): void {
         resolvePackageEntry,
       } = await import("../runtime/eliza.js");
 
-      // Build list of directories to scan: well-known + config extras
-      const customDir = nodePath.join(
-        resolveStateDir(),
-        CUSTOM_PLUGINS_DIRNAME,
-      );
+      const customDir = nodePath.join(resolveStateDir(), CUSTOM_PLUGINS_DIRNAME);
       const scanDirs = [customDir];
 
       let config: ReturnType<typeof loadMilaidyConfig> | null = null;
@@ -392,21 +388,10 @@ export function registerPluginsCli(program: Command): void {
         `\n${chalk.bold("Custom plugins directory:")} ${chalk.dim(customDir)}\n`,
       );
 
-      // Discover candidates from all directories
-      const candidates: Array<{
-        name: string;
-        installPath: string;
-        version: string;
-      }> = [];
-
+      const candidates: Array<{ name: string; installPath: string; version: string }> = [];
       for (const dir of scanDirs) {
-        const records = await scanDropInPlugins(dir);
-        for (const [name, record] of Object.entries(records)) {
-          candidates.push({
-            name,
-            installPath: record.installPath,
-            version: record.version,
-          });
+        for (const [name, record] of Object.entries(await scanDropInPlugins(dir))) {
+          candidates.push({ name, installPath: record.installPath, version: record.version });
         }
       }
 
@@ -441,22 +426,16 @@ export function registerPluginsCli(program: Command): void {
         console.log(`  ${chalk.cyan(candidate.name)}${ver}`);
         console.log(`    ${chalk.dim("Path:")} ${candidate.installPath}`);
 
-        // 1. Resolve entry point from package.json
         let entryPoint: string;
         try {
           entryPoint = await resolvePackageEntry(candidate.installPath);
         } catch (err) {
-          fail(
-            `Entry point failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
+          fail(`Entry point failed: ${err instanceof Error ? err.message : String(err)}`);
           continue;
         }
 
-        console.log(
-          `    ${chalk.dim("Entry:")} ${nodePath.relative(candidate.installPath, entryPoint)}`,
-        );
+        console.log(`    ${chalk.dim("Entry:")} ${nodePath.relative(candidate.installPath, entryPoint)}`);
 
-        // 2. Verify entry point file exists on disk
         try {
           await fsPromises.access(entryPoint);
         } catch {
@@ -464,20 +443,14 @@ export function registerPluginsCli(program: Command): void {
           continue;
         }
 
-        // 3. Trial import
         let mod: Record<string, unknown>;
         try {
-          mod = (await import(
-            pathToFileURL(entryPoint).href
-          )) as Record<string, unknown>;
+          mod = (await import(pathToFileURL(entryPoint).href)) as Record<string, unknown>;
         } catch (err) {
-          fail(
-            `Import failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
+          fail(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
           continue;
         }
 
-        // 4. Check for valid Plugin shape (name + description)
         const plugin = findPluginExport(mod);
         if (plugin) {
           console.log(
@@ -493,7 +466,6 @@ export function registerPluginsCli(program: Command): void {
         console.log();
       }
 
-      // Summary
       const parts: string[] = [];
       if (validCount > 0) parts.push(chalk.green(`${validCount} valid`));
       if (failedCount > 0) parts.push(chalk.red(`${failedCount} failed`));
@@ -503,12 +475,7 @@ export function registerPluginsCli(program: Command): void {
     });
 }
 
-/**
- * Check a module's exports for a value that looks like an ElizaOS Plugin
- * (an object with `name: string` and `description: string`).
- *
- * @internal Exported for testing.
- */
+/** Find the first export that looks like a Plugin ({ name, description }). */
 export function findPluginExport(
   mod: Record<string, unknown>,
 ): { name: string; description: string } | null {

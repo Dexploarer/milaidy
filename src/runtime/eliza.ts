@@ -357,16 +357,8 @@ export function collectPluginNames(config: MilaidyConfig): Set<string> {
 export const CUSTOM_PLUGINS_DIRNAME = "plugins/custom";
 
 /**
- * Scan a directory for drop-in plugin packages.
- *
- * Each immediate subdirectory is treated as a plugin package. When the
- * subdirectory contains a `package.json` its `name` field is used as the
- * plugin identifier; otherwise the directory name is used.
- *
- * Returns a map of plugin name → synthetic {@link PluginInstallRecord}
- * that the existing {@link importFromPath} loading pipeline can consume.
- *
- * @internal Exported for CLI `milaidy plugins test` command.
+ * Scan a directory for drop-in plugin packages. Each immediate subdirectory
+ * is treated as a plugin; name comes from package.json or the directory name.
  */
 export async function scanDropInPlugins(
   dir: string,
@@ -403,14 +395,8 @@ export async function scanDropInPlugins(
 }
 
 /**
- * Merge discovered drop-in plugins into the plugin load set.
- *
- * Filters out plugins that are denied, collide with core plugins, or
- * already have an explicit install record. Mutates `pluginsToLoad` and
- * `installRecords` in place. Returns the names of accepted plugins and
- * any warning messages for skipped collisions.
- *
- * @internal Exported for testing.
+ * Merge drop-in plugins into the load set. Filters out denied, core-colliding,
+ * and already-installed names. Mutates `pluginsToLoad` and `installRecords`.
  */
 export function mergeDropInPlugins(params: {
   dropInRecords: Record<string, PluginInstallRecord>;
