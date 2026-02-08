@@ -46,7 +46,7 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
 
           // Ensure metadata is initialized so we can read and write to it.
           if (!message.metadata) {
-            message.metadata = { type: "message" } as typeof message.metadata;
+            message.metadata = { type: "message" } as unknown as typeof message.metadata;
           }
           const meta = message.metadata as Record<string, unknown>;
           if (meta.sessionKey) return;
