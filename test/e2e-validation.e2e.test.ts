@@ -743,19 +743,26 @@ describe("Context Integrity (no corruption)", () => {
       // Get original config
       const { data: original } = await http$(srv.port, "GET", "/api/config");
 
-      // Write modified config
+      // Write modified config — use "features" (an allowed top-level key)
       const modified = {
         ...original,
-        test_integrity: {
-          timestamp: Date.now(),
-          nested: { value: 42, text: "integrity-check" },
+        features: {
+          test_integrity: {
+            enabled: true,
+            timestamp: Date.now(),
+            nested: { value: 42, text: "integrity-check" },
+          },
         },
       };
       await http$(srv.port, "PUT", "/api/config", modified);
 
       // Read back and verify no corruption
       const { data: readBack } = await http$(srv.port, "GET", "/api/config");
-      const testData = readBack.test_integrity as Record<
+      const features = readBack.features as Record<
+        string,
+        Record<string, unknown>
+      >;
+      const testData = features.test_integrity as Record<
         string,
         Record<string, unknown>
       >;
@@ -772,10 +779,16 @@ describe("Context Integrity (no corruption)", () => {
   it("multiple concurrent config writes do not corrupt state", async () => {
     const srv = await startApiServer({ port: 0 });
     try {
-      // Fire 10 concurrent writes with different values
+      // Fire 10 concurrent writes with different values — use "features" (allowed key)
       const writes = Array.from({ length: 10 }, (_, i) =>
         http$(srv.port, "PUT", "/api/config", {
-          concurrent_test: { iteration: i, timestamp: Date.now() },
+          features: {
+            concurrent_test: {
+              enabled: true,
+              iteration: i,
+              timestamp: Date.now(),
+            },
+          },
         }),
       );
       const results = await Promise.all(writes);
@@ -788,8 +801,11 @@ describe("Context Integrity (no corruption)", () => {
       // Final read should have a valid config (one of the writes wins)
       const { status, data } = await http$(srv.port, "GET", "/api/config");
       expect(status).toBe(200);
-      const concurrentData = data.concurrent_test as Record<string, unknown>;
-      expect(typeof concurrentData.iteration).toBe("number");
+      const features = data.features as Record<
+        string,
+        Record<string, unknown>
+      >;
+      expect(typeof features.concurrent_test.iteration).toBe("number");
     } finally {
       await srv.close();
     }
@@ -881,7 +897,7 @@ describe("Deadlock Detection", () => {
         ops.push(http$(srv.port, "GET", "/api/config"));
         ops.push(
           http$(srv.port, "PUT", "/api/config", {
-            deadlock_test: { i, ts: Date.now() },
+            features: { deadlock_test: { enabled: true, i, ts: Date.now() } },
           }),
         );
         ops.push(http$(srv.port, "GET", "/api/status"));
@@ -1028,13 +1044,16 @@ describe("Rapid Sequential Operations", () => {
     const srv = await startApiServer({ port: 0 });
     try {
       for (let i = 0; i < 20; i++) {
-        // Write
+        // Write — use "features" (allowed key)
         await http$(srv.port, "PUT", "/api/config", {
-          rapid_test: { iteration: i },
+          features: { rapid_test: { enabled: true, iteration: i } },
         });
         // Read
         const { data } = await http$(srv.port, "GET", "/api/config");
-        const testData = data.rapid_test as Record<string, number> | undefined;
+        const features = data.features as
+          | Record<string, Record<string, number>>
+          | undefined;
+        const testData = features?.rapid_test;
         // The value should be the one we just wrote (or a later one from
         // concurrent writes if there were any — but the value must be a number)
         if (testData) {

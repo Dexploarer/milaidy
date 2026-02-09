@@ -271,7 +271,6 @@ function startVite() {
 if (uiOnly) {
   startVite();
 } else {
-
   console.log(`${orange("\nmilaidy dev mode")}\n`);
   printBanner();
   console.log(`  ${green("[milaidy]")} ${green("Starting dev server...")}\n`);
