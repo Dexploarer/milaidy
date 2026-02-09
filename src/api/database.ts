@@ -13,7 +13,9 @@
  * so they work identically for both PGLite and Postgres.
  */
 
+import dns from "node:dns";
 import type http from "node:http";
+import { promisify } from "node:util";
 import { type AgentRuntime, logger } from "@elizaos/core";
 import { loadMilaidyConfig, saveMilaidyConfig } from "../config/config.js";
 import type {
@@ -130,24 +132,22 @@ function buildConnectionString(creds: PostgresCredentials): string {
 // Host validation — prevent SSRF via database connection endpoints
 // ---------------------------------------------------------------------------
 
+const dnsLookupAll = promisify(dns.lookup);
+
 /**
- * Patterns that match private, loopback, link-local, and cloud metadata
- * IP ranges.  Connections to these addresses from user-supplied credentials
- * would allow internal network port scanning and protocol smuggling via the
- * Postgres wire protocol.
+ * IP ranges that are ALWAYS blocked — cloud metadata and "this" network.
+ * These are never legitimate Postgres targets.
+ *
+ * Localhost and RFC 1918 are intentionally ALLOWED here because local
+ * Postgres is the most common setup.  The SSRF risk from those ranges is
+ * low: if an attacker can reach the API they already have local network
+ * access.  The real threat is using the server as a proxy to cloud metadata
+ * or other non-Postgres internal services.
  */
-const BLOCKED_HOST_PATTERNS: RegExp[] = [
-  /^127\./,                          // IPv4 loopback
-  /^10\./,                           // RFC 1918 Class A
-  /^172\.(1[6-9]|2\d|3[01])\./,     // RFC 1918 Class B
-  /^192\.168\./,                     // RFC 1918 Class C
-  /^169\.254\./,                     // Link-local / cloud metadata
+const BLOCKED_IP_PATTERNS: RegExp[] = [
+  /^169\.254\./,                     // Link-local / cloud metadata (AWS, GCP, Azure)
   /^0\./,                            // "This" network
-  /^::1$/,                           // IPv6 loopback
-  /^fc00:/i,                         // IPv6 ULA
   /^fe80:/i,                         // IPv6 link-local
-  /^localhost$/i,                    // Loopback hostname
-  /^\[::1\]$/,                       // Bracketed IPv6 loopback
 ];
 
 /**
@@ -167,19 +167,56 @@ function extractHost(creds: PostgresCredentials): string | null {
 }
 
 /**
- * Validate that the target host is not a private/internal address.
+ * Check whether an IP address falls in a blocked range.
+ */
+function isBlockedIp(ip: string): boolean {
+  return BLOCKED_IP_PATTERNS.some((p) => p.test(ip));
+}
+
+/**
+ * Validate that the target host does not resolve to a blocked address.
+ *
+ * Performs DNS resolution to catch hostnames like `metadata.google.internal`
+ * or `169.254.169.254.nip.io` that resolve to link-local / cloud metadata
+ * IPs.  Also handles IPv6-mapped IPv4 addresses (e.g. `::ffff:169.254.x.y`).
+ *
  * Returns an error message if blocked, or `null` if allowed.
  */
-function validateDbHost(creds: PostgresCredentials): string | null {
+async function validateDbHost(
+  creds: PostgresCredentials,
+): Promise<string | null> {
   const host = extractHost(creds);
   if (!host) {
     return "Could not determine target host from the provided credentials.";
   }
-  for (const pattern of BLOCKED_HOST_PATTERNS) {
-    if (pattern.test(host)) {
-      return `Connection to "${host}" is blocked: private/internal addresses are not allowed.`;
-    }
+
+  // First check the literal host string (catches raw IPs without DNS lookup)
+  if (isBlockedIp(host)) {
+    return `Connection to "${host}" is blocked: link-local and metadata addresses are not allowed.`;
   }
+
+  // Resolve DNS and check all resulting IPs
+  try {
+    const results = await dnsLookupAll(host, { all: true });
+    const addresses = Array.isArray(results) ? results : [results];
+    for (const entry of addresses) {
+      const ip =
+        typeof entry === "string" ? entry : (entry as { address: string }).address;
+      // Strip IPv6-mapped IPv4 prefix (::ffff:169.254.x.y → 169.254.x.y)
+      const normalized = ip.replace(/^::ffff:/i, "");
+      if (isBlockedIp(normalized)) {
+        return (
+          `Connection to "${host}" is blocked: it resolves to ${ip} ` +
+          `which is a link-local or metadata address.`
+        );
+      }
+    }
+  } catch {
+    // DNS resolution failed — let the Postgres client handle the error
+    // rather than blocking legitimate hostnames that may be temporarily
+    // unresolvable from this context
+  }
+
   return null;
 }
 
@@ -401,7 +438,7 @@ async function handlePutConfig(
       return;
     }
 
-    const hostError = validateDbHost(pg);
+    const hostError = await validateDbHost(pg);
     if (hostError) {
       errorResponse(res, hostError);
       return;
@@ -453,7 +490,7 @@ async function handleTestConnection(
 ): Promise<void> {
   const body = JSON.parse(await readBody(req)) as PostgresCredentials;
 
-  const hostError = validateDbHost(body);
+  const hostError = await validateDbHost(body);
   if (hostError) {
     errorResponse(res, hostError);
     return;
