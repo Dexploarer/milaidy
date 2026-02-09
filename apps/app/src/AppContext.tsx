@@ -102,6 +102,7 @@ export type OnboardingStep =
   | "modelSelection"
   | "cloudLogin"
   | "llmProvider"
+  | "channels"
   | "inventorySetup";
 
 // ── Action notice ──────────────────────────────────────────────────────
@@ -271,6 +272,8 @@ export interface AppState {
   onboardingLargeModel: string;
   onboardingProvider: string;
   onboardingApiKey: string;
+  onboardingChannelType: string;
+  onboardingChannelToken: string;
   onboardingSelectedChains: Set<string>;
   onboardingRpcSelections: Record<string, string>;
   onboardingRpcKeys: Record<string, string>;
@@ -574,6 +577,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [onboardingLargeModel, setOnboardingLargeModel] = useState("claude-sonnet-4-5");
   const [onboardingProvider, setOnboardingProvider] = useState("");
   const [onboardingApiKey, setOnboardingApiKey] = useState("");
+  const [onboardingChannelType, setOnboardingChannelType] = useState("");
+  const [onboardingChannelToken, setOnboardingChannelToken] = useState("");
   const [onboardingSelectedChains, setOnboardingSelectedChains] = useState<Set<string>>(new Set(["evm", "solana"]));
   const [onboardingRpcSelections, setOnboardingRpcSelections] = useState<Record<string, string>>({});
   const [onboardingRpcKeys, setOnboardingRpcKeys] = useState<Record<string, string>>({});
@@ -1470,10 +1475,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setOnboardingStep("cloudLogin");
         break;
       case "cloudLogin":
-        // Finish onboarding
-        await handleOnboardingFinish();
+        setOnboardingStep("channels");
         break;
       case "llmProvider":
+        setOnboardingStep("channels");
+        break;
+      case "channels":
         setOnboardingStep("inventorySetup");
         break;
       case "inventorySetup":
@@ -1518,11 +1525,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case "llmProvider":
         setOnboardingStep("runMode");
         break;
+      case "channels":
+        if (onboardingRunMode === "cloud") {
+          setOnboardingStep("cloudLogin");
+        } else {
+          setOnboardingStep("llmProvider");
+        }
+        break;
       case "inventorySetup":
-        setOnboardingStep("llmProvider");
+        setOnboardingStep("channels");
         break;
     }
-  }, [onboardingStep, onboardingOptions]);
+  }, [onboardingStep, onboardingOptions, onboardingRunMode]);
 
   const handleOnboardingFinish = useCallback(async () => {
     if (!onboardingOptions) return;
@@ -1538,6 +1552,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const rpcApiKey = onboardingRpcKeys[`${chain}:${rpcProvider}`] || undefined;
         inventoryProviders.push({ chain, rpcProvider, rpcApiKey });
       }
+    }
+
+    const channels: Record<string, unknown> = {};
+    if (onboardingChannelType === "telegram" && onboardingChannelToken) {
+      channels.telegram = { botToken: onboardingChannelToken, enabled: true };
+    } else if (onboardingChannelType === "discord" && onboardingChannelToken) {
+      channels.discord = { token: onboardingChannelToken, enabled: true };
+    } else if (onboardingChannelType === "slack" && onboardingChannelToken) {
+      channels.slack = { botToken: onboardingChannelToken, enabled: true };
     }
 
     try {
@@ -1556,6 +1579,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         largeModel: onboardingRunMode === "cloud" ? onboardingLargeModel : undefined,
         provider: onboardingRunMode === "local" ? onboardingProvider || undefined : undefined,
         providerApiKey: onboardingRunMode === "local" ? onboardingApiKey || undefined : undefined,
+        channels: Object.keys(channels).length > 0 ? channels : undefined,
         inventoryProviders: inventoryProviders.length > 0 ? inventoryProviders : undefined,
       });
     } catch (err) {
@@ -1573,6 +1597,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     onboardingOptions, onboardingStyle, onboardingName, onboardingTheme,
     onboardingRunMode, onboardingCloudProvider, onboardingSmallModel,
     onboardingLargeModel, onboardingProvider, onboardingApiKey,
+    onboardingChannelType, onboardingChannelToken,
     onboardingSelectedChains, onboardingRpcSelections, onboardingRpcKeys,
   ]);
 
@@ -1755,6 +1780,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       onboardingLargeModel: setOnboardingLargeModel as (v: never) => void,
       onboardingProvider: setOnboardingProvider as (v: never) => void,
       onboardingApiKey: setOnboardingApiKey as (v: never) => void,
+      onboardingChannelType: setOnboardingChannelType as (v: never) => void,
+      onboardingChannelToken: setOnboardingChannelToken as (v: never) => void,
       onboardingSelectedChains: setOnboardingSelectedChains as (v: never) => void,
       onboardingRpcSelections: setOnboardingRpcSelections as (v: never) => void,
       onboardingRpcKeys: setOnboardingRpcKeys as (v: never) => void,
@@ -1964,8 +1991,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     importBusy, importPassword, importFile, importError, importSuccess,
     onboardingStep, onboardingOptions, onboardingName, onboardingStyle, onboardingTheme,
     onboardingRunMode, onboardingCloudProvider, onboardingSmallModel, onboardingLargeModel,
-    onboardingProvider, onboardingApiKey, onboardingSelectedChains,
-    onboardingRpcSelections, onboardingRpcKeys,
+    onboardingProvider, onboardingApiKey, onboardingChannelType, onboardingChannelToken,
+    onboardingSelectedChains, onboardingRpcSelections, onboardingRpcKeys,
     commandPaletteOpen, commandQuery, commandActiveIndex,
     mcpConfiguredServers, mcpServerStatuses, mcpMarketplaceQuery, mcpMarketplaceResults,
     mcpMarketplaceLoading, mcpAction, mcpAddingServer, mcpAddingResult,

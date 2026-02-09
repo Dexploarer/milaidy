@@ -186,6 +186,8 @@ export interface OnboardingData {
   provider?: string;
   providerApiKey?: string;
   openrouterModel?: string;
+  // Messaging channel setup
+  channels?: Record<string, unknown>;
   // Inventory / wallet setup
   inventoryProviders?: Array<{
     chain: string;

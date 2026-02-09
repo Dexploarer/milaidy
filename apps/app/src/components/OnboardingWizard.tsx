@@ -19,6 +19,8 @@ export function OnboardingWizard() {
     onboardingLargeModel,
     onboardingProvider,
     onboardingApiKey,
+    onboardingChannelType,
+    onboardingChannelToken,
     onboardingSelectedChains,
     onboardingRpcSelections,
     onboardingRpcKeys,
@@ -74,6 +76,15 @@ export function OnboardingWizard() {
 
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setState("onboardingApiKey", e.target.value);
+  };
+
+  const handleChannelSelect = (type: string) => {
+    setState("onboardingChannelType", type);
+    setState("onboardingChannelToken", "");
+  };
+
+  const handleChannelTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setState("onboardingChannelToken", e.target.value);
   };
 
   const handleChainToggle = (chain: string) => {
@@ -373,6 +384,102 @@ export function OnboardingWizard() {
           </div>
         );
 
+      case "channels": {
+        const helperText =
+          onboardingChannelType === "telegram"
+            ? [
+                "1. Open Telegram and message @BotFather",
+                "2. Send /newbot and follow the prompts",
+                "3. Copy the token (looks like 123456:ABC-DEF...)",
+              ]
+            : onboardingChannelType === "discord"
+              ? [
+                  "1. Go to discord.com/developers/applications",
+                  "2. Create New Application → Bot → Add Bot",
+                  "3. Reset Token → copy it",
+                  '4. Enable "Message Content Intent" under Privileged Gateway Intents',
+                  "5. Use OAuth2 URL Generator (scope: bot) to invite to your server",
+                ]
+              : onboardingChannelType === "slack"
+                ? [
+                    "1. Go to api.slack.com/apps → Create New App",
+                    "2. OAuth & Permissions → add chat:write, app_mentions:read scopes",
+                    "3. Install to workspace → copy Bot User OAuth Token",
+                    "4. Also copy App-Level Token from Basic Information",
+                  ]
+                : [];
+
+        return (
+          <div className="max-w-[500px] mx-auto mt-10 text-center font-body">
+            <div className="onboarding-speech bg-card border border-border rounded-xl px-5 py-4 mx-auto mb-6 max-w-[360px] relative text-[15px] text-txt leading-relaxed">
+              <h2 className="text-[28px] font-normal mb-1 text-txt-strong">Connect a Chat Channel</h2>
+              <p className="text-xs text-muted mt-2">
+                Talk to your agent on Telegram, Discord, or Slack. You can skip this and add channels later.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-left max-w-[500px] mx-auto">
+              <button
+                className={`px-4 py-3 border cursor-pointer bg-card transition-colors text-left ${
+                  onboardingChannelType === "telegram"
+                    ? "border-accent bg-accent-subtle"
+                    : "border-border hover:border-accent"
+                }`}
+                onClick={() => handleChannelSelect("telegram")}
+              >
+                <div className="font-bold text-sm">Telegram</div>
+                <div className="text-xs text-muted mt-0.5">Recommended · Easy setup</div>
+              </button>
+              <button
+                className={`px-4 py-3 border cursor-pointer bg-card transition-colors text-left ${
+                  onboardingChannelType === "discord"
+                    ? "border-accent bg-accent-subtle"
+                    : "border-border hover:border-accent"
+                }`}
+                onClick={() => handleChannelSelect("discord")}
+              >
+                <div className="font-bold text-sm">Discord</div>
+                <div className="text-xs text-muted mt-0.5">Great for communities</div>
+              </button>
+              <button
+                className={`px-4 py-3 border cursor-pointer bg-card transition-colors text-left ${
+                  onboardingChannelType === "slack"
+                    ? "border-accent bg-accent-subtle"
+                    : "border-border hover:border-accent"
+                }`}
+                onClick={() => handleChannelSelect("slack")}
+              >
+                <div className="font-bold text-sm">Slack</div>
+                <div className="text-xs text-muted mt-0.5">For teams</div>
+              </button>
+            </div>
+
+            <button
+              className="text-xs text-muted hover:text-accent mt-4"
+              onClick={() => void handleOnboardingNext()}
+            >
+              Skip for now — you can add channels later in Settings
+            </button>
+
+            {onboardingChannelType && (
+              <div className="max-w-[360px] mx-auto mt-4 text-left">
+                <div className="border border-border bg-card px-3 py-2 text-xs text-muted whitespace-pre-line">
+                  {helperText.join("\n")}
+                </div>
+                <label className="text-[13px] font-bold text-txt-strong block mb-2 mt-3 text-left">Bot Token:</label>
+                <input
+                  type="password"
+                  value={onboardingChannelToken}
+                  onChange={handleChannelTokenChange}
+                  placeholder="Paste your bot token"
+                  className="w-full px-3 py-2 border border-border bg-card text-sm mt-2 focus:border-accent focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case "inventorySetup":
         return (
           <div className="max-w-[500px] mx-auto mt-10 text-center font-body">
@@ -464,6 +571,8 @@ export function OnboardingWizard() {
         return cloudConnected;
       case "llmProvider":
         return onboardingProvider.length > 0 && onboardingApiKey.length > 0;
+      case "channels":
+        return true;
       case "inventorySetup":
         return true;
       default:
