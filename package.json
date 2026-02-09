@@ -94,7 +94,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.0",
-    "@elizaos/core": "2.0.0-alpha.10",
+    "@elizaos/core": "2.0.0-alpha.3",
     "@elizaos/plugin-acp": "next",
     "@elizaos/plugin-agent-orchestrator": "next",
     "@elizaos/plugin-agent-skills": "next",
