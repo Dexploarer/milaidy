@@ -9,6 +9,11 @@ const execFileAsync = promisify(execFile);
 
 const SKILLSMP_BASE_URL = "https://skillsmp.com";
 const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
+const VALID_GIT_REF = /^[a-zA-Z0-9][\w./-]*$/;
+/** Timeout for git clone/sparse-checkout (shallow + sparse should be fast). */
+const GIT_TIMEOUT_MS = 15_000;
+/** Timeout for skillsmp.com API fetch calls. */
+const FETCH_TIMEOUT_MS = 30_000;
 
 /**
  * Minimal scan report shape used by the marketplace installer.
@@ -96,7 +101,7 @@ async function runSkillSecurityScan(
         }
       } else if (entry.isSymbolicLink()) {
         const resolved = await fsPromises.realpath(fullPath).catch(() => "");
-        if (resolved && !resolved.startsWith(skillDir)) {
+        if (resolved && !resolved.startsWith(skillDir + pathMod.sep)) {
           manifestFindings.push({
             ruleId: "symlink-escape",
             severity: "critical",
@@ -211,6 +216,12 @@ function safeName(raw: string): string {
   return slug;
 }
 
+function validateGitRef(ref: string): void {
+  if (!ref || !VALID_GIT_REF.test(ref)) {
+    throw new Error("Invalid git ref");
+  }
+}
+
 function normalizeRepo(raw: string): string {
   const repo = raw
     .replace(/^https:\/\/github\.com\//i, "")
@@ -248,6 +259,7 @@ function parseGithubUrl(rawUrl: string): {
 
   if (parts[2] === "tree" && parts.length >= 5) {
     const ref = parts[3];
+    validateGitRef(ref);
     const treePath = parts.slice(4).join("/");
     return { repository, path: treePath || null, ref: ref || null };
   }
@@ -281,7 +293,7 @@ async function readInstallRecords(
   try {
     const raw = await fs.readFile(installsRecordPath(workspaceDir), "utf-8");
     const parsed = JSON.parse(raw) as Record<string, InstalledMarketplaceSkill>;
-    if (!parsed || typeof parsed !== "object") return {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     return parsed;
   } catch {
     return {};
@@ -352,7 +364,7 @@ function inferPath(skill: Record<string, unknown>): string | null {
   for (const value of candidates) {
     if (typeof value !== "string") continue;
     const cleaned = value.replace(/^\/+/, "").trim();
-    if (cleaned && !cleaned.startsWith("..")) return cleaned;
+    if (cleaned && !cleaned.startsWith("..") && !cleaned.includes("/..")) return cleaned;
   }
 
   // Try to extract path from githubUrl (e.g., https://github.com/owner/repo/tree/main/skills/content-marketer)
@@ -364,7 +376,7 @@ function inferPath(skill: Record<string, unknown>): string | null {
     const slashIndex = afterTree.indexOf("/");
     if (slashIndex !== -1) {
       const pathPart = afterTree.slice(slashIndex + 1);
-      if (pathPart && !pathPart.startsWith("..")) return pathPart;
+      if (pathPart && !pathPart.startsWith("..") && !pathPart.includes("/..")) return pathPart;
     }
   }
 
@@ -410,12 +422,23 @@ export async function searchSkillsMarketplace(
     String(Math.max(1, Math.min(opts?.limit ?? 20, 50))),
   );
 
-  const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: "application/json",
-    },
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      msg.includes("aborted") || msg.includes("timeout")
+        ? `Skills marketplace request timed out after ${FETCH_TIMEOUT_MS / 1000}s`
+        : `Skills marketplace network error: ${msg}`,
+    );
+  }
 
   const payload = (await resp.json().catch(() => ({}))) as Record<
     string,
@@ -493,6 +516,7 @@ async function runGitCloneSubset(
   skillPath: string,
   targetDir: string,
 ): Promise<void> {
+  validateGitRef(ref);
   const tmpBase = await fs.mkdtemp(path.join(stateDirBase(), "skill-install-"));
   const cloneDir = path.join(tmpBase, "repo");
   const repoUrl = `https://github.com/${repository}.git`;
@@ -508,14 +532,14 @@ async function runGitCloneSubset(
       ref,
       repoUrl,
       cloneDir,
-    ]);
+    ], { timeout: GIT_TIMEOUT_MS });
     await execFileAsync("git", [
       "-C",
       cloneDir,
       "sparse-checkout",
       "set",
       skillPath,
-    ]);
+    ], { timeout: GIT_TIMEOUT_MS });
 
     const sourceDir = path.join(cloneDir, skillPath);
     const stat = await fs.stat(sourceDir).catch(() => null);
@@ -541,6 +565,7 @@ async function resolveSkillPathInRepo(
   ref: string,
   requestedPath: string | null,
 ): Promise<string> {
+  validateGitRef(ref);
   if (requestedPath) return requestedPath.replace(/^\/+/, "");
 
   const tmpBase = await fs.mkdtemp(path.join(stateDirBase(), "skill-probe-"));
@@ -558,8 +583,8 @@ async function resolveSkillPathInRepo(
       ref,
       repoUrl,
       cloneDir,
-    ]);
-    await execFileAsync("git", ["-C", cloneDir, "sparse-checkout", "set", "."]);
+    ], { timeout: GIT_TIMEOUT_MS });
+    await execFileAsync("git", ["-C", cloneDir, "sparse-checkout", "set", "."], { timeout: GIT_TIMEOUT_MS });
 
     const rootSkill = path.join(cloneDir, "SKILL.md");
     const hasRoot = await fs
