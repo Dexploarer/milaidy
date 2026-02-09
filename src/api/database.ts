@@ -787,16 +787,28 @@ async function handleQuery(
   const sqlText = body.sql.trim();
 
   // If readOnly mode, reject mutation statements.
-  // Strip SQL comments and check the leading keyword after normalization.
-  // Also reject multi-statement queries (semicolons outside quotes).
+  // Strip SQL comments, then scan for mutation keywords *anywhere* in the
+  // query — not just the leading keyword. This prevents bypass via CTEs
+  // (WITH ... AS (DELETE ...)) and other SQL constructs that nest mutations.
   if (body.readOnly !== false) {
-    // Strip block comments (/* ... */) and line comments (-- ...)
+    // Strip block comments (/* ... */) and line comments (-- ...).
+    // Use empty-string replacement (not space) to mirror how PostgreSQL
+    // concatenates tokens across comments — e.g. DE/* */LETE → DELETE.
+    // A space replacement would turn it into "DE LETE", hiding the keyword.
     const stripped = sqlText
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/--.*$/gm, " ")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/--.*$/gm, "")
       .trim();
-    const firstWord = stripped.split(/\s+/)[0].toUpperCase();
-    const mutationKeywords = new Set([
+
+    // Strip string literals so that keywords inside quoted strings are ignored.
+    // Handles single-quoted ('...'), dollar-quoted ($$...$$), and tagged
+    // dollar-quoted ($tag$...$tag$) strings, plus double-quoted identifiers.
+    const noStrings = stripped
+      .replace(/\$([A-Za-z0-9_]*)\$[\s\S]*?\$\1\$/g, " ")
+      .replace(/'(?:[^']|'')*'/g, " ")
+      .replace(/"(?:[^"]|"")*"/g, " ");
+
+    const mutationKeywords = [
       "INSERT",
       "UPDATE",
       "DELETE",
@@ -806,11 +818,18 @@ async function handleQuery(
       "CREATE",
       "GRANT",
       "REVOKE",
-    ]);
-    if (mutationKeywords.has(firstWord)) {
+    ];
+    // Match mutation keywords as whole words (word boundary) anywhere in the
+    // query, catching them inside CTEs, subqueries, etc.
+    const mutationPattern = new RegExp(
+      `\\b(${mutationKeywords.join("|")})\\b`,
+      "i",
+    );
+    const match = mutationPattern.exec(noStrings);
+    if (match) {
       errorResponse(
         res,
-        `Query rejected: "${firstWord}" is a mutation statement. Set readOnly: false to execute mutations.`,
+        `Query rejected: "${match[1].toUpperCase()}" is a mutation keyword. Set readOnly: false to execute mutations.`,
       );
       return;
     }
