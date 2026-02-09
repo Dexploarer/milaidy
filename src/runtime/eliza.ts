@@ -1461,9 +1461,11 @@ export async function startEliza(
   // 2d. Propagate database config into process.env for plugin-sql
   applyDatabaseConfigToEnv(config);
 
-  // 2d-ii. In development, allow destructive migrations (e.g. dropping tables
-  //        removed between plugin versions) so the runtime doesn't silently stall.
-  if (process.env.NODE_ENV !== "production" && !process.env.ELIZA_ALLOW_DESTRUCTIVE_MIGRATIONS) {
+  // 2d-ii. Allow destructive migrations (e.g. dropping tables removed between
+  //        plugin versions) so the runtime doesn't silently stall.  Without this
+  //        the migration system throws an error that gets swallowed, leaving the
+  //        app hanging indefinitely with no output.
+  if (!process.env.ELIZA_ALLOW_DESTRUCTIVE_MIGRATIONS) {
     process.env.ELIZA_ALLOW_DESTRUCTIVE_MIGRATIONS = "true";
   }
 
