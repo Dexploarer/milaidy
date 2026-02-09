@@ -114,7 +114,7 @@ export function OnboardingWizard() {
     setState("onboardingOAuthPasteUrl", "");
     try {
       const { authUrl } = await client.startAnthropicLogin();
-      window.open(authUrl, "_blank");
+      window.open(authUrl, "anthropic-oauth", "width=600,height=700,left=200,top=100");
     } catch (err) {
       setState("onboardingOAuthError", err instanceof Error ? err.message : "Failed to start Anthropic login");
     } finally {
@@ -177,7 +177,7 @@ export function OnboardingWizard() {
     try {
       const { authUrl, instructions } = await client.startOpenAILogin();
       setOauthInstructions(instructions ?? "");
-      window.open(authUrl, "_blank");
+      window.open(authUrl, "openai-oauth", "width=600,height=700,left=200,top=100");
     } catch (err) {
       setState("onboardingOAuthError", err instanceof Error ? err.message : "Failed to start OpenAI login");
     } finally {
