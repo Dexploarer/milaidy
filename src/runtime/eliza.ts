@@ -59,6 +59,7 @@ import {
   createPhettaCompanionPlugin,
   resolvePhettaCompanionOptionsFromEnv,
 } from "./phetta-companion-plugin.js";
+import telegramEnhancedPlugin from "../plugins/telegram-enhanced/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -181,10 +182,12 @@ const _OPTIONAL_NATIVE_PLUGINS: readonly string[] = [
   "@elizaos/plugin-computeruse", // requires platform-specific binaries
 ];
 
+const LOCAL_TELEGRAM_ENHANCED_PLUGIN = "@milaidy/plugin-telegram-enhanced";
+
 /** Maps Milaidy connector names to ElizaOS plugin package names. */
 const CONNECTOR_PLUGIN_MAP: Readonly<Record<string, string>> = {
   discord: "@elizaos/plugin-discord",
-  telegram: "@elizaos/plugin-telegram",
+  telegram: LOCAL_TELEGRAM_ENHANCED_PLUGIN,
   slack: "@elizaos/plugin-slack",
   whatsapp: "@elizaos/plugin-whatsapp",
   signal: "@elizaos/plugin-signal",
@@ -528,7 +531,11 @@ async function resolvePlugins(
     try {
       let mod: PluginModuleShape;
 
-      if (installRecord?.installPath) {
+      if (pluginName === LOCAL_TELEGRAM_ENHANCED_PLUGIN) {
+        mod = {
+          default: telegramEnhancedPlugin,
+        } as PluginModuleShape;
+      } else if (installRecord?.installPath) {
         // User-installed plugin — load from its install directory on disk.
         // This works cross-platform including .app bundles where we can't
         // modify the app's node_modules.

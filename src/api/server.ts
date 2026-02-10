@@ -2329,6 +2329,19 @@ async function handleRequest(
       );
     }
 
+    // ── Messaging channels ───────────────────────────────────────────────
+    if (
+      body.channels &&
+      typeof body.channels === "object" &&
+      !Array.isArray(body.channels) &&
+      Object.keys(body.channels).length > 0
+    ) {
+      config.connectors = {
+        ...(config.connectors ?? {}),
+        ...(body.channels as Record<string, ConnectorConfig>),
+      };
+    }
+
     // ── Inventory / RPC providers ─────────────────────────────────────────
     if (Array.isArray(body.inventoryProviders)) {
       if (!config.env) config.env = {};
