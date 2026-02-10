@@ -22,8 +22,8 @@ import {
   applyCloudConfigToEnv,
   applyConnectorSecretsToEnv,
   buildCharacterFromConfig,
-  collectPluginNames,
   CORE_PLUGINS,
+  collectPluginNames,
   OPTIONAL_CORE_PLUGINS,
   resolvePrimaryModel,
 } from "../runtime/eliza.js";

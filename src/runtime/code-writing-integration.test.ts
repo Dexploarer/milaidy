@@ -15,8 +15,8 @@ import { describe, expect, it } from "vitest";
 import type { MilaidyConfig } from "../config/config.js";
 import {
   CORE_PLUGINS,
-  OPTIONAL_CORE_PLUGINS,
   collectPluginNames,
+  OPTIONAL_CORE_PLUGINS,
 } from "./eliza.js";
 
 // ---------------------------------------------------------------------------

@@ -6314,7 +6314,9 @@ export async function startApiServer(opts?: {
    * Web-chat rooms live in a deterministic world; we scan it for rooms
    * whose channelId starts with "web-conv-" and reconstruct the metadata.
    */
-  const restoreConversationsFromDb = async (rt: AgentRuntime): Promise<void> => {
+  const restoreConversationsFromDb = async (
+    rt: AgentRuntime,
+  ): Promise<void> => {
     try {
       const agentName = rt.character.name ?? "Milaidy";
       const worldId = stringToUuid(`${agentName}-web-chat-world`);
@@ -6347,7 +6349,9 @@ export async function startApiServer(opts?: {
 
         state.conversations.set(convId, {
           id: convId,
-          title: (room as Record<string, unknown>).name as string || "Chat",
+          title:
+            ((room as unknown as Record<string, unknown>).name as string) ||
+            "Chat",
           roomId: room.id as UUID,
           createdAt: updatedAt,
           updatedAt,
