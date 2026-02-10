@@ -156,8 +156,13 @@ export async function handleCloudRoute(
       return true;
     }
 
-    const raw = await readBody(req);
-    const parsed: unknown = JSON.parse(raw);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readBody(req));
+    } catch {
+      err(res, "Invalid JSON in request body");
+      return true;
+    }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       err(res, "Request body must be a JSON object");
       return true;

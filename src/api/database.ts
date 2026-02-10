@@ -106,6 +106,29 @@ function readBody(req: http.IncomingMessage): Promise<string> {
 }
 
 /**
+ * Read and parse a JSON request body, returning null (and sending a 400)
+ * if reading or parsing fails.
+ */
+async function readJsonBody<T = Record<string, unknown>>(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<T | null> {
+  let raw: string;
+  try {
+    raw = await readBody(req);
+  } catch {
+    errorResponse(res, "Failed to read request body", 413);
+    return null;
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    errorResponse(res, "Invalid JSON in request body", 400);
+    return null;
+  }
+}
+
+/**
  * Safely quote a SQL identifier (table or column name).
  * Postgres uses double-quote escaping: embedded " becomes "".
  */
@@ -442,7 +465,8 @@ async function handlePutConfig(
   req: http.IncomingMessage,
   res: http.ServerResponse,
 ): Promise<void> {
-  const body = JSON.parse(await readBody(req)) as DatabaseConfig;
+  const body = await readJsonBody<DatabaseConfig>(req, res);
+  if (!body) return;
 
   // Validate
   if (
@@ -517,7 +541,8 @@ async function handleTestConnection(
   req: http.IncomingMessage,
   res: http.ServerResponse,
 ): Promise<void> {
-  const body = JSON.parse(await readBody(req)) as PostgresCredentials;
+  const body = await readJsonBody<PostgresCredentials>(req, res);
+  if (!body) return;
 
   const hostError = await validateDbHost(body);
   if (hostError) {
@@ -774,9 +799,10 @@ async function handleInsertRow(
   runtime: AgentRuntime,
   tableName: string,
 ): Promise<void> {
-  const body = JSON.parse(await readBody(req)) as {
+  const body = await readJsonBody<{
     data: Record<string, unknown>;
-  };
+  }>(req, res);
+  if (!body) return;
 
   if (
     !body.data ||
@@ -815,10 +841,11 @@ async function handleUpdateRow(
   runtime: AgentRuntime,
   tableName: string,
 ): Promise<void> {
-  const body = JSON.parse(await readBody(req)) as {
+  const body = await readJsonBody<{
     where: Record<string, unknown>;
     data: Record<string, unknown>;
-  };
+  }>(req, res);
+  if (!body) return;
 
   if (!body.where || Object.keys(body.where).length === 0) {
     errorResponse(
@@ -868,9 +895,10 @@ async function handleDeleteRow(
   runtime: AgentRuntime,
   tableName: string,
 ): Promise<void> {
-  const body = JSON.parse(await readBody(req)) as {
+  const body = await readJsonBody<{
     where: Record<string, unknown>;
-  };
+  }>(req, res);
+  if (!body) return;
 
   if (!body.where || Object.keys(body.where).length === 0) {
     errorResponse(
@@ -908,10 +936,11 @@ async function handleQuery(
   res: http.ServerResponse,
   runtime: AgentRuntime,
 ): Promise<void> {
-  const body = JSON.parse(await readBody(req)) as {
+  const body = await readJsonBody<{
     sql: string;
     readOnly?: boolean;
-  };
+  }>(req, res);
+  if (!body) return;
 
   if (
     !body.sql ||
