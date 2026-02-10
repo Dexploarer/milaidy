@@ -23,9 +23,7 @@ function getSafeHookRoots(
   workspacePath?: string,
   bundledDir?: string,
 ): string[] {
-  const roots: string[] = [
-    resolve(homedir(), ".milaidy", "hooks"),
-  ];
+  const roots: string[] = [resolve(homedir(), ".milaidy", "hooks")];
   if (bundledDir) roots.push(resolve(bundledDir));
   if (workspacePath) {
     roots.push(resolve(workspacePath.replace(/^~/, homedir()), "hooks"));
