@@ -8,6 +8,8 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import fsPromises from "node:fs/promises";
+import os from "node:os";
 import http from "node:http";
 import path from "node:path";
 import {
@@ -2186,6 +2188,64 @@ async function handleRequest(
       runMode,
       cloud: cloudStatus,
     });
+    return;
+  }
+
+  // ── GET /api/archetypes ───────────────────────────────────────────────
+  if (method === "GET" && pathname === "/api/archetypes") {
+    const { getArchetypeList } = await import("../archetypes/index.js");
+    json(res, { archetypes: getArchetypeList() });
+    return;
+  }
+
+  // ── GET /api/archetypes/:id ─────────────────────────────────────────
+  if (method === "GET" && pathname.startsWith("/api/archetypes/")) {
+    const id = pathname.slice("/api/archetypes/".length);
+    const { getArchetype } = await import("../archetypes/index.js");
+    const archetype = getArchetype(id);
+    if (!archetype) {
+      error(res, "Archetype not found", 404);
+      return;
+    }
+    json(res, archetype);
+    return;
+  }
+
+  // ── POST /api/memories/import ───────────────────────────────────────
+  if (method === "POST" && pathname === "/api/memories/import") {
+    const body = await readJsonBody<{
+      source: "chatgpt" | "claude" | "freeform";
+      content: string;
+    }>(req, res);
+    if (!body) return;
+
+    if (!body.source || !body.content?.trim()) {
+      error(res, "source and content are required", 400);
+      return;
+    }
+
+    try {
+      const workspaceDir =
+        state.config.agents?.defaults?.workspace ||
+        path.join(os.homedir(), ".milaidy", "workspace");
+      const importDir = path.join(workspaceDir, "imported");
+      await fsPromises.mkdir(importDir, { recursive: true });
+
+      const filename = `${body.source}-memories.md`;
+      const filepath = path.join(importDir, filename);
+      const header = `# Imported Memories (${body.source})\n\n*Imported at ${new Date().toISOString()}*\n\n`;
+      await fsPromises.writeFile(filepath, header + body.content.trim() + "\n", "utf-8");
+
+      const lines = body.content.trim().split("\n").filter((l) => l.trim());
+      json(res, {
+        success: true,
+        memoriesCount: lines.length,
+        file: filename,
+        preview: lines.slice(0, 3).join("\n"),
+      });
+    } catch (err) {
+      error(res, `Memory import failed: ${err}`, 500);
+    }
     return;
   }
 

@@ -1,6 +1,11 @@
 /**
  * Archetype definitions — milady-esque personality presets.
- * Each archetype seeds the character's bio, style, and system prompt.
+ * Each archetype seeds the character's identity (bio), soul (system prompt),
+ * style, and personality traits.
+ *
+ * Naming convention:
+ *   identity = bio (who you are)
+ *   soul = system prompt (how you think)
  */
 
 export interface Archetype {
