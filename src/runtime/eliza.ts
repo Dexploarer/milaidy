@@ -619,22 +619,22 @@ async function resolvePlugins(
   logger.info(`[milaidy] Resolving ${pluginsToLoad.size} plugins...`);
 
   // Dynamically import each plugin inside an error boundary
-  for (const pluginName of pluginsToLoad) {
+  const loadPromises = Array.from(pluginsToLoad).map(async (pluginName) => {
     const isCore = corePluginSet.has(pluginName);
     const installRecord = installRecords[pluginName];
 
     // Pre-flight: ensure native dependencies are available for special plugins.
     if (pluginName === "@elizaos/plugin-browser") {
       if (!ensureBrowserServerLink()) {
-        failedPlugins.push({
-          name: pluginName,
-          error: "browser server binary not found",
-        });
         logger.warn(
           `[milaidy] Skipping ${pluginName}: browser server not available. ` +
             `Build the stagehand-server or remove the plugin from plugins.allow.`,
         );
-        continue;
+        return {
+          success: false,
+          name: pluginName,
+          error: "browser server binary not found",
+        };
       }
     }
 
@@ -660,25 +660,25 @@ async function resolvePlugins(
           pluginName,
           pluginInstance,
         );
-        plugins.push({ name: pluginName, plugin: wrappedPlugin });
         logger.debug(`[milaidy] ✓ Loaded plugin: ${pluginName}`);
+        return { success: true, name: pluginName, plugin: wrappedPlugin };
       } else {
         const msg = `[milaidy] Plugin ${pluginName} did not export a valid Plugin object`;
-        failedPlugins.push({
-          name: pluginName,
-          error: "no valid Plugin export",
-        });
         if (isCore) {
           logger.error(msg);
         } else {
           logger.warn(msg);
         }
+        return {
+          success: false,
+          name: pluginName,
+          error: "no valid Plugin export",
+        };
       }
     } catch (err) {
       // Core plugins log at error level (visible even with LOG_LEVEL=error).
       // Optional/channel plugins log at warn level so they don't spam in dev.
       const msg = formatError(err);
-      failedPlugins.push({ name: pluginName, error: msg });
       if (isCore) {
         logger.error(
           `[milaidy] Failed to load core plugin ${pluginName}: ${msg}`,
@@ -686,6 +686,20 @@ async function resolvePlugins(
       } else {
         logger.warn(`[milaidy] Could not load plugin ${pluginName}: ${msg}`);
       }
+      return { success: false, name: pluginName, error: msg };
+    }
+  });
+
+  const results = await Promise.all(loadPromises);
+
+  for (const result of results) {
+    if (result.success && result.plugin) {
+      plugins.push({ name: result.name, plugin: result.plugin });
+    } else {
+      failedPlugins.push({
+        name: result.name,
+        error: result.error || "Unknown error",
+      });
     }
   }
 
