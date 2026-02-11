@@ -89,6 +89,37 @@ function getAutonomySvc(
   return runtime.getService("AUTONOMY") as AutonomyServiceLike | null;
 }
 
+/**
+ * Helper to dynamically load and initialize the TodoDataService from @elizaos/plugin-todo.
+ * This pattern is used because the service is not registered in the runtime service registry.
+ */
+async function getTodoService(runtime: AgentRuntime | null) {
+  if (!runtime) return null;
+  try {
+    const todoModuleId = "@elizaos/plugin-todo";
+    const todoModule = (await import(todoModuleId)) as unknown as Record<
+      string,
+      unknown
+    >;
+    const createTodoDataService = todoModule.createTodoDataService as
+      | ((rt: unknown) => {
+          getTodos: (
+            filters: Record<string, unknown>,
+          ) => Promise<Record<string, unknown>[]>;
+          createTodo: (todo: unknown) => Promise<unknown>;
+          updateTodo: (id: string, updates: unknown) => Promise<unknown>;
+        })
+      | undefined;
+
+    if (createTodoDataService) {
+      return createTodoDataService(runtime);
+    }
+  } catch {
+    // Plugin not loaded or errored
+  }
+  return null;
+}
+
 /** Metadata for a web-chat conversation. */
 interface ConversationMeta {
   id: string;
@@ -5559,34 +5590,22 @@ async function handleRequest(
         // Plugin not loaded or errored — goals unavailable
       }
 
-      // Todos: create a data service on the fly (plugin-todo pattern)
-      try {
-        const todoModuleId = "@elizaos/plugin-todo";
-        const todoModule = (await import(todoModuleId)) as unknown as Record<
-          string,
-          unknown
-        >;
-        const createTodoDataService = todoModule.createTodoDataService as
-          | ((rt: unknown) => {
-              getTodos: (
-                filters: Record<string, unknown>,
-              ) => Promise<Record<string, unknown>[]>;
-            })
-          | undefined;
-        if (createTodoDataService) {
-          const todoData = createTodoDataService(state.runtime);
-          todosAvailable = true;
-          const dbTodos = await todoData.getTodos({
+      // Todos: access via the dynamically loaded service
+      const todoService = await getTodoService(state.runtime);
+      if (todoService) {
+        try {
+          const dbTodos = await todoService.getTodos({
             agentId: state.runtime.agentId,
           });
+          todosAvailable = true;
           todos.push(...dbTodos);
           summary.totalTodos = dbTodos.length;
           summary.completedTodos = dbTodos.filter(
-            (t) => t.isCompleted === true,
+            (t) => (t as { isCompleted?: boolean }).isCompleted === true,
           ).length;
+        } catch {
+          // Plugin loaded but failed to fetch todos
         }
-      } catch {
-        // Plugin not loaded or errored — todos unavailable
       }
     }
 
@@ -5635,7 +5654,23 @@ async function handleRequest(
     const todoId = pathname.slice("/api/workbench/todos/".length);
     const body = await readJsonBody(req, res);
     if (!body) return;
-    json(res, { ok: true, todoId, updated: body });
+
+    try {
+      const service = await getTodoService(state.runtime);
+      if (!service) {
+        error(res, "Todo plugin not loaded", 503);
+        return;
+      }
+
+      const updated = await service.updateTodo(todoId, body);
+      json(res, { ok: true, todoId, updated });
+    } catch (err) {
+      error(
+        res,
+        `Failed to update todo: ${err instanceof Error ? err.message : String(err)}`,
+        500,
+      );
+    }
     return;
   }
 
@@ -5645,9 +5680,43 @@ async function handleRequest(
       error(res, "Agent runtime is not available", 503);
       return;
     }
-    const body = await readJsonBody(req, res);
+    const body = await readJsonBody<{
+      name?: string;
+      roomId?: string;
+      description?: string;
+      dueDate?: string;
+      priority?: number;
+    }>(req, res);
     if (!body) return;
-    json(res, { ok: true, todo: body });
+
+    if (!body.name?.trim()) {
+      error(res, "name is required", 400);
+      return;
+    }
+
+    try {
+      const service = await getTodoService(state.runtime);
+      if (!service) {
+        error(res, "Todo plugin not loaded", 503);
+        return;
+      }
+
+      const newTodo = await service.createTodo({
+        ...body,
+        agentId: state.runtime.agentId,
+        roomId: body.roomId
+          ? stringToUuid(body.roomId)
+          : state.runtime.agentId,
+      });
+
+      json(res, { ok: true, todo: newTodo });
+    } catch (err) {
+      error(
+        res,
+        `Failed to create todo: ${err instanceof Error ? err.message : String(err)}`,
+        500,
+      );
+    }
     return;
   }
 
