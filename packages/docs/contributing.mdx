@@ -1,0 +1,84 @@
+---
+title: "Contributing Guide"
+description: "How to contribute to the Milaidy and ElizaOS ecosystem."
+---
+
+# Contributing Guide
+
+Welcome! We appreciate your interest in contributing to Milaidy and the ElizaOS ecosystem.
+
+## Development Environment Setup
+
+To get started, you'll need the following tools:
+
+-   **Node.js**: Version 23.3.0 or higher is required.
+-   **Bun**: We use Bun for dependency management and scripts. Install it globally: `npm install -g bun`.
+-   **Turbo**: We use Turbo for monorepo task orchestration. Install it globally: `npm install -g turbo`.
+
+## Monorepo Structure Overview
+
+The repository is structured as a monorepo containing multiple packages:
+
+```
+eliza/
+├── packages/
+│   ├── typescript/       # Core TypeScript SDK (@elizaos/core)
+│   ├── elizaos/          # CLI tool
+│   ├── skills/           # Skills system
+│   ├── docs/             # Documentation site (this directory)
+│   ├── schemas/          # Protobuf schemas
+│   ├── tui/              # Terminal UI
+│   └── ...               # Other packages
+└── plugins/              # Official plugins (100+)
+```
+
+## Build System
+
+We use Turbo to manage build tasks across the monorepo.
+
+-   **Build all packages**: Run `turbo run build` from the root.
+-   **Build a specific package**: Run `turbo run build --filter=@elizaos/plugin-weather`.
+-   **Publish**: We use Lerna for publishing packages to npm.
+
+## Testing
+
+We use Vitest for unit testing and Cypress for E2E testing.
+
+-   **Run all tests**: `turbo run test`.
+-   **Run tests for a specific package**: `turbo run test --filter=@elizaos/core`.
+-   **Watch mode**: `bun run test --watch`.
+
+## Linting and Formatting
+
+We enforce code quality standards using Biome.
+
+-   **Check linting**: `turbo run lint`.
+-   **Check formatting**: `turbo run format`.
+-   **Fix all**: `bun run check --apply`.
+
+## Pull Request Process
+
+1.  **Fork the repository**: Create your own fork on GitHub.
+2.  **Create a branch**: Use a descriptive name (e.g., `feat/add-weather-plugin`).
+3.  **Make changes**: implement your feature or fix.
+4.  **Run checks**: Ensure tests and linting pass (`bun run check`, `bun run test`).
+5.  **Submit PR**: Open a Pull Request against the `main` branch.
+    -   Link related issues.
+    -   Describe your changes clearly.
+    -   Add screenshots if applicable.
+
+### Code Review
+
+All PRs undergo code review. We use an automated Claude code review workflow to assist human reviewers. Please address any feedback promptly.
+
+## Branch Strategy
+
+-   **develop**: The main development branch. Features are merged here first. -> `alpha` releases.
+-   **main**: The stable branch. -> `beta` releases.
+-   **GitHub Releases**: Tagged releases for production.
+
+## Community
+
+Join our Discord community to discuss ideas, get help, and collaborate!
+
+[**Join Discord**](https://discord.gg/ai16z)

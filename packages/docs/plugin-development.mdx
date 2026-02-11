@@ -1,0 +1,208 @@
+---
+title: "Plugin Development Guide (TypeScript)"
+description: "A complete walkthrough for creating, testing, and publishing a plugin for ElizaOS / Milaidy."
+---
+
+# Plugin Development Guide (TypeScript)
+
+This guide provides a comprehensive walkthrough for creating, testing, and publishing a plugin for ElizaOS / Milaidy. The TypeScript ecosystem is the primary development environment for extending agent capabilities.
+
+## Plugin Architecture Overview
+
+Plugins are the core unit of extensibility in ElizaOS. They define how an agent interacts with the world, processes information, and performs actions.
+
+### The Plugin Interface
+
+A plugin implements the `Plugin` interface, which includes:
+
+- **name**: Unique identifier for the plugin (e.g., `@elizaos/plugin-weather`).
+- **description**: Brief summary of what the plugin does.
+- **actions**: Executable capabilities (e.g., `get_weather`, `send_tweet`).
+- **providers**: Context injectors (e.g., `time_provider`, `wallet_provider`).
+- **evaluators**: Continuous state assessors (e.g., `sentiment_evaluator`).
+- **services**: Long-running background processes (e.g., `database_service`).
+- **clients**: Platform connectors (e.g., `DiscordClient`, `TwitterClient`).
+
+### Lifecycle
+
+1.  **Discovery**: The system scans configured paths (npm, workspace, local) for plugins.
+2.  **Loading**: The plugin module is imported and its manifest is validated.
+3.  **Initialization**: The `init()` method is called with the agent runtime.
+4.  **Runtime Registration**: Actions, providers, and services are registered with the central `IAgentRuntime`.
+
+### Discovery System
+
+Plugins are discovered via `plugins/discovery.ts` through several origins:
+
+-   **npm**: Installed via package manager (`node_modules`).
+-   **workspace**: Monorepo packages (for core development).
+-   **config**: Explicit paths defined in `milaidy.json`.
+-   **bundled**: Core plugins shipped with the runtime.
+
+---
+
+## Step-by-Step Plugin Creation
+
+We recommend starting with the TypeScript template located at `examples/_plugin/typescript/`.
+
+### 1. Setup & Configuration
+
+Create a new directory and initialize a `package.json`. Define your configuration schema using Zod to ensure type safety.
+
+```typescript
+import { z } from "zod";
+
+export const ConfigSchema = z.object({
+    apiKey: z.string().min(1, "API Key is required"),
+    endpoint: z.string().url().default("https://api.example.com/v1"),
+});
+
+export type PluginConfig = z.infer<typeof ConfigSchema>;
+```
+
+### 2. Creating Actions
+
+Actions are discrete tasks the agent can perform. They require a `validate` function (to check if the action is appropriate in the current context) and a `handler` (the execution logic).
+
+```typescript
+import { Action, IAgentRuntime, Memory, State } from "@elizaos/core";
+
+export const checkWeatherAction: Action = {
+    name: "CHECK_WEATHER",
+    similes: ["GET_WEATHER", "WEATHER_REPORT"],
+    description: "Get the current weather for a specific location",
+    validate: async (runtime: IAgentRuntime, message: Memory) => {
+        // Check if the necessary configuration is present
+        return !!runtime.getSetting("WEATHER_API_KEY");
+    },
+    handler: async (runtime: IAgentRuntime, message: Memory, state: State) => {
+        const location = state.location || "San Francisco";
+        const weather = await fetchWeather(location);
+
+        // Return a response to be added to memory
+        return {
+            text: `The weather in ${location} is ${weather.temp}°C with ${weather.condition}.`,
+        };
+    },
+    examples: [
+        [
+            { user: "{{user1}}", content: { text: "What's the weather in Tokyo?" } },
+            { user: "{{user2}}", content: { text: "Checking weather for Tokyo...", action: "CHECK_WEATHER" } },
+        ],
+    ],
+};
+```
+
+### 3. Creating Providers
+
+Providers inject context into the agent's prompt *before* the model generates a response.
+
+```typescript
+import { Provider, IAgentRuntime, Memory, State } from "@elizaos/core";
+
+export const timeProvider: Provider = {
+    get: async (runtime: IAgentRuntime, message: Memory, state: State) => {
+        const now = new Date();
+        return `Current server time: ${now.toISOString()}`;
+    },
+};
+```
+
+### 4. Creating Services
+
+Services are singleton classes that manage state or background tasks. They must extend the `Service` base class.
+
+```typescript
+import { Service, IAgentRuntime, ServiceType } from "@elizaos/core";
+
+export class DatabaseService extends Service {
+    static serviceType: ServiceType = ServiceType.DATABASE;
+
+    async initialize(runtime: IAgentRuntime): Promise<void> {
+        console.log("Database Service Initialized");
+        this.connect();
+    }
+
+    async stop(): Promise<void> {
+        this.disconnect();
+    }
+}
+```
+
+### 5. Adding Routes
+
+Plugins can expose HTTP endpoints via the Express app integrated into the runtime.
+
+```typescript
+import { Router } from "express";
+
+export const pluginRouter = Router();
+
+pluginRouter.get("/status", (req, res) => {
+    res.json({ status: "ok" });
+});
+```
+
+### 6. Event Handlers
+
+Listen for system events to trigger reactive logic.
+
+```typescript
+runtime.on("MESSAGE_RECEIVED", async (message) => {
+    console.log("New message:", message.content.text);
+});
+```
+
+---
+
+## Plugin Manifest System
+
+Every plugin must include an `elizaos.plugin.json` file to define its metadata and capabilities for the registry.
+
+```json
+{
+  "id": "@elizaos/plugin-weather",
+  "name": "Weather Plugin",
+  "version": "1.0.0",
+  "kind": "skill",
+  "configSchema": {
+    "apiKey": { "type": "string", "description": "API Key for Weather Service" }
+  },
+  "uiHints": {
+    "icon": "weather-sunny"
+  }
+}
+```
+
+---
+
+## Testing Plugins
+
+### Unit Testing
+
+Use `vitest` to write unit tests for your actions and providers.
+
+```typescript
+import { describe, it, expect, vi } from "vitest";
+import { checkWeatherAction } from "./actions/weather";
+
+describe("Weather Action", () => {
+    it("should validate correctly", async () => {
+        const runtime = { getSetting: vi.fn().mockReturnValue("api-key") };
+        const result = await checkWeatherAction.validate(runtime as any, {} as any);
+        expect(result).toBe(true);
+    });
+});
+```
+
+### E2E Testing
+
+For integration testing, refer to the `cypress/` directory in the starter template to run end-to-end flows against a running agent.
+
+---
+
+## Publishing Plugins
+
+1.  **Build**: Run `npm run build` to compile TypeScript to ESM/CJS.
+2.  **Publish**: Run `npm publish --access public`.
+3.  **Registry**: Submit a PR to the [elizaos-plugins](https://github.com/elizaos-plugins) repository to register your plugin in the global index.

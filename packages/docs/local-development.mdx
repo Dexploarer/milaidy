@@ -1,0 +1,81 @@
+---
+title: "Local Plugin Development Guide"
+description: "How to develop and test plugins locally for Milaidy / ElizaOS."
+---
+
+# Local Plugin Development Guide
+
+This guide explains how to develop and test plugins locally without publishing them to npm. This is ideal for rapid iteration and private plugins.
+
+## Writing Local Plugins
+
+You can create a plugin directly in your project directory or in a dedicated `plugins/` folder.
+
+A local plugin must export the standard `Plugin` interface.
+
+```typescript
+// plugins/my-local-plugin/index.ts
+import { Plugin } from "@elizaos/core";
+
+export const myLocalPlugin: Plugin = {
+    name: "my-local-plugin",
+    description: "A local plugin for testing",
+    actions: [],
+    providers: [],
+    // ...
+};
+```
+
+## Loading Local Plugins
+
+There are two primary ways to load local plugins:
+
+### 1. Workspace Discovery
+
+The runtime automatically scans specific directories for plugins:
+
+-   `plugins/` (in the root of your project)
+-   `extensions/`
+-   `~/.elizaos/plugins/` (user-specific global plugins)
+
+Simply place your plugin source code in one of these directories, and it will be discovered.
+
+### 2. Configuration-Driven Loading
+
+You can explicitly list the path to your local plugin in `milaidy.json`.
+
+```json
+{
+  "plugins": {
+    "load": {
+      "paths": [
+        "./plugins/my-local-plugin",
+        "~/dev/elizaos/plugins/another-plugin"
+      ]
+    }
+  }
+}
+```
+
+### Path Resolution
+
+The system supports standard path resolution:
+
+-   **Relative Paths**: Resoved relative to the configuration file or current working directory (`./plugins/...`).
+-   **Tilde Expansion**: `~/` is expanded to the user's home directory.
+-   **Environment Variables**: You can use environment variables in paths (e.g., `$HOME/plugins`).
+
+## Hot-Reloading
+
+For a better developer experience, use `bun run dev`. This command watches for file changes in your plugin source code and automatically restarts the agent runtime.
+
+## Environment Configuration
+
+You can customize the configuration directory using the `ELIZAOS_CONFIG_DIR` environment variable.
+
+```bash
+export ELIZAOS_CONFIG_DIR=~/my-custom-config
+bun run dev
+```
+
+This allows you to maintain separate configurations for different development environments or test scenarios.

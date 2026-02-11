@@ -1,0 +1,60 @@
+---
+title: "Registry & Plugin Ecosystem"
+description: "Understanding the ElizaOS Plugin Registry and ecosystem."
+---
+
+# Registry & Plugin Ecosystem
+
+The ElizaOS plugin ecosystem is a decentralized network of extensions that can be discovered and installed by agents. The registry acts as the central directory for all available plugins.
+
+## Plugin Registry Structure
+
+The registry is maintained in a Git repository (`elizaos/registry`) and is compiled into a JSON index (`registry/index.json` and `registry/generated-registry.json`).
+
+### Registry Index
+
+The registry index contains metadata about each plugin:
+-   **id**: Unique identifier (e.g., `@elizaos/plugin-weather`).
+-   **name**: Human-readable name.
+-   **description**: What the plugin does.
+-   **author**: Who maintains it.
+-   **homepage**: Link to the plugin's source or documentation.
+-   **tags**: Keywords for discovery (e.g., "weather", "finance", "utility").
+
+## Discovery Process
+
+The `plugins/discovery.ts` module in the runtime handles discovering plugins. It checks:
+1.  **NPM**: Plugins installed in `node_modules`.
+2.  **Workspace**: Local plugins in a monorepo setup.
+3.  **Config**: Plugins explicitly listed in `milaidy.json`.
+4.  **Bundled**: Core plugins shipped with the runtime.
+
+## The Registry Site
+
+The registry site (`registry/site/`) provides a web interface for browsing and searching plugins. It allows users to:
+-   Search by name, tag, or author.
+-   View detailed plugin descriptions and installation instructions.
+-   See compatibility information (required runtime version).
+
+## Submitting a Plugin
+
+To submit your plugin to the registry:
+
+1.  **Host your code**: Ensure your plugin is open source and hosted on GitHub/GitLab.
+2.  **Publish to NPM**: Publish your package to the npm registry with the `@elizaos` scope (or your own scope if it's a community plugin).
+3.  **Create a PR**: Submit a Pull Request to the `elizaos-plugins` repository adding your plugin's metadata to the `registry/index.json` file.
+4.  **Review**: The core team will review your submission for quality and security.
+
+### Naming Conventions
+
+-   **Official Plugins**: `@elizaos/plugin-*` (e.g., `@elizaos/plugin-weather`).
+-   **Community Plugins**: `plugin-*` or `@scope/plugin-*` (e.g., `@my-org/plugin-finance`).
+-   **Action Names**: Use `UPPER_CASE_SNAKE_CASE` (e.g., `CHECK_WEATHER`, `SEND_TWEET`).
+
+## GitHub Organization Structure
+
+The `elizaos-plugins` GitHub organization hosts official and community-maintained plugins.
+-   **Core Plugins**: Maintained by the ElizaOS core team.
+-   **Community Plugins**: Maintained by the community, hosted in the organization for visibility.
+
+Start building your plugin today and contribute to the growing ecosystem!

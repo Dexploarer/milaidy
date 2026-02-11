@@ -1,0 +1,86 @@
+---
+title: "Skills Documentation"
+description: "How to create and manage skills in Milaidy / ElizaOS."
+---
+
+# Skills Documentation
+
+Skills are modular, self-contained packages that extend the capabilities of an agent. They define new tasks the agent can perform, often using Markdown as the primary interface.
+
+## What Skills Are
+
+Skills are designed to be concise and focused on a single capability. Unlike plugins, which provide technical integrations (APIs, clients), skills define *how* an agent should use those capabilities or how to reason about specific domains.
+
+-   **Modular**: Each skill is a separate directory.
+-   **Markdown-First**: Logic is often defined in `SKILL.md` using natural language prompts.
+-   **Assets**: Skills can include templates, images, and other assets.
+
+## Skill Structure
+
+A typical skill directory looks like this:
+
+```
+skill-name/
+├── SKILL.md              # Required — Frontmatter + Instructions
+├── scripts/              # Optional — Executable code (TS/JS/Py)
+├── references/           # Optional — Documentation to load into context
+└── assets/               # Optional — Files for output (templates, images)
+```
+
+## Skill Frontmatter (`SKILL.md`)
+
+The `SKILL.md` file must start with YAML frontmatter defining the skill's metadata.
+
+```markdown
+---
+name: check-weather
+description: Check the weather for a given location.
+disable-model-invocation: false
+required-os: [linux, darwin]
+required-bins: [curl, jq]
+required-env: [OPENWEATHER_API_KEY]
+primary-env: OPENWEATHER_API_KEY
+command-dispatch: "weather"
+user-invocable: true
+---
+
+# Check Weather
+
+To check the weather, verify the user has provided a location. If not, ask for one.
+Then use the `curl` command to fetch weather data...
+```
+
+### Writing New Skills
+
+When writing skills, keep these principles in mind:
+
+-   **Conciseness**: Keep instructions clear and brief.
+-   **Focus**: One skill should do one thing well.
+-   **Degrees of Freedom**: Give the model enough context to make decisions but constrain it where necessary for reliability.
+
+### Scripts vs References vs Assets
+
+-   **Scripts**: Use for complex logic that cannot be expressed in natural language or requires strict execution (e.g., calculations, file manipulation).
+-   **References**: Use for documentation or data that the model needs to reference (e.g., API docs, style guides).
+-   **Assets**: Use for output templates (e.g., HTML report template) or static resources.
+
+## Adding Skills to an Agent
+
+Skills can be loaded from several locations:
+
+1.  **Bundled Skills**: Core skills shipped with the runtime (`packages/skills/skills/`).
+2.  **Workspace Skills**: Project-local skills in your workspace directory.
+3.  **Managed Skills**: User-installed skills in `~/.elizaos/skills`.
+4.  **Explicit Paths**: Skills loaded from specific paths defined in your config.
+
+### Skill Loader Behavior
+
+The `loadSkills` function resolves skills based on the provided options:
+-   `cwd`: Current working directory.
+-   `agentDir`: Agent's configuration directory.
+-   `skillPaths`: Explicit list of paths to load.
+-   `includeDefaults`: Whether to load bundled skills.
+-   `bundledSkillsDir`: Path to bundled skills.
+-   `managedSkillsDir`: Path to managed skills.
+
+The loader reads `SKILL.md`, validates the frontmatter, and registers the skill with the agent runtime.
