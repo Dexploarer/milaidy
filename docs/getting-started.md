@@ -23,7 +23,7 @@ On first run, this will:
 1.  Ask you to pick a name for your agent.
 2.  Let you choose a personality style.
 3.  Prompt you to connect a model provider (or skip).
-4.  Launch the agent and open the dashboard at `http://localhost:18789`.
+4.  Launch the agent and open the dashboard at `http://localhost:2138`.
 
 ### 2. One-Line Installer (Recommended)
 
