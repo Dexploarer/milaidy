@@ -21,7 +21,7 @@ Welcome to the Milaidy documentation. Here you'll find everything you need to in
 - [**Deployment & Release**](./deployment.md)
   Guide for signing, notarizing, and releasing the app for macOS, Windows, and Linux.
 
-- [**ElizaOS Versioning**](./ELIZAOS_VERSIONING.md)
+- [**ElizaOS Versioning**](../ELIZAOS_VERSIONING.md)
   Explanation of the version pinning strategy used to maintain stability with ElizaOS.
 
 ## Plugin & Ecosystem Development
