@@ -26,6 +26,7 @@ import type {
   AgentRuntime,
   Component,
   Entity,
+  IDatabaseAdapter,
   Log,
   Memory,
   Relationship,
@@ -528,21 +529,11 @@ function createIdRemapper(
 // Data restoration
 // ---------------------------------------------------------------------------
 
-async function restoreAgentData(
-  runtime: AgentRuntime,
+async function importAgentRecord(
+  db: IDatabaseAdapter,
   payload: AgentExportPayload,
-): Promise<ImportResult> {
-  const db = runtime.adapter;
-  const newAgentId = crypto.randomUUID() as UUID;
-  const remap = createIdRemapper(
-    new Map([[payload.sourceAgentId, newAgentId]]),
-  );
-
-  logger.info(
-    `[agent-import] Importing agent "${payload.agent.name}" as ${newAgentId}`,
-  );
-
-  // 1. Create agent
+  newAgentId: UUID,
+): Promise<void> {
   const agentData = { ...payload.agent } as Partial<Agent>;
   agentData.id = newAgentId;
   agentData.enabled = true;
@@ -554,28 +545,41 @@ async function restoreAgentData(
     throw new AgentExportError("Failed to create agent in database.");
   }
   logger.info(`[agent-import] Created agent record`);
+}
 
-  // 2. Create worlds
+async function importWorlds(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let worldsImported = 0;
   for (const world of payload.worlds) {
     const newWorld: World = {
       ...world,
       id: remap(world.id ?? "") as UUID,
-      agentId: newAgentId as UUID,
+      agentId: newAgentId,
     };
     await db.createWorld(newWorld);
     worldsImported++;
   }
   logger.info(`[agent-import] Imported ${worldsImported} worlds`);
+  return worldsImported;
+}
 
-  // 3. Create rooms
+async function importRooms(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let roomsImported = 0;
   const roomBatch: Room[] = [];
   for (const room of payload.rooms) {
     const newRoom: Room = {
       ...room,
       id: remap(room.id ?? "") as UUID,
-      agentId: newAgentId as UUID,
+      agentId: newAgentId,
       worldId: room.worldId ? (remap(room.worldId) as UUID) : undefined,
     };
     roomBatch.push(newRoom);
@@ -585,15 +589,22 @@ async function restoreAgentData(
     roomsImported = roomBatch.length;
   }
   logger.info(`[agent-import] Imported ${roomsImported} rooms`);
+  return roomsImported;
+}
 
-  // 4. Create entities
+async function importEntities(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let entitiesImported = 0;
   const entityBatch: Entity[] = [];
   for (const entity of payload.entities) {
     const newEntity: Entity = {
       ...entity,
       id: remap(entity.id ?? "") as UUID,
-      agentId: newAgentId as UUID,
+      agentId: newAgentId,
       // Strip components — we'll recreate them separately
       components: undefined,
     };
@@ -604,8 +615,14 @@ async function restoreAgentData(
     entitiesImported = entityBatch.length;
   }
   logger.info(`[agent-import] Imported ${entitiesImported} entities`);
+  return entitiesImported;
+}
 
-  // 5. Add participants to rooms
+async function importParticipants(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+): Promise<number> {
   let participantsImported = 0;
   for (const p of payload.participants) {
     const newEntityId = remap(p.entityId) as UUID;
@@ -617,15 +634,22 @@ async function restoreAgentData(
     participantsImported++;
   }
   logger.info(`[agent-import] Imported ${participantsImported} participants`);
+  return participantsImported;
+}
 
-  // 6. Create components
+async function importComponents(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let componentsImported = 0;
   for (const comp of payload.components) {
     const newComp: Component = {
       ...comp,
       id: remap(comp.id ?? "") as UUID,
       ...(comp.entityId ? { entityId: remap(comp.entityId) as UUID } : {}),
-      ...(comp.agentId ? { agentId: newAgentId as UUID } : {}),
+      ...(comp.agentId ? { agentId: newAgentId } : {}),
       ...(comp.roomId ? { roomId: remap(comp.roomId) as UUID } : {}),
       ...(comp.worldId ? { worldId: remap(comp.worldId) as UUID } : {}),
       ...(comp.sourceEntityId
@@ -636,15 +660,22 @@ async function restoreAgentData(
     componentsImported++;
   }
   logger.info(`[agent-import] Imported ${componentsImported} components`);
+  return componentsImported;
+}
 
-  // 7. Create memories
+async function importMemories(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let memoriesImported = 0;
   for (const mem of payload.memories) {
     const tableName = resolveMemoryTableName(mem);
     const newMem: Memory = {
       ...mem,
       id: remap(mem.id ?? "") as UUID,
-      agentId: newAgentId as UUID,
+      agentId: newAgentId,
       ...(mem.entityId ? { entityId: remap(mem.entityId) as UUID } : {}),
       ...(mem.roomId ? { roomId: remap(mem.roomId) as UUID } : {}),
       ...(mem.worldId ? { worldId: remap(mem.worldId) as UUID } : {}),
@@ -655,8 +686,14 @@ async function restoreAgentData(
     memoriesImported++;
   }
   logger.info(`[agent-import] Imported ${memoriesImported} memories`);
+  return memoriesImported;
+}
 
-  // 8. Create relationships
+async function importRelationships(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+): Promise<number> {
   let relationshipsImported = 0;
   for (const rel of payload.relationships) {
     await db.createRelationship({
@@ -668,17 +705,21 @@ async function restoreAgentData(
     relationshipsImported++;
   }
   logger.info(`[agent-import] Imported ${relationshipsImported} relationships`);
+  return relationshipsImported;
+}
 
-  // 9. Create tasks
-  // The Task type doesn't declare agentId but the DB schema stores it.
-  // We spread the original task and add agentId as a dynamic property
-  // that the database adapter will persist.
+async function importTasks(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let tasksImported = 0;
   for (const task of payload.tasks) {
     const newTask = {
       ...task,
       id: remap(task.id ?? "") as UUID,
-      agentId: newAgentId as UUID,
+      agentId: newAgentId,
       roomId: task.roomId ? (remap(task.roomId) as UUID) : undefined,
       worldId: task.worldId ? (remap(task.worldId) as UUID) : undefined,
       entityId: task.entityId ? (remap(task.entityId) as UUID) : undefined,
@@ -687,8 +728,15 @@ async function restoreAgentData(
     tasksImported++;
   }
   logger.info(`[agent-import] Imported ${tasksImported} tasks`);
+  return tasksImported;
+}
 
-  // 10. Create logs
+async function importLogs(
+  db: IDatabaseAdapter,
+  payload: AgentExportPayload,
+  remap: (id: string) => string,
+  newAgentId: UUID,
+): Promise<number> {
   let logsImported = 0;
   for (const logEntry of payload.logs) {
     await db.log({
@@ -698,12 +746,45 @@ async function restoreAgentData(
         : logEntry.entityId,
       roomId: logEntry.roomId
         ? (remap(logEntry.roomId) as UUID)
-        : (newAgentId as UUID),
+        : newAgentId,
       type: logEntry.type ?? "action",
     });
     logsImported++;
   }
   logger.info(`[agent-import] Imported ${logsImported} logs`);
+  return logsImported;
+}
+
+async function restoreAgentData(
+  runtime: AgentRuntime,
+  payload: AgentExportPayload,
+): Promise<ImportResult> {
+  const db = runtime.adapter as IDatabaseAdapter;
+  const newAgentId = crypto.randomUUID() as UUID;
+  const remap = createIdRemapper(
+    new Map([[payload.sourceAgentId, newAgentId]]),
+  );
+
+  logger.info(
+    `[agent-import] Importing agent "${payload.agent.name}" as ${newAgentId}`,
+  );
+
+  await importAgentRecord(db, payload, newAgentId);
+
+  const worldsImported = await importWorlds(db, payload, remap, newAgentId);
+  const roomsImported = await importRooms(db, payload, remap, newAgentId);
+  const entitiesImported = await importEntities(db, payload, remap, newAgentId);
+  const participantsImported = await importParticipants(db, payload, remap);
+  const componentsImported = await importComponents(
+    db,
+    payload,
+    remap,
+    newAgentId,
+  );
+  const memoriesImported = await importMemories(db, payload, remap, newAgentId);
+  const relationshipsImported = await importRelationships(db, payload, remap);
+  const tasksImported = await importTasks(db, payload, remap, newAgentId);
+  const logsImported = await importLogs(db, payload, remap, newAgentId);
 
   return {
     success: true,
