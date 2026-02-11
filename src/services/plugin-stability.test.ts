@@ -22,11 +22,13 @@ import {
   applyCloudConfigToEnv,
   applyConnectorSecretsToEnv,
   buildCharacterFromConfig,
-  CORE_PLUGINS,
-  collectPluginNames,
-  OPTIONAL_CORE_PLUGINS,
   resolvePrimaryModel,
-} from "../runtime/eliza.js";
+} from "../runtime/config-mapping.js";
+import {
+  CORE_PLUGINS,
+  OPTIONAL_CORE_PLUGINS,
+} from "../runtime/plugins/definitions.js";
+import { collectPluginNames } from "../runtime/plugins/resolution.js";
 import { createMilaidyPlugin } from "../runtime/milaidy-plugin.js";
 
 // ---------------------------------------------------------------------------

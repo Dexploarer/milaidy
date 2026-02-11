@@ -12,7 +12,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { MilaidyConfig } from "../config/config.js";
-import { CORE_PLUGINS, collectPluginNames } from "./eliza.js";
+import { CORE_PLUGINS } from "./plugins/definitions.js";
+import { collectPluginNames } from "./plugins/resolution.js";
 
 // ---------------------------------------------------------------------------
 // Plugin classification — computeruse is optional, not core

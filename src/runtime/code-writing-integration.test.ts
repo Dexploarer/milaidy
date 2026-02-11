@@ -15,9 +15,9 @@ import { describe, expect, it } from "vitest";
 import type { MilaidyConfig } from "../config/config.js";
 import {
   CORE_PLUGINS,
-  collectPluginNames,
   OPTIONAL_CORE_PLUGINS,
-} from "./eliza.js";
+} from "./plugins/definitions.js";
+import { collectPluginNames } from "./plugins/resolution.js";
 
 // ---------------------------------------------------------------------------
 // Plugin classification — code is an optional plugin (admin-panel toggleable)

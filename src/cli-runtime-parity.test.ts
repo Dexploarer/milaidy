@@ -17,9 +17,9 @@ import {
   applyCloudConfigToEnv,
   applyConnectorSecretsToEnv,
   buildCharacterFromConfig,
-  collectPluginNames,
   resolvePrimaryModel,
-} from "./runtime/eliza.js";
+} from "./runtime/config-mapping.js";
+import { collectPluginNames } from "./runtime/plugins/resolution.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

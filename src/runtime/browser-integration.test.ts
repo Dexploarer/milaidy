@@ -13,11 +13,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { MilaidyConfig } from "../config/config.js";
+import { CORE_PLUGINS } from "./plugins/definitions.js";
 import {
-  CORE_PLUGINS,
   collectPluginNames,
   ensureBrowserServerLink,
-} from "./eliza.js";
+} from "./plugins/resolution.js";
 
 // ---------------------------------------------------------------------------
 // ensureBrowserServerLink — symlink creation tests
