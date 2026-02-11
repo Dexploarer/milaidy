@@ -1053,28 +1053,15 @@ async function handleQuery(
 // ---------------------------------------------------------------------------
 
 /**
- * Route a database API request. Returns true if handled, false if not matched.
- *
- * Expected URL patterns:
- *   GET    /api/database/status
- *   GET    /api/database/config
- *   PUT    /api/database/config
- *   POST   /api/database/test
- *   GET    /api/database/tables
- *   GET    /api/database/tables/:table/rows
- *   POST   /api/database/tables/:table/rows
- *   PUT    /api/database/tables/:table/rows
- *   DELETE /api/database/tables/:table/rows
- *   POST   /api/database/query
+ * Handle public/config routes that do not require a runtime database connection.
  */
-export async function handleDatabaseRoute(
+async function handlePublicRoutes(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   runtime: AgentRuntime | null,
   pathname: string,
+  method: string,
 ): Promise<boolean> {
-  const method = req.method ?? "GET";
-
   // ── GET /api/database/status ──────────────────────────────────────────
   if (method === "GET" && pathname === "/api/database/status") {
     await handleGetStatus(req, res, runtime);
@@ -1099,16 +1086,19 @@ export async function handleDatabaseRoute(
     return true;
   }
 
-  // Routes below require a live runtime with a database adapter
-  if (!runtime?.adapter) {
-    errorResponse(
-      res,
-      "Database not available. The agent may not be running or the database adapter is not initialized.",
-      503,
-    );
-    return true;
-  }
+  return false;
+}
 
+/**
+ * Handle routes that require an active runtime with a database adapter.
+ */
+async function handleRuntimeRoutes(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  runtime: AgentRuntime,
+  pathname: string,
+  method: string,
+): Promise<boolean> {
   // ── GET /api/database/tables ──────────────────────────────────────────
   if (method === "GET" && pathname === "/api/database/tables") {
     await handleGetTables(req, res, runtime);
@@ -1147,6 +1137,50 @@ export async function handleDatabaseRoute(
       await handleDeleteRow(req, res, runtime, tableNameDecoded);
       return true;
     }
+  }
+
+  return false;
+}
+
+/**
+ * Route a database API request. Returns true if handled, false if not matched.
+ *
+ * Expected URL patterns:
+ *   GET    /api/database/status
+ *   GET    /api/database/config
+ *   PUT    /api/database/config
+ *   POST   /api/database/test
+ *   GET    /api/database/tables
+ *   GET    /api/database/tables/:table/rows
+ *   POST   /api/database/tables/:table/rows
+ *   PUT    /api/database/tables/:table/rows
+ *   DELETE /api/database/tables/:table/rows
+ *   POST   /api/database/query
+ */
+export async function handleDatabaseRoute(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  runtime: AgentRuntime | null,
+  pathname: string,
+): Promise<boolean> {
+  const method = req.method ?? "GET";
+
+  if (await handlePublicRoutes(req, res, runtime, pathname, method)) {
+    return true;
+  }
+
+  // Routes below require a live runtime with a database adapter
+  if (!runtime?.adapter) {
+    errorResponse(
+      res,
+      "Database not available. The agent may not be running or the database adapter is not initialized.",
+      503,
+    );
+    return true;
+  }
+
+  if (await handleRuntimeRoutes(req, res, runtime, pathname, method)) {
+    return true;
   }
 
   return false;
