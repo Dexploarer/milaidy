@@ -22,7 +22,9 @@
       "!skills",
       "!Swabble",
       "!vendor",
-      "!test/contracts/lib"
+      "!test/contracts/lib",
+      "!test/contracts/out",
+      "!test/contracts/cache"
     ]
   },
   "assist": {

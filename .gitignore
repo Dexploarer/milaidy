@@ -36,10 +36,14 @@ IDENTITY.md
 USER.md
 .tgz
 .eliza/
+.eliza.broken.*/
 .turbo/
 skills/
 apps/app/electron/.eliza
 apps/app/electron/skills/
+
+# Local workspace clones / scratch dirs
+milady-workspace/
 
 # Temporary capture files
 temp_capture_*.jpg
