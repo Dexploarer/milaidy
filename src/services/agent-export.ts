@@ -421,13 +421,31 @@ async function extractAgentData(
       allComponents.push(c);
     }
   };
-  for (const entity of entities) {
-    if (!entity.id) continue;
-    for (const c of await db.getComponents(entity.id)) addComponent(c);
-    for (const world of agentWorlds) {
-      if (!world.id) continue;
-      for (const c of await db.getComponents(entity.id, world.id))
-        addComponent(c);
+
+  const entityIds = entities
+    .map((e) => e.id)
+    .filter((id): id is string => !!id);
+
+  // Try optimized bulk fetch first
+  const bulkComponents = await fetchComponentsBulk(db, entityIds);
+
+  if (bulkComponents) {
+    logger.debug(
+      `[agent-export] Bulk fetched ${bulkComponents.length} components`,
+    );
+    for (const c of bulkComponents) {
+      addComponent(c);
+    }
+  } else {
+    // Fallback to sequential N+1 if optimization unavailable/failed
+    for (const entity of entities) {
+      if (!entity.id) continue;
+      for (const c of await db.getComponents(entity.id)) addComponent(c);
+      for (const world of agentWorlds) {
+        if (!world.id) continue;
+        for (const c of await db.getComponents(entity.id, world.id))
+          addComponent(c);
+      }
     }
   }
   logger.info(`[agent-export] Found ${allComponents.length} components`);
@@ -721,6 +739,48 @@ async function restoreAgentData(
       logs: logsImported,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Optimized bulk fetch for components using Drizzle query builder if available.
+ * Avoids N+1 query pattern.
+ */
+async function fetchComponentsBulk(
+  db: any, // Using any to access .db.query which is not on IDatabaseAdapter interface
+  entityIds: string[],
+): Promise<Component[] | null> {
+  // Check if we have the Drizzle query builder available
+  if (!db.db?.query?.components) return null;
+
+  try {
+    // Chunk the IDs to be safe (Postgres handles 65k params, SQLite 999)
+    const CHUNK_SIZE = 500;
+    const allComponents: Component[] = [];
+
+    for (let i = 0; i < entityIds.length; i += CHUNK_SIZE) {
+      const chunk = entityIds.slice(i, i + CHUNK_SIZE);
+      if (chunk.length === 0) continue;
+
+      const results = await db.db.query.components.findMany({
+        where: (table: any, { inArray }: any) => inArray(table.entityId, chunk),
+      });
+
+      if (results) {
+        allComponents.push(...(results as Component[]));
+      }
+    }
+
+    return allComponents;
+  } catch (err) {
+    logger.warn(
+      `[agent-export] Bulk component fetch failed, falling back to sequential: ${err}`,
+    );
+    return null;
+  }
 }
 
 /**
