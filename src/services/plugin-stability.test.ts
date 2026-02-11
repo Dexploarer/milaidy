@@ -19,6 +19,10 @@ import type { MilaidyConfig } from "../config/types.milaidy.js";
 import { createSessionKeyProvider } from "../providers/session-bridge.js";
 import { createWorkspaceProvider } from "../providers/workspace-provider.js";
 import {
+  CHANNEL_PLUGIN_MAP as CONNECTOR_PLUGINS,
+  PROVIDER_PLUGIN_MAP as PROVIDER_PLUGINS,
+} from "../config/plugins.js";
+import {
   applyCloudConfigToEnv,
   applyConnectorSecretsToEnv,
   buildCharacterFromConfig,
@@ -33,36 +37,7 @@ import { createMilaidyPlugin } from "../runtime/milaidy-plugin.js";
 // Constants — Full plugin enumeration
 // ---------------------------------------------------------------------------
 // CORE_PLUGINS and OPTIONAL_CORE_PLUGINS are imported from eliza.ts
-
-/** Connector plugins (loaded when connector config is present). */
-const CONNECTOR_PLUGINS: Record<string, string> = {
-  discord: "@elizaos/plugin-discord",
-  telegram: "@elizaos/plugin-telegram",
-  slack: "@elizaos/plugin-slack",
-  whatsapp: "@elizaos/plugin-whatsapp",
-  signal: "@elizaos/plugin-signal",
-  imessage: "@elizaos/plugin-imessage",
-  bluebubbles: "@elizaos/plugin-bluebubbles",
-  msteams: "@elizaos/plugin-msteams",
-  mattermost: "@elizaos/plugin-mattermost",
-  googlechat: "@elizaos/plugin-google-chat",
-};
-
-/** Model-provider plugins (loaded when env key is set). */
-const PROVIDER_PLUGINS: Record<string, string> = {
-  ANTHROPIC_API_KEY: "@elizaos/plugin-anthropic",
-  OPENAI_API_KEY: "@elizaos/plugin-openai",
-  AI_GATEWAY_API_KEY: "@elizaos/plugin-vercel-ai-gateway",
-  AIGATEWAY_API_KEY: "@elizaos/plugin-vercel-ai-gateway",
-  GOOGLE_API_KEY: "@elizaos/plugin-google-genai",
-  GOOGLE_GENERATIVE_AI_API_KEY: "@elizaos/plugin-google-genai",
-  GROQ_API_KEY: "@elizaos/plugin-groq",
-  XAI_API_KEY: "@elizaos/plugin-xai",
-  OPENROUTER_API_KEY: "@elizaos/plugin-openrouter",
-  OLLAMA_BASE_URL: "@elizaos/plugin-ollama",
-  ELIZAOS_CLOUD_API_KEY: "@elizaos/plugin-elizacloud",
-  ELIZAOS_CLOUD_ENABLED: "@elizaos/plugin-elizacloud",
-};
+// CONNECTOR_PLUGINS and PROVIDER_PLUGINS are imported from plugins.ts
 
 /** All unique plugin package names from all maps. */
 const ALL_KNOWN_PLUGINS: readonly string[] = [
@@ -113,7 +88,8 @@ describe("Plugin Enumeration", () => {
     expect(Object.keys(CONNECTOR_PLUGINS).length).toBe(10);
     for (const [connector, pluginName] of Object.entries(CONNECTOR_PLUGINS)) {
       expect(typeof connector).toBe("string");
-      expect(pluginName).toMatch(/^@elizaos\/plugin-/);
+      // Allow @elizaos, @milaidy, etc.
+      expect(pluginName).toMatch(/^(@elizaos|@milaidy)\/plugin-/);
     }
   });
 
@@ -121,7 +97,8 @@ describe("Plugin Enumeration", () => {
     const uniqueProviders = new Set(Object.values(PROVIDER_PLUGINS));
     expect(uniqueProviders.size).toBeGreaterThanOrEqual(7);
     for (const pluginName of uniqueProviders) {
-      expect(pluginName).toMatch(/^@elizaos\/plugin-/);
+      // Allow @elizaos, @homunculuslabs, etc.
+      expect(pluginName).toMatch(/^(@elizaos|@homunculuslabs)\/plugin-/);
     }
   });
 
@@ -141,7 +118,8 @@ describe("Plugin Enumeration", () => {
     ]);
     // All enumerated plugins should be valid package names
     for (const name of ALL_KNOWN_PLUGINS) {
-      expect(name.startsWith("@elizaos/plugin-")).toBe(true);
+      // Check for scope/package format
+      expect(name).toMatch(/^@[a-z0-9-]+\/plugin-[a-z0-9-]+$/);
     }
     expect(knownPackages.size).toBeGreaterThan(0);
   });
