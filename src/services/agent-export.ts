@@ -52,6 +52,7 @@ const KEY_LEN = 32; // AES-256
 const HEADER_SIZE = MAGIC_BYTES.length + 4 + SALT_LEN + IV_LEN + TAG_LEN; // 15 + 4 + 32 + 12 + 16 = 79
 const EXPORT_VERSION = 1;
 const MAX_IMPORT_DECOMPRESSED_BYTES = 16 * 1024 * 1024; // 16 MiB safety cap
+const MEMORY_IMPORT_BATCH_SIZE = 100;
 
 // Memory table names we need to export. The adapter's getMemories requires
 // a tableName parameter. These are the known built-in table names used by
@@ -639,20 +640,25 @@ async function restoreAgentData(
 
   // 7. Create memories
   let memoriesImported = 0;
-  for (const mem of payload.memories) {
-    const tableName = resolveMemoryTableName(mem);
-    const newMem: Memory = {
-      ...mem,
-      id: remap(mem.id ?? "") as UUID,
-      agentId: newAgentId as UUID,
-      ...(mem.entityId ? { entityId: remap(mem.entityId) as UUID } : {}),
-      ...(mem.roomId ? { roomId: remap(mem.roomId) as UUID } : {}),
-      ...(mem.worldId ? { worldId: remap(mem.worldId) as UUID } : {}),
-      // Embeddings are excluded — they will be regenerated
-      embedding: undefined,
-    };
-    await db.createMemory(newMem, tableName);
-    memoriesImported++;
+  for (let i = 0; i < payload.memories.length; i += MEMORY_IMPORT_BATCH_SIZE) {
+    const batch = payload.memories.slice(i, i + MEMORY_IMPORT_BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (mem) => {
+        const tableName = resolveMemoryTableName(mem);
+        const newMem: Memory = {
+          ...mem,
+          id: remap(mem.id ?? "") as UUID,
+          agentId: newAgentId as UUID,
+          ...(mem.entityId ? { entityId: remap(mem.entityId) as UUID } : {}),
+          ...(mem.roomId ? { roomId: remap(mem.roomId) as UUID } : {}),
+          ...(mem.worldId ? { worldId: remap(mem.worldId) as UUID } : {}),
+          // Embeddings are excluded — they will be regenerated
+          embedding: undefined,
+        };
+        await db.createMemory(newMem, tableName);
+      }),
+    );
+    memoriesImported += batch.length;
   }
   logger.info(`[agent-import] Imported ${memoriesImported} memories`);
 
