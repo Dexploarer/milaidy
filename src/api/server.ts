@@ -130,6 +130,13 @@ interface ServerState {
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
 }
 
+type LogFunction = (
+  level: string,
+  message: string,
+  source?: string,
+  tags?: string[],
+) => void;
+
 interface ShareIngestItem {
   id: string;
   source: string;
@@ -6011,6 +6018,320 @@ export function captureEarlyLogs(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers (Refactored from startApiServer)
+// ---------------------------------------------------------------------------
+
+function createAddLog(state: ServerState): LogFunction {
+  return (
+    level: string,
+    message: string,
+    source = "system",
+    tags: string[] = [],
+  ) => {
+    let resolvedSource = source;
+    if (source === "auto" || source === "system") {
+      const bracketMatch = /^\[([^\]]+)\]\s*/.exec(message);
+      if (bracketMatch) resolvedSource = bracketMatch[1];
+    }
+    // Auto-tag based on source when no explicit tags provided
+    const resolvedTags =
+      tags.length > 0
+        ? tags
+        : resolvedSource === "runtime" || resolvedSource === "autonomy"
+          ? ["agent"]
+          : resolvedSource === "api" || resolvedSource === "websocket"
+            ? ["server"]
+            : resolvedSource === "cloud"
+              ? ["server", "cloud"]
+              : ["system"];
+    state.logBuffer.push({
+      timestamp: Date.now(),
+      level,
+      message,
+      source: resolvedSource,
+      tags: resolvedTags,
+    });
+    if (state.logBuffer.length > 1000) state.logBuffer.shift();
+  };
+}
+
+function flushEarlyLogs(state: ServerState, addLog: LogFunction) {
+  if (earlyLogBuffer && earlyLogBuffer.length > 0) {
+    for (const entry of earlyLogBuffer) {
+      state.logBuffer.push(entry);
+    }
+    if (state.logBuffer.length > 1000) {
+      state.logBuffer.splice(0, state.logBuffer.length - 1000);
+    }
+    addLog(
+      "info",
+      `Flushed ${earlyLogBuffer.length} early startup log entries`,
+      "system",
+      ["system"],
+    );
+  }
+  // Clean up early capture so the main patchLogger can take over
+  if (earlyPatchCleanup) {
+    earlyPatchCleanup();
+    earlyPatchCleanup = null;
+  }
+  earlyLogBuffer = null;
+}
+
+function patchLoggers(
+  state: ServerState,
+  runtime: AgentRuntime | null,
+  addLog: LogFunction,
+) {
+  const PATCHED_MARKER = "__milaidyLogPatched";
+  const LEVELS = ["debug", "info", "warn", "error"] as const;
+
+  const patchLogger = (
+    target: typeof logger,
+    defaultSource: string,
+    defaultTags: string[],
+  ): boolean => {
+    if ((target as unknown as Record<string, unknown>)[PATCHED_MARKER]) {
+      return false;
+    }
+
+    for (const lvl of LEVELS) {
+      const original = target[lvl].bind(target);
+      // pino / adze signature: logger.info(obj, msg) or logger.info(msg)
+      const patched: (typeof target)[typeof lvl] = (
+        ...args: Parameters<typeof original>
+      ) => {
+        let msg = "";
+        let source = defaultSource;
+        let tags = [...defaultTags];
+        if (typeof args[0] === "string") {
+          msg = args[0];
+        } else if (args[0] && typeof args[0] === "object") {
+          const obj = args[0] as Record<string, unknown>;
+          if (typeof obj.src === "string") source = obj.src;
+          // Extract tags from structured log objects
+          if (Array.isArray(obj.tags)) {
+            tags = [...tags, ...(obj.tags as string[])];
+          }
+          msg = typeof args[1] === "string" ? args[1] : JSON.stringify(obj);
+        }
+        // Auto-extract source from [bracket] prefixes (e.g. "[milaidy] ...")
+        const bracketMatch = /^\[([^\]]+)\]\s*/.exec(msg);
+        if (bracketMatch && source === defaultSource) {
+          source = bracketMatch[1];
+        }
+        // Auto-tag based on source context
+        if (source !== defaultSource && !tags.includes(source)) {
+          tags.push(source);
+        }
+        if (msg) addLog(lvl, msg, source, tags);
+        return original(...args);
+      };
+      target[lvl] = patched;
+    }
+
+    (target as unknown as Record<string, unknown>)[PATCHED_MARKER] = true;
+    return true;
+  };
+
+  if (patchLogger(logger, "agent", ["agent"])) {
+    addLog(
+      "info",
+      "Global logger connected — all agent logs will stream to the UI",
+      "system",
+      ["system", "agent"],
+    );
+  }
+
+  if (runtime?.logger && runtime.logger !== logger) {
+    if (patchLogger(runtime.logger, "runtime", ["agent", "runtime"])) {
+      addLog(
+        "info",
+        "Runtime logger connected — runtime logs will stream to the UI",
+        "system",
+        ["system", "agent"],
+      );
+    }
+  }
+}
+
+async function restoreConversationsFromDb(
+  rt: AgentRuntime,
+  conversations: Map<string, ConversationMeta>,
+  addLog: LogFunction,
+): Promise<void> {
+  try {
+    const agentName = rt.character.name ?? "Milaidy";
+    const worldId = stringToUuid(`${agentName}-web-chat-world`);
+    const rooms = await rt.getRoomsByWorld(worldId);
+    if (!rooms?.length) return;
+
+    let restored = 0;
+    for (const room of rooms) {
+      // channelId is "web-conv-{uuid}" — extract the conversation id
+      const channelId =
+        typeof room.channelId === "string" ? room.channelId : "";
+      if (!channelId.startsWith("web-conv-")) continue;
+      const convId = channelId.replace("web-conv-", "");
+      if (!convId || conversations.has(convId)) continue;
+
+      // Peek at the latest message to get a timestamp
+      let updatedAt = new Date().toISOString();
+      try {
+        const msgs = await rt.getMemories({
+          roomId: room.id as UUID,
+          tableName: "messages",
+          count: 1,
+        });
+        if (msgs.length > 0 && msgs[0].createdAt) {
+          updatedAt = new Date(msgs[0].createdAt).toISOString();
+        }
+      } catch {
+        // non-fatal — use current time
+      }
+
+      conversations.set(convId, {
+        id: convId,
+        title:
+          ((room as unknown as Record<string, unknown>).name as string) ||
+          "Chat",
+        roomId: room.id as UUID,
+        createdAt: updatedAt,
+        updatedAt,
+      });
+      restored++;
+    }
+    if (restored > 0) {
+      addLog(
+        "info",
+        `Restored ${restored} conversation(s) from database`,
+        "system",
+        ["system"],
+      );
+    }
+  } catch (err) {
+    logger.warn(
+      `[milaidy-api] Failed to restore conversations from DB: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+}
+
+function setupWebSocket(
+  server: http.Server,
+  state: ServerState,
+  addLog: LogFunction,
+) {
+  const wss = new WebSocketServer({ noServer: true });
+  const wsClients = new Set<WebSocket>();
+
+  server.on("upgrade", (request, socket, head) => {
+    try {
+      const { pathname: wsPath } = new URL(
+        request.url ?? "/",
+        `http://${request.headers.host}`,
+      );
+      if (wsPath === "/ws") {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit("connection", ws, request);
+        });
+      } else {
+        socket.destroy();
+      }
+    } catch (err) {
+      logger.error(
+        `[milaidy-api] WebSocket upgrade error: ${err instanceof Error ? err.message : err}`,
+      );
+      socket.destroy();
+    }
+  });
+
+  wss.on("connection", (ws: WebSocket) => {
+    wsClients.add(ws);
+    addLog("info", "WebSocket client connected", "websocket", [
+      "server",
+      "websocket",
+    ]);
+
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "status",
+          state: state.agentState,
+          agentName: state.agentName,
+          model: state.model,
+          startedAt: state.startedAt,
+        }),
+      );
+    } catch (err) {
+      logger.error(
+        `[milaidy-api] WebSocket send error: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+
+    ws.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" }));
+        }
+      } catch (err) {
+        logger.error(
+          `[milaidy-api] WebSocket message error: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    });
+
+    ws.on("close", () => {
+      wsClients.delete(ws);
+      addLog("info", "WebSocket client disconnected", "websocket", [
+        "server",
+        "websocket",
+      ]);
+    });
+
+    ws.on("error", (err) => {
+      logger.error(
+        `[milaidy-api] WebSocket error: ${err instanceof Error ? err.message : err}`,
+      );
+      wsClients.delete(ws);
+    });
+  });
+
+  const broadcastStatus = () => {
+    const statusData = {
+      type: "status",
+      state: state.agentState,
+      agentName: state.agentName,
+      model: state.model,
+      startedAt: state.startedAt,
+    };
+    const message = JSON.stringify(statusData);
+    for (const client of wsClients) {
+      if (client.readyState === 1) {
+        try {
+          client.send(message);
+        } catch (err) {
+          logger.error(
+            `[milaidy-api] WebSocket broadcast error: ${err instanceof Error ? err.message : err}`,
+          );
+        }
+      }
+    }
+  };
+
+  const statusInterval = setInterval(broadcastStatus, 5000);
+
+  return {
+    wss,
+    broadcastStatus,
+    close: () => {
+      clearInterval(statusInterval);
+      wss.close();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Server start
 // ---------------------------------------------------------------------------
 
@@ -6076,64 +6397,9 @@ export async function startApiServer(opts?: {
     shareIngestQueue: [],
   };
 
-  // Wire the app manager to the runtime if already running
-  if (state.runtime) {
-    // AppManager doesn't need a runtime reference — it just installs plugins
-  }
+  const addLog = createAddLog(state);
 
-  const addLog = (
-    level: string,
-    message: string,
-    source = "system",
-    tags: string[] = [],
-  ) => {
-    let resolvedSource = source;
-    if (source === "auto" || source === "system") {
-      const bracketMatch = /^\[([^\]]+)\]\s*/.exec(message);
-      if (bracketMatch) resolvedSource = bracketMatch[1];
-    }
-    // Auto-tag based on source when no explicit tags provided
-    const resolvedTags =
-      tags.length > 0
-        ? tags
-        : resolvedSource === "runtime" || resolvedSource === "autonomy"
-          ? ["agent"]
-          : resolvedSource === "api" || resolvedSource === "websocket"
-            ? ["server"]
-            : resolvedSource === "cloud"
-              ? ["server", "cloud"]
-              : ["system"];
-    state.logBuffer.push({
-      timestamp: Date.now(),
-      level,
-      message,
-      source: resolvedSource,
-      tags: resolvedTags,
-    });
-    if (state.logBuffer.length > 1000) state.logBuffer.shift();
-  };
-
-  // ── Flush early-captured logs into the main buffer ────────────────────
-  if (earlyLogBuffer && earlyLogBuffer.length > 0) {
-    for (const entry of earlyLogBuffer) {
-      state.logBuffer.push(entry);
-    }
-    if (state.logBuffer.length > 1000) {
-      state.logBuffer.splice(0, state.logBuffer.length - 1000);
-    }
-    addLog(
-      "info",
-      `Flushed ${earlyLogBuffer.length} early startup log entries`,
-      "system",
-      ["system"],
-    );
-  }
-  // Clean up early capture so the main patchLogger can take over
-  if (earlyPatchCleanup) {
-    earlyPatchCleanup();
-    earlyPatchCleanup = null;
-  }
-  earlyLogBuffer = null;
+  flushEarlyLogs(state, addLog);
 
   // ── Cloud Manager initialisation ──────────────────────────────────────
   if (config.cloud?.enabled && config.cloud?.apiKey) {
@@ -6160,89 +6426,7 @@ export async function startApiServer(opts?: {
     ["system", "plugins"],
   );
 
-  // ── Intercept loggers so ALL agent/plugin/service logs appear in the UI ──
-  // We patch both the global `logger` singleton from @elizaos/core (used by
-  // eliza.ts, services, plugins, etc.) AND the runtime instance logger.
-  // A marker prevents double-patching on hot-restart and avoids stacking
-  // wrapper functions that would leak memory.
-  const PATCHED_MARKER = "__milaidyLogPatched";
-  const LEVELS = ["debug", "info", "warn", "error"] as const;
-
-  /**
-   * Patch a logger object so every log call also feeds into the UI log buffer.
-   * Returns true if patching was performed, false if already patched.
-   */
-  const patchLogger = (
-    target: typeof logger,
-    defaultSource: string,
-    defaultTags: string[],
-  ): boolean => {
-    if ((target as unknown as Record<string, unknown>)[PATCHED_MARKER]) {
-      return false;
-    }
-
-    for (const lvl of LEVELS) {
-      const original = target[lvl].bind(target);
-      // pino / adze signature: logger.info(obj, msg) or logger.info(msg)
-      const patched: (typeof target)[typeof lvl] = (
-        ...args: Parameters<typeof original>
-      ) => {
-        let msg = "";
-        let source = defaultSource;
-        let tags = [...defaultTags];
-        if (typeof args[0] === "string") {
-          msg = args[0];
-        } else if (args[0] && typeof args[0] === "object") {
-          const obj = args[0] as Record<string, unknown>;
-          if (typeof obj.src === "string") source = obj.src;
-          // Extract tags from structured log objects
-          if (Array.isArray(obj.tags)) {
-            tags = [...tags, ...(obj.tags as string[])];
-          }
-          msg = typeof args[1] === "string" ? args[1] : JSON.stringify(obj);
-        }
-        // Auto-extract source from [bracket] prefixes (e.g. "[milaidy] ...")
-        const bracketMatch = /^\[([^\]]+)\]\s*/.exec(msg);
-        if (bracketMatch && source === defaultSource) {
-          source = bracketMatch[1];
-        }
-        // Auto-tag based on source context
-        if (source !== defaultSource && !tags.includes(source)) {
-          tags.push(source);
-        }
-        if (msg) addLog(lvl, msg, source, tags);
-        return original(...args);
-      };
-      target[lvl] = patched;
-    }
-
-    (target as unknown as Record<string, unknown>)[PATCHED_MARKER] = true;
-    return true;
-  };
-
-  // 1) Patch the global @elizaos/core logger — this captures ALL log calls
-  //    from eliza.ts, services, plugins, cloud, hooks, etc.
-  if (patchLogger(logger, "agent", ["agent"])) {
-    addLog(
-      "info",
-      "Global logger connected — all agent logs will stream to the UI",
-      "system",
-      ["system", "agent"],
-    );
-  }
-
-  // 2) Patch the runtime instance logger (if it's a different object)
-  //    This catches logs from runtime internals that use their own logger child.
-  if (opts?.runtime?.logger && opts.runtime.logger !== logger) {
-    if (patchLogger(opts.runtime.logger, "runtime", ["agent", "runtime"])) {
-      addLog(
-        "info",
-        "Runtime logger connected — runtime logs will stream to the UI",
-        "system",
-        ["system", "agent"],
-      );
-    }
-  }
+  patchLoggers(state, opts?.runtime ?? null, addLog);
 
   // Autonomy is managed by the core AutonomyService + TaskService.
   // The AutonomyService creates a recurring task (tagged "queue") that the
@@ -6270,180 +6454,15 @@ export async function startApiServer(opts?: {
     }
   });
 
-  // ── WebSocket Server ─────────────────────────────────────────────────────
-  const wss = new WebSocketServer({ noServer: true });
-  const wsClients = new Set<WebSocket>();
-
-  // Handle upgrade requests for WebSocket
-  server.on("upgrade", (request, socket, head) => {
-    try {
-      const { pathname: wsPath } = new URL(
-        request.url ?? "/",
-        `http://${request.headers.host}`,
-      );
-      if (wsPath === "/ws") {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit("connection", ws, request);
-        });
-      } else {
-        socket.destroy();
-      }
-    } catch (err) {
-      logger.error(
-        `[milaidy-api] WebSocket upgrade error: ${err instanceof Error ? err.message : err}`,
-      );
-      socket.destroy();
-    }
-  });
-
-  // Handle WebSocket connections
-  wss.on("connection", (ws: WebSocket) => {
-    wsClients.add(ws);
-    addLog("info", "WebSocket client connected", "websocket", [
-      "server",
-      "websocket",
-    ]);
-
-    // Send initial status (flattened shape — matches UI AgentStatus)
-    try {
-      ws.send(
-        JSON.stringify({
-          type: "status",
-          state: state.agentState,
-          agentName: state.agentName,
-          model: state.model,
-          startedAt: state.startedAt,
-        }),
-      );
-    } catch (err) {
-      logger.error(
-        `[milaidy-api] WebSocket send error: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-
-    ws.on("message", (data) => {
-      try {
-        const msg = JSON.parse(data.toString());
-        if (msg.type === "ping") {
-          ws.send(JSON.stringify({ type: "pong" }));
-        }
-      } catch (err) {
-        logger.error(
-          `[milaidy-api] WebSocket message error: ${err instanceof Error ? err.message : err}`,
-        );
-      }
-    });
-
-    ws.on("close", () => {
-      wsClients.delete(ws);
-      addLog("info", "WebSocket client disconnected", "websocket", [
-        "server",
-        "websocket",
-      ]);
-    });
-
-    ws.on("error", (err) => {
-      logger.error(
-        `[milaidy-api] WebSocket error: ${err instanceof Error ? err.message : err}`,
-      );
-      wsClients.delete(ws);
-    });
-  });
-
-  // Broadcast status to all connected WebSocket clients (flattened — PR #36 fix)
-  const broadcastStatus = () => {
-    const statusData = {
-      type: "status",
-      state: state.agentState,
-      agentName: state.agentName,
-      model: state.model,
-      startedAt: state.startedAt,
-    };
-    const message = JSON.stringify(statusData);
-    for (const client of wsClients) {
-      if (client.readyState === 1) {
-        // OPEN
-        try {
-          client.send(message);
-        } catch (err) {
-          logger.error(
-            `[milaidy-api] WebSocket broadcast error: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-      }
-    }
-  };
-
-  // Broadcast status every 5 seconds
-  const statusInterval = setInterval(broadcastStatus, 5000);
-
-  /**
-   * Restore the in-memory conversation list from the database.
-   * Web-chat rooms live in a deterministic world; we scan it for rooms
-   * whose channelId starts with "web-conv-" and reconstruct the metadata.
-   */
-  const restoreConversationsFromDb = async (
-    rt: AgentRuntime,
-  ): Promise<void> => {
-    try {
-      const agentName = rt.character.name ?? "Milaidy";
-      const worldId = stringToUuid(`${agentName}-web-chat-world`);
-      const rooms = await rt.getRoomsByWorld(worldId);
-      if (!rooms?.length) return;
-
-      let restored = 0;
-      for (const room of rooms) {
-        // channelId is "web-conv-{uuid}" — extract the conversation id
-        const channelId =
-          typeof room.channelId === "string" ? room.channelId : "";
-        if (!channelId.startsWith("web-conv-")) continue;
-        const convId = channelId.replace("web-conv-", "");
-        if (!convId || state.conversations.has(convId)) continue;
-
-        // Peek at the latest message to get a timestamp
-        let updatedAt = new Date().toISOString();
-        try {
-          const msgs = await rt.getMemories({
-            roomId: room.id as UUID,
-            tableName: "messages",
-            count: 1,
-          });
-          if (msgs.length > 0 && msgs[0].createdAt) {
-            updatedAt = new Date(msgs[0].createdAt).toISOString();
-          }
-        } catch {
-          // non-fatal — use current time
-        }
-
-        state.conversations.set(convId, {
-          id: convId,
-          title:
-            ((room as unknown as Record<string, unknown>).name as string) ||
-            "Chat",
-          roomId: room.id as UUID,
-          createdAt: updatedAt,
-          updatedAt,
-        });
-        restored++;
-      }
-      if (restored > 0) {
-        addLog(
-          "info",
-          `Restored ${restored} conversation(s) from database`,
-          "system",
-          ["system"],
-        );
-      }
-    } catch (err) {
-      logger.warn(
-        `[milaidy-api] Failed to restore conversations from DB: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-  };
+  const { wss, broadcastStatus, close: closeWs } = setupWebSocket(
+    server,
+    state,
+    addLog,
+  );
 
   // Restore conversations from DB at initial boot (if runtime was passed in)
   if (opts?.runtime) {
-    void restoreConversationsFromDb(opts.runtime);
+    void restoreConversationsFromDb(opts.runtime, state.conversations, addLog);
   }
 
   /** Hot-swap the runtime reference (used after an in-process restart). */
@@ -6459,7 +6478,7 @@ export async function startApiServer(opts?: {
     ]);
 
     // Restore conversations from DB so they survive restarts
-    void restoreConversationsFromDb(rt);
+    void restoreConversationsFromDb(rt, state.conversations, addLog);
 
     // Broadcast status update immediately after restart
     broadcastStatus();
@@ -6484,8 +6503,7 @@ export async function startApiServer(opts?: {
         port: actualPort,
         close: () =>
           new Promise<void>((r) => {
-            clearInterval(statusInterval);
-            wss.close();
+            closeWs();
             server.close(() => r());
           }),
         updateRuntime,
