@@ -704,6 +704,7 @@ export const VisionProviderSchema = z.enum([
   "google",
   "anthropic",
   "xai",
+  "ollama",
 ]);
 
 export const VisionOpenaiConfigSchema = z
@@ -739,6 +740,16 @@ export const VisionXaiConfigSchema = z
   .strict()
   .optional();
 
+export const VisionOllamaConfigSchema = z
+  .object({
+    baseUrl: z.string().url().optional(),
+    model: z.string().optional(),
+    maxTokens: z.number().int().positive().optional(),
+    autoDownload: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
 export const VisionConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -748,6 +759,7 @@ export const VisionConfigSchema = z
     google: VisionGoogleConfigSchema,
     anthropic: VisionAnthropicConfigSchema,
     xai: VisionXaiConfigSchema,
+    ollama: VisionOllamaConfigSchema,
   })
   .strict()
   .optional();

@@ -56,6 +56,15 @@ export function App() {
   if (!onboardingComplete) return <OnboardingWizard />;
 
   const isChat = tab === "chat";
+  const isAdvancedTab =
+    tab === "advanced" ||
+    tab === "plugins" ||
+    tab === "skills" ||
+    tab === "fine-tuning" ||
+    tab === "trajectories" ||
+    tab === "runtime" ||
+    tab === "database" ||
+    tab === "logs";
 
   return (
     <>
@@ -75,7 +84,7 @@ export function App() {
         <div className="flex flex-col flex-1 min-h-0 w-full font-body text-txt bg-bg">
           <Header />
           <Nav />
-          <main className="flex-1 min-h-0 py-6 px-5 overflow-y-auto">
+          <main className={`flex-1 min-h-0 py-6 px-5 ${isAdvancedTab ? "overflow-hidden" : "overflow-y-auto"}`}>
             <ViewRouter />
           </main>
         </div>

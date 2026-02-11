@@ -890,9 +890,11 @@ export interface McpServerStatus {
 
 // Voice / TTS config
 export type VoiceProvider = "elevenlabs" | "simple-voice" | "edge";
+export type VoiceMode = "cloud" | "own-key";
 
 export interface VoiceConfig {
   provider?: VoiceProvider;
+  mode?: VoiceMode;
   elevenlabs?: {
     apiKey?: string;
     voiceId?: string;
@@ -1447,6 +1449,9 @@ export interface PermissionDefinition {
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
+
+const GENERIC_NO_RESPONSE_TEXT =
+  "Sorry, I couldn't generate a response right now. Please try again.";
 
 export class MilaidyClient {
   private _baseUrl: string;
@@ -2582,6 +2587,14 @@ export class MilaidyClient {
     };
   }
 
+  private normalizeAssistantText(text: string): string {
+    const trimmed = text.trim();
+    if (trimmed.length === 0 || /^\(?no response\)?$/i.test(trimmed)) {
+      return GENERIC_NO_RESPONSE_TEXT;
+    }
+    return text;
+  }
+
   private async streamChatEndpoint(
     path: string,
     text: string,
@@ -2658,8 +2671,10 @@ export class MilaidyClient {
       }
 
       if (parsed.type === "done") {
-        if (parsed.fullText) doneText = parsed.fullText;
-        if (parsed.agentName) doneAgentName = parsed.agentName;
+        if (typeof parsed.fullText === "string") doneText = parsed.fullText;
+        if (typeof parsed.agentName === "string" && parsed.agentName.trim()) {
+          doneAgentName = parsed.agentName;
+        }
         return;
       }
 
@@ -2697,8 +2712,9 @@ export class MilaidyClient {
       }
     }
 
+    const resolvedText = this.normalizeAssistantText(doneText ?? fullText);
     return {
-      text: doneText ?? fullText,
+      text: resolvedText,
       agentName: doneAgentName ?? "Milaidy",
     };
   }
@@ -2711,10 +2727,17 @@ export class MilaidyClient {
     text: string,
     mode: ConversationMode = "simple",
   ): Promise<{ text: string; agentName: string }> {
-    return this.fetch<{ text: string; agentName: string }>("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({ text, mode }),
-    });
+    const response = await this.fetch<{ text: string; agentName: string }>(
+      "/api/chat",
+      {
+        method: "POST",
+        body: JSON.stringify({ text, mode }),
+      },
+    );
+    return {
+      ...response,
+      text: this.normalizeAssistantText(response.text),
+    };
   }
 
   async sendChatStream(
@@ -2754,10 +2777,18 @@ export class MilaidyClient {
     text: string,
     mode: ConversationMode = "simple",
   ): Promise<{ text: string; agentName: string; blocks?: ContentBlock[] }> {
-    return this.fetch(`/api/conversations/${encodeURIComponent(id)}/messages`, {
+    const response = await this.fetch<{
+      text: string;
+      agentName: string;
+      blocks?: ContentBlock[];
+    }>(`/api/conversations/${encodeURIComponent(id)}/messages`, {
       method: "POST",
       body: JSON.stringify({ text, mode }),
     });
+    return {
+      ...response,
+      text: this.normalizeAssistantText(response.text),
+    };
   }
 
   async sendConversationMessageStream(

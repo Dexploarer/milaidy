@@ -3,7 +3,7 @@ import { useApp } from "../AppContext.js";
 
 export function Header() {
   const {
-    agentStatus, cloudConnected, cloudCredits, cloudCreditsCritical, cloudCreditsLow,
+    agentStatus, cloudEnabled, cloudConnected, cloudCredits, cloudCreditsCritical, cloudCreditsLow,
     cloudTopUpUrl, walletAddresses, handlePauseResume,
     handleRestart, openCommandPalette, copyToClipboard, setTab,
     dropStatus, loadDropStatus, registryStatus,
@@ -43,12 +43,18 @@ export function Header() {
             Free Mint Live!
           </button>
         )}
-        {cloudConnected && cloudCredits !== null && (
-          <a href={cloudTopUpUrl} target="_blank" rel="noopener noreferrer"
-            className={`inline-flex items-center gap-1 px-2.5 py-0.5 border font-mono text-xs no-underline transition-colors hover:border-accent hover:text-accent ${creditColor}`}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-            ${cloudCredits.toFixed(2)}
-          </a>
+        {(cloudEnabled || cloudConnected) && (
+          cloudConnected ? (
+            <a href={cloudTopUpUrl} target="_blank" rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 border font-mono text-xs no-underline transition-colors hover:border-accent hover:text-accent ${cloudCredits === null ? "border-muted text-muted" : creditColor}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+              {cloudCredits === null ? "Cloud connected" : `$${cloudCredits.toFixed(2)}`}
+            </a>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 border border-danger text-danger font-mono text-xs">
+              Cloud disconnected
+            </span>
+          )
         )}
         <div className="flex items-center gap-1.5">
           <span className={`inline-flex items-center h-7 px-2.5 border font-mono text-xs leading-none ${stateColor}`} data-testid="status-pill">{state}</span>

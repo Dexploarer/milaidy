@@ -195,12 +195,15 @@ interface ServerState {
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
   /** System permission states (cached from Electron IPC). */
-  permissionStates?: Record<string, {
-    id: string;
-    status: string;
-    lastChecked: number;
-    canRequest: boolean;
-  }>;
+  permissionStates?: Record<
+    string,
+    {
+      id: string;
+      status: string;
+      lastChecked: number;
+      canRequest: boolean;
+    }
+  >;
   /** Whether shell access is enabled (can be toggled in UI). */
   shellEnabled?: boolean;
 }
@@ -1616,6 +1619,125 @@ interface ChatGenerationResult {
 interface ChatGenerateOptions {
   onChunk?: (chunk: string) => void;
   isAborted?: () => boolean;
+  resolveNoResponseText?: () => string;
+}
+
+const INSUFFICIENT_CREDITS_RE =
+  /\b(?:insufficient(?:[_\s]+(?:credits?|quota))|insufficient_quota|out of credits|max usage reached|quota(?:\s+exceeded)?)\b/i;
+
+const INSUFFICIENT_CREDITS_CHAT_REPLIES = [
+  "Sorry, we're out of credits right now. Please top up your credits and try again.",
+  "No model credits left in the tank. Time to top up your credits.",
+  "I can't answer on zero credits. Top up your credits and ping me again.",
+  "Credit meter is empty. Please top up your credits so I can keep going.",
+  "Out of credits, boss. Top up your credits and I am back online.",
+] as const;
+
+const GENERIC_NO_RESPONSE_CHAT_REPLY =
+  "Sorry, I couldn't generate a response right now. Please try again.";
+
+const DEFAULT_CLOUD_API_BASE_URL = "https://www.elizacloud.ai/api/v1";
+
+function getErrorMessage(err: unknown, fallback = "generation failed"): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return fallback;
+}
+
+function isInsufficientCreditsMessage(message: string): boolean {
+  return INSUFFICIENT_CREDITS_RE.test(message);
+}
+
+function pickInsufficientCreditsChatReply(): string {
+  const idx = Math.floor(
+    Math.random() * INSUFFICIENT_CREDITS_CHAT_REPLIES.length,
+  );
+  return INSUFFICIENT_CREDITS_CHAT_REPLIES[idx];
+}
+
+function findRecentInsufficientCreditsLog(
+  logBuffer: LogEntry[],
+  lookbackMs = 60_000,
+): LogEntry | null {
+  const now = Date.now();
+  for (let i = logBuffer.length - 1; i >= 0; i--) {
+    const entry = logBuffer[i];
+    if (now - entry.timestamp > lookbackMs) break;
+    if (isInsufficientCreditsMessage(entry.message)) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+function resolveNoResponseFallback(logBuffer: LogEntry[]): string {
+  if (findRecentInsufficientCreditsLog(logBuffer)) {
+    return pickInsufficientCreditsChatReply();
+  }
+  return GENERIC_NO_RESPONSE_CHAT_REPLY;
+}
+
+function getInsufficientCreditsReplyFromError(err: unknown): string | null {
+  const msg = getErrorMessage(err, "");
+  return isInsufficientCreditsMessage(msg)
+    ? pickInsufficientCreditsChatReply()
+    : null;
+}
+
+function isNoResponsePlaceholder(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.length === 0 || /^\(?no response\)?$/i.test(trimmed);
+}
+
+function normalizeChatResponseText(
+  text: string,
+  logBuffer: LogEntry[],
+): string {
+  if (!isNoResponsePlaceholder(text)) return text;
+  return resolveNoResponseFallback(logBuffer);
+}
+
+function resolveCloudApiBaseUrl(rawBaseUrl?: string): string {
+  const base = (rawBaseUrl ?? DEFAULT_CLOUD_API_BASE_URL)
+    .trim()
+    .replace(/\/+$/, "");
+  if (base.endsWith("/api/v1")) return base;
+  return `${base}/api/v1`;
+}
+
+async function fetchCloudCreditsByApiKey(
+  baseUrl: string,
+  apiKey: string,
+): Promise<number | null> {
+  const response = await fetch(`${baseUrl}/credits/balance`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  const creditResponse = (await response.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+
+  if (!response.ok) {
+    const message =
+      typeof creditResponse.error === "string" && creditResponse.error.trim()
+        ? creditResponse.error
+        : `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  const rawBalance =
+    typeof creditResponse.balance === "number"
+      ? creditResponse.balance
+      : typeof (creditResponse.data as Record<string, unknown>)?.balance ===
+          "number"
+        ? ((creditResponse.data as Record<string, unknown>).balance as number)
+        : undefined;
+  return typeof rawBalance === "number" ? rawBalance : null;
 }
 
 function initSse(res: http.ServerResponse): void {
@@ -1665,8 +1787,13 @@ async function generateChatResponse(
     opts?.onChunk?.(result.responseContent.text);
   }
 
+  const noResponseFallback = opts?.resolveNoResponseText?.();
+  const finalText = isNoResponsePlaceholder(responseText)
+    ? (noResponseFallback ?? (responseText || "(no response)"))
+    : responseText;
+
   return {
-    text: responseText || "(no response)",
+    text: finalText,
     agentName,
   };
 }
@@ -7553,7 +7680,10 @@ async function handleRequest(
 
   // ── POST /api/permissions/:id/request ──────────────────────────────────
   // Request a specific permission (triggers system prompt or opens settings)
-  if (method === "POST" && pathname.match(/^\/api\/permissions\/[^/]+\/request$/)) {
+  if (
+    method === "POST" &&
+    pathname.match(/^\/api\/permissions\/[^/]+\/request$/)
+  ) {
     const permId = pathname.split("/")[3];
     json(res, {
       message: `Permission request for ${permId}`,
@@ -7564,7 +7694,10 @@ async function handleRequest(
 
   // ── POST /api/permissions/:id/open-settings ────────────────────────────
   // Open system settings for a specific permission
-  if (method === "POST" && pathname.match(/^\/api\/permissions\/[^/]+\/open-settings$/)) {
+  if (
+    method === "POST" &&
+    pathname.match(/^\/api\/permissions\/[^/]+\/open-settings$/)
+  ) {
     const permId = pathname.split("/")[3];
     json(res, {
       message: `Opening settings for ${permId}`,
@@ -7612,12 +7745,15 @@ async function handleRequest(
     const body = await readJsonBody(req, res);
     if (!body) return;
     if (body.permissions && typeof body.permissions === "object") {
-      state.permissionStates = body.permissions as Record<string, {
-        id: string;
-        status: string;
-        lastChecked: number;
-        canRequest: boolean;
-      }>;
+      state.permissionStates = body.permissions as Record<
+        string,
+        {
+          id: string;
+          status: string;
+          lastChecked: number;
+          canRequest: boolean;
+        }
+      >;
     }
     json(res, { updated: true, permissions: state.permissionStates });
     return;
@@ -7905,17 +8041,31 @@ async function handleRequest(
           writeSse(res, { type: "token", text: chunk });
         }
 
+        const resolvedText = normalizeChatResponseText(
+          fullText,
+          state.logBuffer,
+        );
         conv.updatedAt = new Date().toISOString();
         writeSse(res, {
           type: "done",
-          fullText,
+          fullText: resolvedText,
           agentName: proxy.agentName,
         });
       } catch (err) {
-        writeSse(res, {
-          type: "error",
-          message: err instanceof Error ? err.message : "generation failed",
-        });
+        const creditReply = getInsufficientCreditsReplyFromError(err);
+        if (creditReply) {
+          conv.updatedAt = new Date().toISOString();
+          writeSse(res, {
+            type: "done",
+            fullText: creditReply,
+            agentName: proxy.agentName,
+          });
+        } else {
+          writeSse(res, {
+            type: "error",
+            message: getErrorMessage(err),
+          });
+        }
       } finally {
         res.end();
       }
@@ -7960,6 +8110,8 @@ async function handleRequest(
           onChunk: (chunk) => {
             writeSse(res, { type: "token", text: chunk });
           },
+          resolveNoResponseText: () =>
+            resolveNoResponseFallback(state.logBuffer),
         },
       );
 
@@ -7973,10 +8125,20 @@ async function handleRequest(
       }
     } catch (err) {
       if (!aborted) {
-        writeSse(res, {
-          type: "error",
-          message: err instanceof Error ? err.message : "generation failed",
-        });
+        const creditReply = getInsufficientCreditsReplyFromError(err);
+        if (creditReply) {
+          conv.updatedAt = new Date().toISOString();
+          writeSse(res, {
+            type: "done",
+            fullText: creditReply,
+            agentName: state.agentName,
+          });
+        } else {
+          writeSse(res, {
+            type: "error",
+            message: getErrorMessage(err),
+          });
+        }
       }
     } finally {
       res.end();
@@ -8014,13 +8176,27 @@ async function handleRequest(
     // Cloud proxy path
     const proxy = state.cloudManager?.getProxy();
     if (proxy) {
-      const responseText = await proxy.handleChatMessage(
-        body.text.trim(),
-        conv.roomId,
-        mode,
-      );
-      conv.updatedAt = new Date().toISOString();
-      json(res, { text: responseText, agentName: proxy.agentName });
+      try {
+        const responseText = await proxy.handleChatMessage(
+          body.text.trim(),
+          conv.roomId,
+          mode,
+        );
+        const resolvedText = normalizeChatResponseText(
+          responseText,
+          state.logBuffer,
+        );
+        conv.updatedAt = new Date().toISOString();
+        json(res, { text: resolvedText, agentName: proxy.agentName });
+      } catch (err) {
+        const creditReply = getInsufficientCreditsReplyFromError(err);
+        if (creditReply) {
+          conv.updatedAt = new Date().toISOString();
+          json(res, { text: creditReply, agentName: proxy.agentName });
+        } else {
+          error(res, getErrorMessage(err), 500);
+        }
+      }
       return;
     }
 
@@ -8046,6 +8222,10 @@ async function handleRequest(
         runtime,
         message,
         state.agentName,
+        {
+          resolveNoResponseText: () =>
+            resolveNoResponseFallback(state.logBuffer),
+        },
       );
 
       conv.updatedAt = new Date().toISOString();
@@ -8054,8 +8234,16 @@ async function handleRequest(
         agentName: result.agentName,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "generation failed";
-      error(res, msg, 500);
+      const creditReply = getInsufficientCreditsReplyFromError(err);
+      if (creditReply) {
+        conv.updatedAt = new Date().toISOString();
+        json(res, {
+          text: creditReply,
+          agentName: state.agentName,
+        });
+      } else {
+        error(res, getErrorMessage(err), 500);
+      }
     }
     return;
   }
@@ -8181,16 +8369,29 @@ async function handleRequest(
           writeSse(res, { type: "token", text: chunk });
         }
 
+        const resolvedText = normalizeChatResponseText(
+          fullText,
+          state.logBuffer,
+        );
         writeSse(res, {
           type: "done",
-          fullText,
+          fullText: resolvedText,
           agentName: proxy.agentName,
         });
       } catch (err) {
-        writeSse(res, {
-          type: "error",
-          message: err instanceof Error ? err.message : "generation failed",
-        });
+        const creditReply = getInsufficientCreditsReplyFromError(err);
+        if (creditReply) {
+          writeSse(res, {
+            type: "done",
+            fullText: creditReply,
+            agentName: proxy.agentName,
+          });
+        } else {
+          writeSse(res, {
+            type: "error",
+            message: getErrorMessage(err),
+          });
+        }
       } finally {
         res.end();
       }
@@ -8240,6 +8441,8 @@ async function handleRequest(
           onChunk: (chunk) => {
             writeSse(res, { type: "token", text: chunk });
           },
+          resolveNoResponseText: () =>
+            resolveNoResponseFallback(state.logBuffer),
         },
       );
 
@@ -8252,10 +8455,19 @@ async function handleRequest(
       }
     } catch (err) {
       if (!aborted) {
-        writeSse(res, {
-          type: "error",
-          message: err instanceof Error ? err.message : "generation failed",
-        });
+        const creditReply = getInsufficientCreditsReplyFromError(err);
+        if (creditReply) {
+          writeSse(res, {
+            type: "done",
+            fullText: creditReply,
+            agentName: state.agentName,
+          });
+        } else {
+          writeSse(res, {
+            type: "error",
+            message: getErrorMessage(err),
+          });
+        }
       }
     } finally {
       res.end();
@@ -8295,29 +8507,63 @@ async function handleRequest(
       );
 
       if (wantsStream) {
-        res.writeHead(200, {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-        });
+        initSse(res);
+        let fullText = "";
 
-        for await (const chunk of proxy.handleChatMessageStream(
-          body.text.trim(),
-          "web-chat",
-          mode,
-        )) {
-          res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        try {
+          for await (const chunk of proxy.handleChatMessageStream(
+            body.text.trim(),
+            "web-chat",
+            mode,
+          )) {
+            fullText += chunk;
+            writeSse(res, { type: "token", text: chunk });
+          }
+          const resolvedText = normalizeChatResponseText(
+            fullText,
+            state.logBuffer,
+          );
+          writeSse(res, {
+            type: "done",
+            fullText: resolvedText,
+            agentName: proxy.agentName,
+          });
+        } catch (err) {
+          const creditReply = getInsufficientCreditsReplyFromError(err);
+          if (creditReply) {
+            writeSse(res, {
+              type: "done",
+              fullText: creditReply,
+              agentName: proxy.agentName,
+            });
+          } else {
+            writeSse(res, {
+              type: "error",
+              message: getErrorMessage(err),
+            });
+          }
         }
-        res.write(`event: done\ndata: {}\n\n`);
         res.end();
       } else {
-        const responseText = await proxy.handleChatMessage(
-          body.text.trim(),
-          "web-chat",
-          mode,
-        );
-        json(res, { text: responseText, agentName: proxy.agentName });
+        try {
+          const responseText = await proxy.handleChatMessage(
+            body.text.trim(),
+            "web-chat",
+            mode,
+          );
+          const resolvedText = normalizeChatResponseText(
+            responseText,
+            state.logBuffer,
+          );
+          json(res, { text: resolvedText, agentName: proxy.agentName });
+        } catch (err) {
+          const creditReply = getInsufficientCreditsReplyFromError(err);
+          if (creditReply) {
+            json(res, { text: creditReply, agentName: proxy.agentName });
+          } else {
+            error(res, getErrorMessage(err), 500);
+          }
+        }
       }
       return;
     }
@@ -8363,33 +8609,30 @@ async function handleRequest(
         },
       });
 
-      // Collect the agent's response text from the callback.
-      let responseText = "";
-
-      const result = await runtime.messageService?.handleMessage(
+      const result = await generateChatResponse(
         runtime,
         message,
-        async (content: Content) => {
-          if (content?.text) {
-            responseText += content.text;
-          }
-          return [];
+        state.agentName,
+        {
+          resolveNoResponseText: () =>
+            resolveNoResponseFallback(state.logBuffer),
         },
       );
 
-      // Fallback: use the return value's responseContent when the callback
-      // didn't capture text (e.g. "actions" mode).
-      if (!responseText && result?.responseContent?.text) {
-        responseText = result.responseContent.text;
-      }
-
       json(res, {
-        text: responseText || "(no response)",
-        agentName: state.agentName,
+        text: result.text,
+        agentName: result.agentName,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "generation failed";
-      error(res, msg, 500);
+      const creditReply = getInsufficientCreditsReplyFromError(err);
+      if (creditReply) {
+        json(res, {
+          text: creditReply,
+          agentName: state.agentName,
+        });
+      } else {
+        error(res, getErrorMessage(err), 500);
+      }
     }
     return;
   }
@@ -8446,24 +8689,13 @@ async function handleRequest(
       });
       return;
     }
-    // Fallback: the CLOUD_AUTH service may not have refreshed yet (e.g.
-    // just logged in, or service still starting).  If the config has both
-    // cloud enabled and an API key, treat as connected so the UI reflects
-    // the login immediately.
-    if ((cloudEnabled || hasApiKey) && hasApiKey) {
-      json(res, {
-        connected: true,
-        enabled: true,
-        hasApiKey,
-        topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
-      });
-      return;
-    }
     json(res, {
       connected: false,
       enabled: cloudEnabled,
       hasApiKey,
-      reason: "not_authenticated",
+      reason: hasApiKey
+        ? "api_key_present_not_authenticated"
+        : "not_authenticated",
     });
     return;
   }
@@ -8471,20 +8703,60 @@ async function handleRequest(
   // ── GET /api/cloud/credits ──────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/cloud/credits") {
     const rt = state.runtime;
-    if (!rt) {
-      json(res, { balance: null, connected: false });
+    const cloudAuth = rt
+      ? (rt.getService("CLOUD_AUTH") as {
+          isAuthenticated: () => boolean;
+          getClient: () => { get: <T>(path: string) => Promise<T> };
+        } | null)
+      : null;
+    const configApiKey = state.config.cloud?.apiKey?.trim();
+
+    if (!cloudAuth || !cloudAuth.isAuthenticated()) {
+      if (!configApiKey) {
+        json(res, { balance: null, connected: false });
+        return;
+      }
+
+      try {
+        const balance = await fetchCloudCreditsByApiKey(
+          resolveCloudApiBaseUrl(state.config.cloud?.baseUrl),
+          configApiKey,
+        );
+        if (typeof balance !== "number") {
+          json(res, {
+            balance: null,
+            connected: true,
+            error: "unexpected response",
+          });
+          return;
+        }
+        const low = balance < 2.0;
+        const critical = balance < 0.5;
+        json(res, {
+          connected: true,
+          balance,
+          low,
+          critical,
+          topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
+        });
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "cloud API unreachable";
+        logger.debug(
+          `[cloud/credits] Failed to fetch balance via API key: ${msg}`,
+        );
+        json(res, { balance: null, connected: true, error: msg });
+      }
       return;
     }
-    const cloudAuth = rt.getService("CLOUD_AUTH") as {
+
+    const authenticatedCloudAuth = cloudAuth as {
       isAuthenticated: () => boolean;
       getClient: () => { get: <T>(path: string) => Promise<T> };
-    } | null;
-    if (!cloudAuth || !cloudAuth.isAuthenticated()) {
-      json(res, { balance: null, connected: false });
-      return;
-    }
+    };
+
     let balance: number;
-    const client = cloudAuth.getClient();
+    const client = authenticatedCloudAuth.getClient();
     try {
       // The cloud API returns either { balance: number } (direct)
       // or { success: true, data: { balance: number } } (wrapped).
@@ -9339,6 +9611,26 @@ export async function startApiServer(opts?: {
     config = {} as MilaidyConfig;
   }
 
+  // Wallet/inventory routes read from process.env at request-time.
+  // Hydrate persisted config.env values so addresses remain visible after restarts.
+  const persistedEnv = config.env as Record<string, string> | undefined;
+  const envKeysToHydrate = [
+    "EVM_PRIVATE_KEY",
+    "SOLANA_PRIVATE_KEY",
+    "ALCHEMY_API_KEY",
+    "INFURA_API_KEY",
+    "ANKR_API_KEY",
+    "HELIUS_API_KEY",
+    "BIRDEYE_API_KEY",
+    "SOLANA_RPC_URL",
+  ] as const;
+  for (const key of envKeysToHydrate) {
+    const value = persistedEnv?.[key];
+    if (typeof value === "string" && value.trim() && !process.env[key]) {
+      process.env[key] = value.trim();
+    }
+  }
+
   const plugins = discoverPluginsFromManifest();
   const workspaceDir =
     config.agents?.defaults?.workspace ?? resolveDefaultAgentWorkspaceDir();
@@ -9507,30 +9799,42 @@ export async function startApiServer(opts?: {
   let registryService: RegistryService | null = null;
   let dropService: DropService | null = null;
 
-  const evmKey = process.env.EVM_PRIVATE_KEY;
+  // Get EVM private key from runtime secrets (preferred) or config.env (fallback)
+  const runtime = opts?.runtime ?? null;
+  const evmKey =
+    (runtime?.getSetting?.("EVM_PRIVATE_KEY") as string | undefined) ??
+    (config.env as Record<string, string> | undefined)?.EVM_PRIVATE_KEY;
   const registryConfig = config.registry;
   if (evmKey && registryConfig?.registryAddress && registryConfig?.mainnetRpc) {
-    const txService = new TxService(registryConfig.mainnetRpc, evmKey);
-    registryService = new RegistryService(
-      txService,
-      registryConfig.registryAddress,
-    );
-
-    if (registryConfig.collectionAddress) {
-      const dropEnabled = config.features?.dropEnabled === true;
-      dropService = new DropService(
+    try {
+      const txService = new TxService(registryConfig.mainnetRpc, evmKey);
+      registryService = new RegistryService(
         txService,
-        registryConfig.collectionAddress,
-        dropEnabled,
+        registryConfig.registryAddress,
       );
-    }
 
-    addLog(
-      "info",
-      `ERC-8004 registry service initialised (${registryConfig.registryAddress})`,
-      "system",
-      ["system"],
-    );
+      if (registryConfig.collectionAddress) {
+        const dropEnabled = config.features?.dropEnabled === true;
+        dropService = new DropService(
+          txService,
+          registryConfig.collectionAddress,
+          dropEnabled,
+        );
+      }
+
+      addLog(
+        "info",
+        `ERC-8004 registry service initialised (${registryConfig.registryAddress})`,
+        "system",
+        ["system"],
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog("warn", `ERC-8004 registry service disabled: ${msg}`, "system", [
+        "system",
+      ]);
+      logger.warn({ err }, "Failed to initialize ERC-8004 registry service");
+    }
   }
 
   state.registryService = registryService;

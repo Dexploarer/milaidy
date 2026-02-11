@@ -5,13 +5,17 @@
  * platform availability, and feature dependencies.
  */
 
-import type { SystemPermissionDefinition, SystemPermissionId } from "./types.js";
+import type {
+  SystemPermissionDefinition,
+  SystemPermissionId,
+} from "./types.js";
 
 export const SYSTEM_PERMISSIONS: SystemPermissionDefinition[] = [
   {
     id: "accessibility",
     name: "Accessibility",
-    description: "Control mouse, keyboard, and interact with other applications",
+    description:
+      "Control mouse, keyboard, and interact with other applications",
     icon: "cursor",
     platforms: ["darwin"],
     requiredForFeatures: ["computeruse", "browser"],
@@ -50,9 +54,10 @@ export const SYSTEM_PERMISSIONS: SystemPermissionDefinition[] = [
   },
 ];
 
-export const PERMISSION_MAP = new Map<SystemPermissionId, SystemPermissionDefinition>(
-  SYSTEM_PERMISSIONS.map((p) => [p.id, p]),
-);
+export const PERMISSION_MAP = new Map<
+  SystemPermissionId,
+  SystemPermissionDefinition
+>(SYSTEM_PERMISSIONS.map((p) => [p.id, p]));
 
 export function getPermissionDefinition(
   id: SystemPermissionId,
@@ -60,10 +65,12 @@ export function getPermissionDefinition(
   return PERMISSION_MAP.get(id);
 }
 
-export function getRequiredPermissions(featureId: string): SystemPermissionId[] {
-  return SYSTEM_PERMISSIONS.filter((p) => p.requiredForFeatures.includes(featureId)).map(
-    (p) => p.id,
-  );
+export function getRequiredPermissions(
+  featureId: string,
+): SystemPermissionId[] {
+  return SYSTEM_PERMISSIONS.filter((p) =>
+    p.requiredForFeatures.includes(featureId),
+  ).map((p) => p.id);
 }
 
 export function isPermissionApplicable(

@@ -377,8 +377,13 @@ export function useVoiceChat(options: VoiceChatOptions): VoiceChatState {
       const config = voiceConfigRef.current;
       const elConfig = config?.elevenlabs;
 
-      // Use ElevenLabs when configured with an API key + voice ID
-      if (config?.provider === "elevenlabs" && elConfig?.apiKey && elConfig?.voiceId) {
+      // Use direct ElevenLabs only in own-key mode when key + voice are set.
+      if (
+        config?.provider === "elevenlabs" &&
+        config?.mode !== "cloud" &&
+        elConfig?.apiKey &&
+        elConfig?.voiceId
+      ) {
         usingAudioAnalysisRef.current = true;
         setUsingAudioAnalysis(true);
 

@@ -308,6 +308,147 @@ function createRuntimeForChatSseTests(): AgentRuntime {
   return runtimeSubset as AgentRuntime;
 }
 
+function createRuntimeForCreditNoResponseTests(): AgentRuntime {
+  const runtimeLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  } as AgentRuntime["logger"];
+
+  const runtimeSubset: Pick<
+    AgentRuntime,
+    | "agentId"
+    | "character"
+    | "logger"
+    | "messageService"
+    | "ensureConnection"
+    | "getWorld"
+    | "updateWorld"
+    | "getService"
+    | "getRoomsByWorld"
+    | "getMemories"
+    | "getCache"
+    | "setCache"
+  > = {
+    agentId: "credit-no-response-agent",
+    character: { name: "CreditAgent" } as AgentRuntime["character"],
+    logger: runtimeLogger,
+    messageService: {
+      handleMessage: async (_runtime: AgentRuntime) => {
+        _runtime.logger.error(
+          "#Youmu Model call failed: AI_APICallError: Insufficient credits. Required: $0.2250",
+        );
+        return {
+          didRespond: true,
+          responseContent: null,
+          responseMessages: [],
+          mode: "none",
+        };
+      },
+    } as AgentRuntime["messageService"],
+    ensureConnection: async () => {},
+    getWorld: async () => null,
+    updateWorld: async () => {},
+    getService: () => null,
+    getRoomsByWorld: async () => [],
+    getMemories: async () => [],
+    getCache: async () => null,
+    setCache: async () => {},
+  };
+
+  return runtimeSubset as AgentRuntime;
+}
+
+function createRuntimeForCreditLiteralNoResponseTests(): AgentRuntime {
+  const runtimeLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  } as AgentRuntime["logger"];
+
+  const runtimeSubset: Pick<
+    AgentRuntime,
+    | "agentId"
+    | "character"
+    | "logger"
+    | "messageService"
+    | "ensureConnection"
+    | "getWorld"
+    | "updateWorld"
+    | "getService"
+    | "getRoomsByWorld"
+    | "getMemories"
+    | "getCache"
+    | "setCache"
+  > = {
+    agentId: "credit-literal-no-response-agent",
+    character: { name: "CreditAgent" } as AgentRuntime["character"],
+    logger: runtimeLogger,
+    messageService: {
+      handleMessage: async (_runtime: AgentRuntime) => {
+        _runtime.logger.error(
+          "#Youmu Model call failed: AI_APICallError: Insufficient credits. Required: $0.2250",
+        );
+        return {
+          didRespond: true,
+          responseContent: { text: "(no response)" },
+          responseMessages: [],
+          mode: "none",
+        };
+      },
+    } as AgentRuntime["messageService"],
+    ensureConnection: async () => {},
+    getWorld: async () => null,
+    updateWorld: async () => {},
+    getService: () => null,
+    getRoomsByWorld: async () => [],
+    getMemories: async () => [],
+    getCache: async () => null,
+    setCache: async () => {},
+  };
+
+  return runtimeSubset as AgentRuntime;
+}
+
+function createRuntimeForCreditErrorTests(): AgentRuntime {
+  const runtimeSubset: Pick<
+    AgentRuntime,
+    | "agentId"
+    | "character"
+    | "messageService"
+    | "ensureConnection"
+    | "getWorld"
+    | "updateWorld"
+    | "getService"
+    | "getRoomsByWorld"
+    | "getMemories"
+    | "getCache"
+    | "setCache"
+  > = {
+    agentId: "credit-error-agent",
+    character: { name: "CreditAgent" } as AgentRuntime["character"],
+    messageService: {
+      handleMessage: async () => {
+        throw new Error(
+          "AI_APICallError: Insufficient credits. Required: $0.2250",
+        );
+      },
+    } as AgentRuntime["messageService"],
+    ensureConnection: async () => {},
+    getWorld: async () => null,
+    updateWorld: async () => {},
+    getService: () => null,
+    getRoomsByWorld: async () => [],
+    getMemories: async () => [],
+    getCache: async () => null,
+    setCache: async () => {},
+  };
+
+  return runtimeSubset as AgentRuntime;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -536,6 +677,90 @@ describe("API Server E2E (no runtime)", () => {
         const doneEvent = events.find((event) => event.type === "done");
         expect(doneEvent?.fullText).toBe("Hello world");
         expect(doneEvent?.agentName).toBe("ChatStreamAgent");
+      } finally {
+        await streamServer.close();
+      }
+    });
+  });
+
+  describe("insufficient credits fallback", () => {
+    it("POST /api/chat replaces '(no response)' with a top-up message", async () => {
+      const runtime = createRuntimeForCreditNoResponseTests();
+      const streamServer = await startApiServer({ port: 0, runtime });
+      try {
+        const { status, data } = await req(
+          streamServer.port,
+          "POST",
+          "/api/chat",
+          {
+            text: "hello",
+            mode: "power",
+          },
+        );
+        expect(status).toBe(200);
+        expect(String(data.text)).toMatch(/top up your credits/i);
+        expect(String(data.text)).not.toBe("(no response)");
+      } finally {
+        await streamServer.close();
+      }
+    });
+
+    it("POST /api/chat/stream emits a done event with top-up text", async () => {
+      const runtime = createRuntimeForCreditNoResponseTests();
+      const streamServer = await startApiServer({ port: 0, runtime });
+      try {
+        const { status, events } = await reqSse(
+          streamServer.port,
+          "/api/chat/stream",
+          { text: "hello", mode: "power" },
+        );
+        expect(status).toBe(200);
+        const doneEvent = events.find((event) => event.type === "done");
+        expect(doneEvent).toBeDefined();
+        expect(String(doneEvent?.fullText ?? "")).toMatch(
+          /top up your credits/i,
+        );
+      } finally {
+        await streamServer.close();
+      }
+    });
+
+    it("POST /api/chat returns a top-up message when the provider throws insufficient credits", async () => {
+      const runtime = createRuntimeForCreditErrorTests();
+      const streamServer = await startApiServer({ port: 0, runtime });
+      try {
+        const { status, data } = await req(
+          streamServer.port,
+          "POST",
+          "/api/chat",
+          {
+            text: "hello",
+            mode: "power",
+          },
+        );
+        expect(status).toBe(200);
+        expect(String(data.text)).toMatch(/top up your credits/i);
+      } finally {
+        await streamServer.close();
+      }
+    });
+
+    it("POST /api/chat replaces literal '(no response)' payloads with a top-up message", async () => {
+      const runtime = createRuntimeForCreditLiteralNoResponseTests();
+      const streamServer = await startApiServer({ port: 0, runtime });
+      try {
+        const { status, data } = await req(
+          streamServer.port,
+          "POST",
+          "/api/chat",
+          {
+            text: "hello",
+            mode: "power",
+          },
+        );
+        expect(status).toBe(200);
+        expect(String(data.text)).toMatch(/top up your credits/i);
+        expect(String(data.text)).not.toBe("(no response)");
       } finally {
         await streamServer.close();
       }

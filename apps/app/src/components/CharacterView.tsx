@@ -1,12 +1,11 @@
 /**
  * Character view — agent identity, personality, and avatar.
  *
- * Layout: 5 section cards
- *   1. Identity — name, bio, avatar (2-col), import/export in header
- *   2. Personality — system prompt, adjectives + topics (tag editors)
- *   3. Style — 3-column style rule textareas
- *   4. Examples — collapsible chat + post examples
- *   5. Voice — voice selection + preview
+ * Layout: 4 section cards
+ *   1. Identity + Personality — name, avatar, bio, adjectives/topics, system prompt
+ *   2. Style — 3-column style rule textareas
+ *   3. Examples — collapsible chat + post examples
+ *   4. Voice — voice selection + preview
  *   + Save bar at bottom
  */
 
@@ -48,25 +47,8 @@ function TagEditor({
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 h-[220px]">
       <label className="font-semibold text-xs">{label}</label>
-      <div className="flex flex-wrap gap-1.5 min-h-[28px]">
-        {items.map((item, i) => (
-          <span
-            key={i}
-            className="inline-flex items-center gap-1 px-2 py-0.5 border border-[var(--border)] bg-[var(--bg-muted)] text-[11px]"
-          >
-            {item}
-            <button
-              type="button"
-              className="text-[var(--muted)] hover:text-[var(--danger,#e74c3c)] cursor-pointer text-[10px] leading-none"
-              onClick={() => removeItem(i)}
-            >
-              &times;
-            </button>
-          </span>
-        ))}
-      </div>
       <div className="flex items-center gap-1.5">
         <input
           type="text"
@@ -88,6 +70,23 @@ function TagEditor({
         >
           + add
         </button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto border border-[var(--border)] bg-[var(--bg-muted)] p-1.5 flex flex-wrap gap-1.5 content-start">
+        {items.map((item, i) => (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1 px-2 py-0.5 border border-[var(--border)] bg-[var(--card)] text-[11px] h-fit"
+          >
+            {item}
+            <button
+              type="button"
+              className="text-[var(--muted)] hover:text-[var(--danger,#e74c3c)] cursor-pointer text-[10px] leading-none"
+              onClick={() => removeItem(i)}
+            >
+              &times;
+            </button>
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -543,16 +542,9 @@ export function CharacterView() {
       {fileInput}
 
       {/* ═══ ON-CHAIN IDENTITY ═══ */}
+      {hasWallet && 
       <div className={sectionCls}>
-        <div className="font-bold text-sm mb-3">On-Chain Identity</div>
-
-        {!hasWallet && (
-          <div className="text-[12px] text-[var(--muted)]">
-            Set up your wallet to register your agent on Ethereum.
-          </div>
-        )}
-
-        {hasWallet && !isRegistered && !dropLive && (
+        {!isRegistered && !dropLive && (
           <div className="flex flex-col gap-3">
             <div className="text-[12px] text-[var(--muted)]">
               Register your agent on Ethereum mainnet to claim your ERC-8004 identity NFT.
@@ -664,12 +656,13 @@ export function CharacterView() {
           </div>
         )}
       </div>
+      }
 
-      {/* ═══ SECTION 1: IDENTITY ═══ */}
+      {/* ═══ SECTION 1: IDENTITY + PERSONALITY ═══ */}
       <div className={sectionCls}>
         {/* Header row: title + action buttons */}
         <div className="flex items-center justify-between mb-4">
-          <div className="font-bold text-sm">Identity</div>
+          <div className="font-bold text-sm">Identity & Personality</div>
           <div className="flex items-center gap-1.5">
             <button
               className={tinyBtnCls}
@@ -697,35 +690,51 @@ export function CharacterView() {
           </div>
         </div>
 
-        {/* 2-column: left = name + bio, right = avatar */}
-        <div className="flex gap-6 flex-col sm:flex-row">
-          {/* Left column */}
-          <div className="flex-1 flex flex-col gap-3 min-w-0">
-            {/* Name */}
-            <div className="flex flex-col gap-1">
-              <label className={labelCls}>name</label>
-              <div className="flex items-center gap-2 max-w-[280px]">
-                <input
-                  type="text"
-                  value={d.name ?? ""}
-                  maxLength={50}
-                  placeholder="agent name"
-                  onChange={(e) => handleFieldEdit("name", e.target.value)}
-                  className={inputCls + " flex-1 text-[13px]"}
-                />
-                <button
-                  className={tinyBtnCls}
-                  onClick={() => void handleRandomName()}
-                  title="random name"
-                  type="button"
-                >
-                  random
-                </button>
-              </div>
+        <div className="flex flex-col gap-4">
+          {/* Name */}
+          <div className="flex flex-col gap-1">
+            <label className={labelCls}>name</label>
+            <div className="flex items-center gap-2 max-w-[280px]">
+              <input
+                type="text"
+                value={d.name ?? ""}
+                maxLength={50}
+                placeholder="agent name"
+                onChange={(e) => handleFieldEdit("name", e.target.value)}
+                className={inputCls + " flex-1 text-[13px]"}
+              />
+              <button
+                className={tinyBtnCls}
+                onClick={() => void handleRandomName()}
+                title="random name"
+                type="button"
+              >
+                random
+              </button>
             </div>
+          </div>
 
-            {/* About Me (bio) */}
-            <div className="flex flex-col gap-1">
+          {/* Avatar full-width row */}
+          <div className="flex flex-col gap-1 w-full">
+            <label className={labelCls}>avatar</label>
+            <div className="w-full">
+              <AvatarSelector
+                selected={selectedVrmIndex}
+                onSelect={(i) => setState("selectedVrmIndex", i)}
+                onUpload={(file) => {
+                  const url = URL.createObjectURL(file);
+                  setState("customVrmUrl", url);
+                  setState("selectedVrmIndex", 0);
+                }}
+                showUpload
+                fullWidth
+              />
+            </div>
+          </div>
+
+          {/* About me + adjectives + topics */}
+          <div className="mt-1 grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr] gap-4">
+            <div className="flex flex-col gap-1 h-[220px]">
               <div className="flex items-center justify-between">
                 <label className={labelCls}>about me</label>
                 <button
@@ -739,76 +748,52 @@ export function CharacterView() {
               </div>
               <textarea
                 value={bioText}
-                rows={3}
+                rows={4}
                 placeholder="describe who your agent is. personality, background, how they see the world."
                 onChange={(e) => handleFieldEdit("bio", e.target.value)}
-                className={textareaCls}
+                className={textareaCls + " flex-1 min-h-0"}
               />
             </div>
+            <TagEditor
+              label="adjectives"
+              items={d.adjectives ?? []}
+              onChange={(items) => handleCharacterArrayInput("adjectives", items.join("\n"))}
+              placeholder="add adjective..."
+            />
+            <TagEditor
+              label="topics"
+              items={d.topics ?? []}
+              onChange={(items) => handleCharacterArrayInput("topics", items.join("\n"))}
+              placeholder="add topic..."
+            />
           </div>
 
-          {/* Right column — avatar */}
-          <div className="flex flex-col gap-1 sm:w-auto shrink-0">
-            <label className={labelCls}>avatar</label>
-            <AvatarSelector
-              selected={selectedVrmIndex}
-              onSelect={(i) => setState("selectedVrmIndex", i)}
-              onUpload={(file) => {
-                const url = URL.createObjectURL(file);
-                setState("customVrmUrl", url);
-                setState("selectedVrmIndex", 0);
-              }}
-              showUpload
+          {/* System prompt below */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <label className={labelCls}>directions and things i should know</label>
+              <button
+                className={tinyBtnCls}
+                onClick={() => void handleGenerate("system")}
+                disabled={generating === "system"}
+                type="button"
+              >
+                {generating === "system" ? "generating..." : "regenerate"}
+              </button>
+            </div>
+            <textarea
+              value={d.system ?? ""}
+              rows={5}
+              maxLength={10000}
+              placeholder="write in first person. this is who they are, not instructions about them."
+              onChange={(e) => handleFieldEdit("system", e.target.value)}
+              className={textareaCls + " font-[var(--mono)]"}
             />
           </div>
         </div>
       </div>
 
-      {/* ═══ SECTION 2: PERSONALITY ═══ */}
-      <div className={sectionCls}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="font-bold text-sm">Personality</div>
-          <button
-            className={tinyBtnCls}
-            onClick={() => void handleGenerate("system")}
-            disabled={generating === "system"}
-            type="button"
-          >
-            {generating === "system" ? "generating..." : "regenerate"}
-          </button>
-        </div>
-
-        {/* System prompt */}
-        <div className="flex flex-col gap-1 mb-4">
-          <label className={labelCls}>system prompt</label>
-          <textarea
-            value={d.system ?? ""}
-            rows={5}
-            maxLength={10000}
-            placeholder="write in first person. this is who they are, not instructions about them."
-            onChange={(e) => handleFieldEdit("system", e.target.value)}
-            className={textareaCls + " font-[var(--mono)]"}
-          />
-        </div>
-
-        {/* Adjectives + Topics side by side */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TagEditor
-            label="adjectives"
-            items={d.adjectives ?? []}
-            onChange={(items) => handleCharacterArrayInput("adjectives", items.join("\n"))}
-            placeholder="add adjective..."
-          />
-          <TagEditor
-            label="topics"
-            items={d.topics ?? []}
-            onChange={(items) => handleCharacterArrayInput("topics", items.join("\n"))}
-            placeholder="add topic..."
-          />
-        </div>
-      </div>
-
-      {/* ═══ SECTION 3: STYLE ═══ */}
+      {/* ═══ SECTION 2: STYLE ═══ */}
       <div className={sectionCls}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
@@ -844,7 +829,7 @@ export function CharacterView() {
         </div>
       </div>
 
-      {/* ═══ SECTION 4: EXAMPLES ═══ */}
+      {/* ═══ SECTION 3: EXAMPLES ═══ */}
       <div className={sectionCls}>
         <div className="font-bold text-sm mb-3">Examples</div>
 
@@ -967,7 +952,7 @@ export function CharacterView() {
         </div>
       </div>
 
-      {/* ═══ SECTION 5: VOICE ═══ */}
+      {/* ═══ SECTION 4: VOICE ═══ */}
       <div className={sectionCls}>
         <div className="font-bold text-sm mb-3">Voice</div>
 

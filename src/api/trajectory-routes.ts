@@ -19,12 +19,16 @@ import type { AgentRuntime } from "@elizaos/core";
 interface TrajectoryLoggerService {
   isEnabled(): boolean;
   setEnabled(enabled: boolean): void;
-  listTrajectories(options: TrajectoryListOptions): Promise<TrajectoryListResult>;
+  listTrajectories(
+    options: TrajectoryListOptions,
+  ): Promise<TrajectoryListResult>;
   getTrajectoryDetail(trajectoryId: string): Promise<Trajectory | null>;
   getStats(): Promise<TrajectoryStats>;
   deleteTrajectories(trajectoryIds: string[]): Promise<number>;
   clearAllTrajectories(): Promise<number>;
-  exportTrajectories(options: TrajectoryExportOptions): Promise<{ data: string; filename: string; mimeType: string }>;
+  exportTrajectories(
+    options: TrajectoryExportOptions,
+  ): Promise<{ data: string; filename: string; mimeType: string }>;
 }
 
 interface TrajectoryListOptions {
@@ -255,16 +259,33 @@ function getTrajectoryLogger(
   runtime: AgentRuntime | null,
 ): TrajectoryLoggerService | null {
   if (!runtime) return null;
-  return runtime.getService(
+
+  // The core may register a minimal trajectory logger that doesn't have listTrajectories.
+  // We need to find the full-featured one from plugin-trajectory-logger.
+  const services = runtime.getServicesByType(
     "trajectory_logger",
-  ) as TrajectoryLoggerService | null;
+  ) as unknown as TrajectoryLoggerService[];
+  if (!services || services.length === 0) return null;
+
+  // Find the service that has the listTrajectories method (the full plugin version)
+  for (const svc of services) {
+    if (typeof svc.listTrajectories === "function") {
+      return svc;
+    }
+  }
+
+  // Fallback to first service (may not have all methods)
+  return services[0] ?? null;
 }
 
 /**
  * Transform plugin's TrajectoryListItem to UI-compatible TrajectoryRecord
  */
 function listItemToUIRecord(item: TrajectoryListItem): UITrajectoryRecord {
-  const status = item.status === "timeout" || item.status === "error" ? "error" : item.status;
+  const status =
+    item.status === "timeout" || item.status === "error"
+      ? "error"
+      : item.status;
   return {
     id: item.id,
     agentId: item.agentId,
@@ -290,9 +311,11 @@ function listItemToUIRecord(item: TrajectoryListItem): UITrajectoryRecord {
  * Transform plugin's Trajectory to UI-compatible TrajectoryDetailResult
  */
 function trajectoryToUIDetail(traj: Trajectory): UITrajectoryDetailResult {
-  const status = traj.metrics.finalStatus === "timeout" || traj.metrics.finalStatus === "terminated"
-    ? "error"
-    : traj.metrics.finalStatus;
+  const status =
+    traj.metrics.finalStatus === "timeout" ||
+    traj.metrics.finalStatus === "terminated"
+      ? "error"
+      : traj.metrics.finalStatus;
 
   // Flatten all LLM calls from all steps
   const llmCalls: UILlmCall[] = [];
@@ -518,7 +541,10 @@ async function handleExportTrajectories(
   }>(req, res);
   if (!body) return;
 
-  if (!body.format || (body.format !== "json" && body.format !== "csv" && body.format !== "art")) {
+  if (
+    !body.format ||
+    (body.format !== "json" && body.format !== "csv" && body.format !== "art")
+  ) {
     errorResponse(res, "Format must be 'json', 'csv', or 'art'", 400);
     return;
   }

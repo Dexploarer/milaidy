@@ -9,16 +9,78 @@
 import { logger } from "@elizaos/core";
 import { ethers } from "ethers";
 
+/**
+ * Validate that a private key is a valid 32-byte hex string.
+ */
+function isValidPrivateKey(key: string): boolean {
+  const normalized = key.startsWith("0x") ? key.slice(2) : key;
+  // Must be 64 hex characters (32 bytes)
+  if (normalized.length !== 64) return false;
+  // Must be valid hex
+  return /^[0-9a-fA-F]+$/.test(normalized);
+}
+
 export class TxService {
   private readonly provider: ethers.JsonRpcProvider;
   private readonly wallet: ethers.Wallet;
+  private readonly rpcUrl: string;
+  private nonceCache: number | null = null;
 
   constructor(rpcUrl: string, privateKey: string) {
+    this.rpcUrl = rpcUrl;
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
+
+    // Validate private key before attempting to create wallet
+    if (!isValidPrivateKey(privateKey)) {
+      const preview =
+        privateKey.length > 10
+          ? `${privateKey.slice(0, 6)}...${privateKey.slice(-4)}`
+          : "(empty or too short)";
+      throw new Error(
+        `Invalid EVM_PRIVATE_KEY: expected 64-character hex string, got ${preview}. ` +
+          `Please set a valid private key in your environment or .env file.`,
+      );
+    }
+
     const normalizedKey = privateKey.startsWith("0x")
       ? privateKey
       : `0x${privateKey}`;
+
+    // Create wallet with provider
     this.wallet = new ethers.Wallet(normalizedKey, this.provider);
+  }
+
+  /**
+   * Get fresh nonce for the wallet address.
+   * Uses local tracking to avoid ethers.js provider caching issues.
+   * Each call returns the current nonce and increments for the next call.
+   */
+  async getFreshNonce(): Promise<number> {
+    if (this.nonceCache === null) {
+      // First call: fetch from blockchain using a fresh provider to avoid caching
+      const freshProvider = new ethers.JsonRpcProvider(this.rpcUrl);
+      this.nonceCache = await freshProvider.getTransactionCount(
+        this.wallet.address,
+        "pending",
+      );
+      freshProvider.destroy();
+    }
+    const nonce = this.nonceCache;
+    this.nonceCache++;
+    return nonce;
+  }
+
+  /**
+   * Reset nonce cache to sync with blockchain.
+   * Call this if transactions fail and you need to resync.
+   */
+  async resetNonceCache(): Promise<void> {
+    const freshProvider = new ethers.JsonRpcProvider(this.rpcUrl);
+    this.nonceCache = await freshProvider.getTransactionCount(
+      this.wallet.address,
+      "pending",
+    );
+    freshProvider.destroy();
   }
 
   get address(): string {

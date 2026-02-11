@@ -327,8 +327,8 @@ export function InventoryView() {
       return <div className="text-center py-10 text-muted italic mt-6">Loading balances...</div>;
     }
 
-    const evmAddr = walletAddresses?.evmAddress;
-    const solAddr = walletAddresses?.solanaAddress;
+    const evmAddr = walletAddresses?.evmAddress ?? walletConfig?.evmAddress;
+    const solAddr = walletAddresses?.solanaAddress ?? walletConfig?.solanaAddress;
 
     if (!evmAddr && !solAddr) {
       return (

@@ -604,7 +604,8 @@ export type VisionProvider =
   | "openai"
   | "google"
   | "anthropic"
-  | "xai";
+  | "xai"
+  | "ollama";
 
 export type VisionOpenaiConfig = {
   apiKey?: string;
@@ -627,6 +628,17 @@ export type VisionXaiConfig = {
   model?: string;
 };
 
+export type VisionOllamaConfig = {
+  /** Ollama server base URL. Default: http://localhost:11434 */
+  baseUrl?: string;
+  /** Vision model to use (e.g., llava, moondream, bakllava). Default: llava */
+  model?: string;
+  /** Max tokens for response. Default: 1024 */
+  maxTokens?: number;
+  /** Auto-download model from Ollama registry if not present. Default: true */
+  autoDownload?: boolean;
+};
+
 export type VisionConfig = {
   enabled?: boolean;
   mode?: MediaMode;
@@ -635,6 +647,7 @@ export type VisionConfig = {
   google?: VisionGoogleConfig;
   anthropic?: VisionAnthropicConfig;
   xai?: VisionXaiConfig;
+  ollama?: VisionOllamaConfig;
 };
 
 // --- Combined Media Config ---

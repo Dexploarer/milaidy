@@ -10,7 +10,12 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
-import { client, type VoiceConfig, type VoiceProvider } from "../api-client";
+import {
+  client,
+  type VoiceConfig,
+  type VoiceMode,
+  type VoiceProvider,
+} from "../api-client";
 
 interface VoicePreset {
   id: string;
@@ -84,11 +89,22 @@ export function VoiceConfigView() {
   }, []);
 
   const currentProvider = voiceConfig.provider ?? "elevenlabs";
+  const currentMode: VoiceMode = voiceConfig.mode ?? "own-key";
   const providerInfo = PROVIDERS.find((p) => p.id === currentProvider);
-  const isConfigured = currentProvider !== "elevenlabs" || Boolean(voiceConfig.elevenlabs?.apiKey);
+  const isConfigured =
+    currentProvider !== "elevenlabs"
+      ? true
+      : currentMode === "cloud"
+        ? cloudConnected
+        : Boolean(voiceConfig.elevenlabs?.apiKey);
 
   const handleProviderChange = useCallback((provider: VoiceProvider) => {
     setVoiceConfig((prev) => ({ ...prev, provider }));
+    setDirty(true);
+  }, []);
+
+  const handleModeChange = useCallback((mode: VoiceMode) => {
+    setVoiceConfig((prev) => ({ ...prev, mode }));
     setDirty(true);
   }, []);
 
@@ -133,6 +149,10 @@ export function VoiceConfigView() {
           tts: {
             ...voiceConfig,
             provider: voiceConfig.provider ?? "elevenlabs",
+            mode:
+              (voiceConfig.provider ?? "elevenlabs") === "elevenlabs"
+                ? (voiceConfig.mode ?? "own-key")
+                : undefined,
           },
         },
       });
@@ -186,7 +206,9 @@ export function VoiceConfigView() {
       {/* Status */}
       <div className="flex items-center justify-between py-2 px-3 border border-[var(--border)] bg-[var(--bg-muted)]">
         <span className="text-xs">
-          {providerInfo?.label} — {providerInfo?.needsKey ? "Requires API key" : "No API key needed"}
+          {currentProvider === "elevenlabs"
+            ? `ElevenLabs — ${currentMode === "cloud" ? "Served via Eliza Cloud" : "Requires API key"}`
+            : `${providerInfo?.label} — No API key needed`}
         </span>
         <span
           className={`text-[10px] px-1.5 py-0.5 border ${
@@ -202,27 +224,89 @@ export function VoiceConfigView() {
       {/* ElevenLabs settings */}
       {currentProvider === "elevenlabs" && (
         <div className="flex flex-col gap-3">
-          {/* API Key */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold">ElevenLabs API Key</label>
-            <input
-              type="password"
-              className="px-2.5 py-1.5 border border-[var(--border)] bg-[var(--card)] text-xs focus:border-[var(--accent)] focus:outline-none"
-              placeholder={voiceConfig.elevenlabs?.apiKey ? "API key set" : "Enter API key..."}
-              onChange={(e) => handleApiKeyChange(e.target.value)}
-            />
-            <div className="text-[10px] text-[var(--muted)]">
-              Get your key at{" "}
-              <a
-                href="https://elevenlabs.io"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--accent)] hover:underline"
+          {/* API source mode */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[var(--muted)]">
+              API Source
+            </span>
+            <div className="flex border border-[var(--border)]">
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
+                  currentMode === "cloud"
+                    ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                    : "bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+                onClick={() => handleModeChange("cloud")}
               >
-                elevenlabs.io
-              </a>
+                Eliza Cloud
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors border-l border-[var(--border)] ${
+                  currentMode === "own-key"
+                    ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                    : "bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+                onClick={() => handleModeChange("own-key")}
+              >
+                Own API Key
+              </button>
             </div>
           </div>
+
+          {/* Cloud mode status */}
+          {currentMode === "cloud" && (
+            <div className="flex items-center justify-between py-2.5 px-3 border border-[var(--border)] bg-[var(--bg-muted)]">
+              {cloudConnected ? (
+                <>
+                  <span className="text-xs text-[var(--text)]">
+                    Connected to Eliza Cloud
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 border border-green-600 text-green-600">
+                    Active
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs text-[var(--muted)]">
+                    Eliza Cloud not connected. Connect in Settings.
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 border border-yellow-600 text-yellow-600">
+                    Offline
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* API Key */}
+          {currentMode === "own-key" && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold">ElevenLabs API Key</label>
+              <input
+                type="password"
+                className="px-2.5 py-1.5 border border-[var(--border)] bg-[var(--card)] text-xs focus:border-[var(--accent)] focus:outline-none"
+                placeholder={
+                  voiceConfig.elevenlabs?.apiKey
+                    ? "API key set"
+                    : "Enter API key..."
+                }
+                onChange={(e) => handleApiKeyChange(e.target.value)}
+              />
+              <div className="text-[10px] text-[var(--muted)]">
+                Get your key at{" "}
+                <a
+                  href="https://elevenlabs.io"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  elevenlabs.io
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Voice presets */}
           <div className="flex flex-col gap-2">

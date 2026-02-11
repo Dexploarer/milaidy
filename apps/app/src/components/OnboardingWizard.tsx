@@ -214,7 +214,7 @@ export function OnboardingWizard() {
               className="w-[140px] h-[140px] rounded-full object-cover border-[3px] border-border mx-auto mb-5 block"
             />
             <div className="onboarding-speech bg-card border border-border rounded-xl px-5 py-4 mx-auto mb-6 max-w-[600px] relative text-[15px] text-txt leading-relaxed">
-              <h2 className="text-[28px] font-normal mb-1 text-txt-strong">what body should i use?</h2>
+              <h2 className="text-[28px] font-normal mb-1 text-txt-strong">what body should i, uhhh, use?</h2>
             </div>
             <div className="mx-auto">
               <AvatarSelector

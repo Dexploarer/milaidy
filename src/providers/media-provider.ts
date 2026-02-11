@@ -924,6 +924,169 @@ class XAIVisionProvider implements VisionAnalysisProvider {
 // Anthropic Provider Implementation
 // ============================================================================
 
+// ============================================================================
+// Ollama Provider Implementation (Local Vision)
+// ============================================================================
+
+class OllamaVisionProvider implements VisionAnalysisProvider {
+  name = "ollama";
+  private baseUrl: string;
+  private model: string;
+  private maxTokens: number;
+  private autoDownload: boolean;
+  private modelChecked = false;
+
+  constructor(config: NonNullable<VisionConfig["ollama"]>) {
+    this.baseUrl = config.baseUrl ?? "http://localhost:11434";
+    this.model = config.model ?? "llava";
+    this.maxTokens = config.maxTokens ?? 1024;
+    this.autoDownload = config.autoDownload ?? true;
+  }
+
+  private async ensureModelAvailable(): Promise<void> {
+    if (this.modelChecked) return;
+
+    try {
+      // Check if model exists
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama server not reachable: ${response.statusText}`);
+      }
+
+      const data = (await response.json()) as {
+        models?: Array<{ name: string }>;
+      };
+      const models = data.models ?? [];
+      const hasModel = models.some(
+        (m) => m.name === this.model || m.name.startsWith(`${this.model}:`),
+      );
+
+      if (!hasModel && this.autoDownload) {
+        console.log(
+          `[ollama-vision] Model ${this.model} not found, downloading...`,
+        );
+        await this.downloadModel();
+      } else if (!hasModel) {
+        throw new Error(
+          `Ollama model ${this.model} not found. Run 'ollama pull ${this.model}' or enable autoDownload.`,
+        );
+      }
+
+      this.modelChecked = true;
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("Ollama server not reachable")
+      ) {
+        throw err;
+      }
+      throw new Error(
+        `Failed to check Ollama models: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  private async downloadModel(): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: this.model, stream: false }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to download model ${this.model}: ${text}`);
+    }
+
+    // Wait for download to complete (non-streaming mode)
+    await response.json();
+    console.log(`[ollama-vision] Model ${this.model} downloaded successfully`);
+  }
+
+  async analyze(
+    options: VisionAnalysisOptions,
+  ): Promise<MediaProviderResult<VisionAnalysisResult>> {
+    try {
+      await this.ensureModelAvailable();
+    } catch (err) {
+      return {
+        success: false,
+        error: `Ollama setup failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    // Ollama uses a different format for vision - images must be base64
+    let imageData = options.imageBase64;
+    if (!imageData && options.imageUrl) {
+      // Fetch the image and convert to base64
+      try {
+        const imageResponse = await fetch(options.imageUrl);
+        if (!imageResponse.ok) {
+          return {
+            success: false,
+            error: `Failed to fetch image: ${imageResponse.statusText}`,
+          };
+        }
+        const buffer = await imageResponse.arrayBuffer();
+        imageData = Buffer.from(buffer).toString("base64");
+      } catch (err) {
+        return {
+          success: false,
+          error: `Failed to fetch image: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }
+
+    if (!imageData) {
+      return {
+        success: false,
+        error: "No image provided (imageUrl or imageBase64 required)",
+      };
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: "user",
+            content: options.prompt ?? "Describe this image in detail.",
+            images: [imageData],
+          },
+        ],
+        stream: false,
+        options: {
+          num_predict: this.maxTokens,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return { success: false, error: `Ollama error: ${text}` };
+    }
+
+    const data = (await response.json()) as {
+      message?: { content?: string };
+    };
+    const description = data.message?.content;
+    if (!description) {
+      return { success: false, error: "No description returned from Ollama" };
+    }
+
+    return {
+      success: true,
+      data: { description },
+    };
+  }
+}
+
+// ============================================================================
+// Anthropic Provider Implementation
+// ============================================================================
+
 class AnthropicVisionProvider implements VisionAnalysisProvider {
   name = "anthropic";
   private apiKey: string;
@@ -1170,6 +1333,9 @@ export function createVisionProvider(
         return new XAIVisionProvider(config.xai);
       }
       break;
+    case "ollama":
+      // Ollama doesn't require an API key, just a base URL
+      return new OllamaVisionProvider(config?.ollama ?? {});
   }
 
   return new ElizaCloudVisionProvider(

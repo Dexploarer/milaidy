@@ -22,6 +22,7 @@ interface AppsContextStub {
 const { mockClientFns, mockUseApp } = vi.hoisted(() => ({
   mockClientFns: {
     listApps: vi.fn(),
+    listInstalledApps: vi.fn(),
     launchApp: vi.fn(),
     listHyperscapeEmbeddedAgents: vi.fn(),
     getHyperscapeAgentGoal: vi.fn(),
@@ -101,6 +102,19 @@ function findButtonByText(
   return matches[0];
 }
 
+function findButtonByTitle(
+  root: TestRenderer.ReactTestInstance,
+  title: string,
+): TestRenderer.ReactTestInstance {
+  const matches = root.findAll(
+    (node) => node.type === "button" && node.props.title === title,
+  );
+  if (!matches[0]) {
+    throw new Error(`Button titled "${title}" not found`);
+  }
+  return matches[0];
+}
+
 function findTextareaByPlaceholder(
   root: TestRenderer.ReactTestInstance,
   placeholder: string,
@@ -123,6 +137,7 @@ async function flush(): Promise<void> {
 describe("AppsView", () => {
   beforeEach(() => {
     mockClientFns.listApps.mockReset();
+    mockClientFns.listInstalledApps.mockReset();
     mockClientFns.launchApp.mockReset();
     mockClientFns.listHyperscapeEmbeddedAgents.mockReset();
     mockClientFns.getHyperscapeAgentGoal.mockReset();
@@ -167,6 +182,7 @@ describe("AppsView", () => {
       success: true,
       message: "command sent",
     });
+    mockClientFns.listInstalledApps.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -344,6 +360,16 @@ describe("AppsView", () => {
     const appOne = createApp("@elizaos/app-hyperscape", "Hyperscape", "Arena");
     const appTwo = createApp("@elizaos/app-babylon", "Babylon", "Wallet");
     mockClientFns.listApps.mockResolvedValue([appOne, appTwo]);
+    mockClientFns.listInstalledApps.mockResolvedValue([
+      {
+        name: appOne.name,
+        displayName: appOne.displayName,
+        version: "1.0.0",
+        installPath: "/tmp/app-one",
+        installedAt: "2026-01-01T00:00:00.000Z",
+        isRunning: true,
+      },
+    ]);
 
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
@@ -354,12 +380,8 @@ describe("AppsView", () => {
     const root = tree!.root;
     expect(root.findAll((node) => text(node) === "Hyperscape").length).toBe(1);
     expect(root.findAll((node) => text(node) === "Babylon").length).toBe(1);
-    expect(
-      root.findAll((node) => text(node) === "Hyperscape Control Panel").length,
-    ).toBe(0);
-    expect(
-      root.findAll((node) => text(node) === "Show Hyperscape Controls").length,
-    ).toBe(1);
+    expect(root.findAll((node) => text(node) === "Active").length).toBe(1);
+    expect(root.findAll((node) => text(node) === ">").length).toBe(2);
 
     const searchInput = root.findByType("input");
     await act(async () => {
@@ -372,6 +394,12 @@ describe("AppsView", () => {
       await findButtonByText(root, "Refresh").props.onClick();
     });
     expect(mockClientFns.listApps).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await findButtonByText(root, "Active Only").props.onClick();
+    });
+    expect(root.findAll((node) => text(node) === "Hyperscape").length).toBe(1);
+    expect(root.findAll((node) => text(node) === "Babylon").length).toBe(0);
   });
 
   it("wires Hyperscape controls for message + command + telemetry routes", async () => {
@@ -433,6 +461,11 @@ describe("AppsView", () => {
     await flush();
 
     await act(async () => {
+      findButtonByTitle(tree!.root, "Open Hyperscape").props.onClick();
+    });
+    await flush();
+
+    await act(async () => {
       findButtonByText(tree!.root, "Show Hyperscape Controls").props.onClick();
     });
     await flush();
@@ -473,5 +506,33 @@ describe("AppsView", () => {
       "chat",
       { message: "hi" },
     );
+  });
+
+  it("opens app details and can return to the app list", async () => {
+    const setState = vi.fn<AppsContextStub["setState"]>();
+    const setActionNotice = vi.fn<AppsContextStub["setActionNotice"]>();
+    mockUseApp.mockReturnValue({ setState, setActionNotice });
+    const appOne = createApp("@elizaos/app-hyperscape", "Hyperscape", "Arena");
+    const appTwo = createApp("@elizaos/app-babylon", "Babylon", "Wallet");
+    mockClientFns.listApps.mockResolvedValue([appOne, appTwo]);
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(React.createElement(AppsView));
+    });
+    await flush();
+
+    await act(async () => {
+      findButtonByTitle(tree!.root, "Open Babylon").props.onClick();
+    });
+    expect(tree!.root.findAll((node) => text(node) === "Back").length).toBe(1);
+    expect(tree!.root.findAll((node) => text(node) === "Hyperscape").length).toBe(0);
+    expect(tree!.root.findAll((node) => text(node) === "Babylon").length).toBe(1);
+
+    await act(async () => {
+      findButtonByText(tree!.root, "Back").props.onClick();
+    });
+    expect(tree!.root.findAll((node) => text(node) === "Hyperscape").length).toBe(1);
+    expect(tree!.root.findAll((node) => text(node) === "Babylon").length).toBe(1);
   });
 });

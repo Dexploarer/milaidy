@@ -8,8 +8,8 @@
  * - Supply tracking and status
  */
 
-import { ethers } from "ethers";
 import { logger } from "@elizaos/core";
+import { ethers } from "ethers";
 import type { TxService } from "./tx-service.js";
 
 // ── ABI ──────────────────────────────────────────────────────────────────
@@ -86,17 +86,15 @@ export class DropService {
       };
     }
 
-    const [
-      collectionDetails,
-      whitelistOpen,
-      hasMinted,
-      shinyPriceBN,
-    ] = await Promise.all([
-      this.contract.getCollectionDetails() as Promise<[bigint, bigint, boolean]>,
-      this.contract.whitelistMintOpen() as Promise<boolean>,
-      this.contract.hasMinted(this.txService.address) as Promise<boolean>,
-      this.contract.SHINY_PRICE() as Promise<bigint>,
-    ]);
+    const [collectionDetails, whitelistOpen, hasMinted, shinyPriceBN] =
+      await Promise.all([
+        this.contract.getCollectionDetails() as Promise<
+          [bigint, bigint, boolean]
+        >,
+        this.contract.whitelistMintOpen() as Promise<boolean>,
+        this.contract.hasMinted(this.txService.address) as Promise<boolean>,
+        this.contract.SHINY_PRICE() as Promise<bigint>,
+      ]);
 
     const [maxSupply, currentSupply, publicOpen] = collectionDetails;
     const maxSupplyNum = Number(maxSupply);
@@ -123,7 +121,10 @@ export class DropService {
 
     logger.info(`[drop] Minting agent "${name}" for ${this.txService.address}`);
 
-    const tx = await this.contract.mint(name, endpoint, capHash);
+    // Get fresh nonce before transaction
+    const nonce = await this.txService.getFreshNonce();
+
+    const tx = await this.contract.mint(name, endpoint, capHash, { nonce });
     logger.info(`[drop] Mint tx submitted: ${tx.hash}`);
 
     const receipt = await tx.wait();
@@ -136,14 +137,18 @@ export class DropService {
     capabilitiesHash?: string,
   ): Promise<MintResult> {
     const capHash = capabilitiesHash || DEFAULT_CAP_HASH;
-    const shinyPrice = await this.contract.SHINY_PRICE() as bigint;
+    const shinyPrice = (await this.contract.SHINY_PRICE()) as bigint;
 
     logger.info(
       `[drop] Minting SHINY agent "${name}" for ${this.txService.address} (${ethers.formatEther(shinyPrice)} ETH)`,
     );
 
+    // Get fresh nonce before transaction
+    const nonce = await this.txService.getFreshNonce();
+
     const tx = await this.contract.mintShiny(name, endpoint, capHash, {
       value: shinyPrice,
+      nonce,
     });
     logger.info(`[drop] Shiny mint tx submitted: ${tx.hash}`);
 
@@ -163,7 +168,16 @@ export class DropService {
       `[drop] Whitelist minting agent "${name}" for ${this.txService.address}`,
     );
 
-    const tx = await this.contract.mintWhitelist(name, endpoint, capHash, proof);
+    // Get fresh nonce before transaction
+    const nonce = await this.txService.getFreshNonce();
+
+    const tx = await this.contract.mintWhitelist(
+      name,
+      endpoint,
+      capHash,
+      proof,
+      { nonce },
+    );
     logger.info(`[drop] Whitelist mint tx submitted: ${tx.hash}`);
 
     const receipt = await tx.wait();

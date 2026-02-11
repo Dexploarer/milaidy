@@ -1121,6 +1121,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const cfg = await client.getWalletConfig();
       setWalletConfig(cfg);
+      setWalletAddresses({
+        evmAddress: cfg.evmAddress,
+        solanaAddress: cfg.solanaAddress,
+      });
       setWalletError(null);
     } catch (err) {
       setWalletError(`Failed to load wallet config: ${err instanceof Error ? err.message : "network error"}`);
@@ -1223,27 +1227,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const pollCloudCredits = useCallback(async () => {
     const cloudStatus = await client.getCloudStatus().catch(() => null);
-    if (!cloudStatus) return;
+    if (!cloudStatus) {
+      setCloudConnected(false);
+      setCloudCredits(null);
+      setCloudCreditsLow(false);
+      setCloudCreditsCritical(false);
+      return;
+    }
     setCloudEnabled(cloudStatus.enabled ?? false);
-    // Treat as connected if EITHER the backend says connected OR the config
-    // has the API key saved (hasApiKey).  The CLOUD_AUTH service may not have
-    // refreshed yet, but the key is persisted and model calls will work.
-    const isConnected = cloudStatus.connected || (cloudStatus.enabled && cloudStatus.hasApiKey);
+    // "Connected" should reflect authenticated cloud availability, not just
+    // whether an API key is present in config.
+    const isConnected = Boolean(cloudStatus.connected);
     setCloudConnected(Boolean(isConnected));
     setCloudUserId(cloudStatus.userId ?? null);
     if (cloudStatus.topUpUrl) setCloudTopUpUrl(cloudStatus.topUpUrl);
-    // Only fetch credits when the backend confirms the auth service is
-    // actually connected.  When hasApiKey is true but connected is false,
-    // the CLOUD_AUTH service hasn't authenticated yet -- fetching credits
-    // would just fail and spam warnings in the backend logs.
-    if (cloudStatus.connected) {
+    if (isConnected) {
       const credits = await client.getCloudCredits().catch(() => null);
-      if (credits) {
+      if (credits && typeof credits.balance === "number") {
         setCloudCredits(credits.balance);
         setCloudCreditsLow(credits.low ?? false);
         setCloudCreditsCritical(credits.critical ?? false);
         if (credits.topUpUrl) setCloudTopUpUrl(credits.topUpUrl);
+      } else {
+        setCloudCredits(null);
+        setCloudCreditsLow(false);
+        setCloudCreditsCritical(false);
+        if (credits?.topUpUrl) setCloudTopUpUrl(credits.topUpUrl);
       }
+    } else {
+      setCloudCredits(null);
+      setCloudCreditsLow(false);
+      setCloudCreditsCritical(false);
     }
   }, []);
 
@@ -2274,6 +2288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setCloudConnected(true);
             setCloudEnabled(true);
             setActionNotice("Logged in to Eliza Cloud successfully.", "success", 6000);
+            void loadWalletConfig();
             // Delay the credit fetch slightly so the backend has time to
             // persist the API key before we query cloud status / credits.
             setTimeout(() => void pollCloudCredits(), 2000);
@@ -2290,7 +2305,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCloudLoginError(err instanceof Error ? err.message : "Login failed");
       setCloudLoginBusy(false);
     }
-  }, [setActionNotice, pollCloudCredits]);
+  }, [setActionNotice, pollCloudCredits, loadWalletConfig]);
 
   const handleCloudDisconnect = useCallback(async () => {
     if (!confirm("Disconnect from Eliza Cloud? The agent will need a local AI provider to continue working."))

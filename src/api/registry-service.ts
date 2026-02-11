@@ -152,11 +152,15 @@ export class RegistryService {
       `[registry] Registering agent "${params.name}" from ${this.txService.address}`,
     );
 
+    // Get fresh nonce before each transaction
+    const nonce = await this.txService.getFreshNonce();
+
     const tx = await this.contract.registerAgent(
       params.name,
       params.endpoint,
       capHash,
       params.tokenURI,
+      { nonce },
     );
 
     logger.info(`[registry] Registration tx submitted: ${tx.hash}`);
@@ -203,7 +207,10 @@ export class RegistryService {
 
     logger.info(`[registry] Updating tokenURI for token ${tokenId}: ${newURI}`);
 
-    const tx = await this.contract.updateTokenURI(tokenId, newURI);
+    // Get fresh nonce before transaction
+    const nonce = await this.txService.getFreshNonce();
+
+    const tx = await this.contract.updateTokenURI(tokenId, newURI, { nonce });
     const receipt = await tx.wait();
 
     logger.info(`[registry] TokenURI updated: txHash=${receipt.hash}`);
@@ -221,7 +228,10 @@ export class RegistryService {
 
     logger.info(`[registry] Updating agent profile: endpoint=${endpoint}`);
 
-    const tx = await this.contract.updateAgent(endpoint, capHash);
+    // Get fresh nonce before transaction
+    const nonce = await this.txService.getFreshNonce();
+
+    const tx = await this.contract.updateAgent(endpoint, capHash, { nonce });
     const receipt = await tx.wait();
 
     logger.info(`[registry] Agent updated: txHash=${receipt.hash}`);
@@ -247,11 +257,15 @@ export class RegistryService {
       `[registry] Syncing profile: name="${params.name}" endpoint="${params.endpoint}"`,
     );
 
+    // Get fresh nonce before transaction
+    const nonce = await this.txService.getFreshNonce();
+
     const tx = await this.contract.updateAgentProfile(
       params.name,
       params.endpoint,
       capHash,
       params.tokenURI,
+      { nonce },
     );
 
     logger.info(`[registry] Sync tx submitted: ${tx.hash}`);

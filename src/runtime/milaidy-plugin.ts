@@ -10,18 +10,17 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type {
-  AgentRuntime,
   IAgentRuntime,
   Memory,
   MessagePayload,
   Plugin,
   Provider,
   ProviderResult,
-  Service,
   State,
 } from "@elizaos/core";
 import {
   attachmentsProvider,
+  createUniqueUuid,
   entitiesProvider,
   factsProvider,
   getSessionProviders,
@@ -43,6 +42,7 @@ import {
 import { createSimpleModeProvider } from "../providers/simple-mode.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../providers/workspace.js";
 import { createWorkspaceProvider } from "../providers/workspace-provider.js";
+
 // TrajectoryLoggerService is provided by @elizaos/plugin-trajectory-logger
 // We just need a type interface to call startTrajectory/endTrajectory
 interface TrajectoryLoggerLike {
@@ -59,6 +59,7 @@ interface TrajectoryLoggerLike {
   ): Promise<string>;
   endTrajectory(stepId: string, status?: string): Promise<void>;
 }
+
 import { generateCatalogPrompt } from "../shared/ui-catalog-prompt.js";
 import { createTriggerTaskAction } from "../triggers/action.js";
 import { registerTriggerTaskWorker } from "../triggers/runtime.js";
@@ -136,6 +137,27 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
   const sessionStorePath =
     config?.sessionStorePath ?? resolveDefaultSessionStorePath(agentId);
   const enableBootstrap = config?.enableBootstrapProviders ?? true;
+  const pendingTrajectoryStepByReplyId = new Map<string, string>();
+
+  const trimPendingTrajectories = () => {
+    const maxPending = 1000;
+    if (pendingTrajectoryStepByReplyId.size <= maxPending) return;
+    const overflow = pendingTrajectoryStepByReplyId.size - maxPending;
+    const keys = pendingTrajectoryStepByReplyId.keys();
+    for (let i = 0; i < overflow; i++) {
+      const next = keys.next();
+      if (next.done) break;
+      pendingTrajectoryStepByReplyId.delete(next.value);
+    }
+  };
+
+  const clearPendingTrajectoryStep = (trajectoryStepId: string) => {
+    for (const [replyId, stepId] of pendingTrajectoryStepByReplyId.entries()) {
+      if (stepId === trajectoryStepId) {
+        pendingTrajectoryStepByReplyId.delete(replyId);
+      }
+    }
+  };
 
   const baseProviders = [
     createSimpleModeProvider(),
@@ -362,21 +384,38 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
           ) as TrajectoryLoggerLike | null;
 
           if (trajectoryLogger?.isEnabled()) {
-            const trajectoryStepId = crypto.randomUUID();
-            meta.trajectoryStepId = trajectoryStepId;
+            try {
+              const trajectoryStepId = crypto.randomUUID();
+              meta.trajectoryStepId = trajectoryStepId;
 
-            // Start the trajectory - this links the stepId to a new trajectory record
-            await trajectoryLogger.startTrajectory(trajectoryStepId, {
-              agentId: runtime.agentId,
-              roomId: message.roomId,
-              entityId: message.entityId,
-              conversationId: meta.sessionKey as string | undefined,
-              source: source ?? (meta.source as string) ?? "chat",
-              metadata: {
-                messageId: message.id,
-                channelType: meta.channelType ?? message.content?.channelType,
-              },
-            });
+              // Start the trajectory - this links the stepId to a new trajectory record
+              await trajectoryLogger.startTrajectory(trajectoryStepId, {
+                agentId: runtime.agentId,
+                roomId: message.roomId,
+                entityId: message.entityId,
+                source: source ?? (meta.source as string) ?? "chat",
+                metadata: {
+                  messageId: message.id,
+                  channelType: meta.channelType ?? message.content?.channelType,
+                  conversationId: meta.sessionKey,
+                },
+              });
+
+              if (message.id) {
+                const replyId = createUniqueUuid(runtime, message.id);
+                pendingTrajectoryStepByReplyId.set(replyId, trajectoryStepId);
+                trimPendingTrajectories();
+              }
+            } catch (err) {
+              runtime.logger?.warn(
+                {
+                  err,
+                  src: "milaidy",
+                  roomId: message.roomId,
+                },
+                "Failed to start trajectory logging",
+              );
+            }
           }
         },
       ],
@@ -388,7 +427,18 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
           if (!message || !runtime) return;
 
           const meta = message.metadata as Record<string, unknown> | undefined;
-          const trajectoryStepId = meta?.trajectoryStepId as string | undefined;
+          const inReplyTo =
+            typeof message.content === "object" &&
+            message.content !== null &&
+            "inReplyTo" in message.content &&
+            typeof (message.content as { inReplyTo?: unknown }).inReplyTo ===
+              "string"
+              ? (message.content as { inReplyTo: string }).inReplyTo
+              : undefined;
+          let trajectoryStepId = meta?.trajectoryStepId as string | undefined;
+          if (!trajectoryStepId && inReplyTo) {
+            trajectoryStepId = pendingTrajectoryStepByReplyId.get(inReplyTo);
+          }
           if (!trajectoryStepId) return;
 
           // TrajectoryLoggerService is provided by @elizaos/plugin-trajectory-logger
@@ -397,8 +447,26 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
           ) as TrajectoryLoggerLike | null;
 
           if (trajectoryLogger) {
-            await trajectoryLogger.endTrajectory(trajectoryStepId, "completed");
+            try {
+              await trajectoryLogger.endTrajectory(
+                trajectoryStepId,
+                "completed",
+              );
+            } catch (err) {
+              runtime.logger?.warn(
+                {
+                  err,
+                  src: "milaidy",
+                  trajectoryStepId,
+                },
+                "Failed to end trajectory logging",
+              );
+            }
           }
+          if (inReplyTo) {
+            pendingTrajectoryStepByReplyId.delete(inReplyTo);
+          }
+          clearPendingTrajectoryStep(trajectoryStepId);
         },
       ],
     },

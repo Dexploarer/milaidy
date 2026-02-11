@@ -122,12 +122,9 @@ export function AdvancedPageView() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header with sub-tabs */}
-      <div className="mb-4">
-        <h2 className="text-lg font-bold mb-2">Advanced</h2>
-
-        {/* Sub-tab navigation */}
+    <div className="flex flex-col h-full min-h-0">
+      {/* Sub-tab navigation (fixed) */}
+      <div className="mb-4 shrink-0">
         <div className="flex gap-1 border-b border-border">
           {SUB_TABS.map((subTab) => {
             const isActive = currentSubTab === subTab.id;
@@ -149,8 +146,8 @@ export function AdvancedPageView() {
         </div>
       </div>
 
-      {/* Content area */}
-      <div className="flex-1 min-h-0">
+      {/* Content area (scrolls, header stays fixed) */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {renderContent()}
       </div>
     </div>

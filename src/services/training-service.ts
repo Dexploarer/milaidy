@@ -490,7 +490,7 @@ export class TrainingService {
     const rowsResult = await this.executeRawSql(
       runtime,
       `SELECT * FROM trajectories
-       ORDER BY COALESCE(created_at, createdAt) DESC
+       ORDER BY created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
     );
 
@@ -515,7 +515,7 @@ export class TrainingService {
     const rowsResult = await this.executeRawSql(
       runtime,
       `SELECT * FROM trajectories
-       WHERE trajectory_id = '${safeId}' OR "trajectoryId" = '${safeId}' OR id = '${safeId}'
+       WHERE id = '${safeId}'
        LIMIT 1`,
     );
     if (rowsResult.rows.length === 0) return null;

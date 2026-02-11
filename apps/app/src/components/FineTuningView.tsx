@@ -478,7 +478,7 @@ export function FineTuningView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <section className="border border-border bg-card p-4">
         <div className="flex items-center justify-between gap-3">
           <div>

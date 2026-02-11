@@ -22,11 +22,11 @@ export type Tab =
 
 export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] as Tab[] },
-  { label: "Apps", tabs: ["apps"] as Tab[] },
   { label: "Character", tabs: ["character"] as Tab[] },
   { label: "Inventory", tabs: ["inventory"] as Tab[] },
   { label: "Knowledge", tabs: ["knowledge"] as Tab[] },
   { label: "Connectors", tabs: ["connectors"] as Tab[] },
+  { label: "Apps", tabs: ["apps"] as Tab[] },
   { label: "Settings", tabs: ["settings"] as Tab[] },
   {
     label: "Advanced",
