@@ -335,27 +335,26 @@ function taskAgentId(t: Task): string | undefined {
   return (rec.agentId ?? rec.agent_id) as string | undefined;
 }
 
-async function extractAgentData(
-  runtime: AgentRuntime,
-  options: AgentExportOptions,
-): Promise<AgentExportPayload> {
-  const db = runtime.adapter;
-  const agentId = runtime.agentId;
-
-  logger.info(`[agent-export] Extracting data for agent ${agentId}`);
-
-  // 1. Agent record
+async function fetchAgent(db: AgentRuntime["adapter"], agentId: UUID) {
   const agent = await db.getAgent(agentId);
   if (!agent) {
     throw new AgentExportError(`Agent ${agentId} not found in database.`);
   }
+  return agent;
+}
 
-  // 2. Worlds owned by this agent
+async function fetchAgentWorlds(db: AgentRuntime["adapter"], agentId: UUID) {
   const allWorlds = await db.getAllWorlds();
   const agentWorlds = allWorlds.filter((w) => w.agentId === agentId);
   logger.info(`[agent-export] Found ${agentWorlds.length} worlds`);
+  return agentWorlds;
+}
 
-  // 3. Rooms — gather from worlds and from participant list
+async function fetchRooms(
+  db: AgentRuntime["adapter"],
+  agentId: UUID,
+  agentWorlds: World[],
+) {
   const roomMap = new Map<string, Room>();
 
   for (const world of agentWorlds) {
@@ -379,8 +378,13 @@ async function extractAgentData(
 
   const rooms = Array.from(roomMap.values());
   logger.info(`[agent-export] Found ${rooms.length} rooms`);
+  return rooms;
+}
 
-  // 4. Entities and participants for each room
+async function fetchEntitiesAndParticipants(
+  db: AgentRuntime["adapter"],
+  rooms: Room[],
+) {
   const entityMap = new Map<string, Entity>();
   const participantRecords: Array<{
     entityId: string;
@@ -411,8 +415,14 @@ async function extractAgentData(
   logger.info(
     `[agent-export] Found ${entities.length} entities, ${participantRecords.length} participant records`,
   );
+  return { entities, participantRecords };
+}
 
-  // 5. Components for all entities (deduplicated by ID)
+async function fetchComponents(
+  db: AgentRuntime["adapter"],
+  entities: Entity[],
+  agentWorlds: World[],
+) {
   const componentIds = new Set<string>();
   const allComponents: Component[] = [];
   const addComponent = (c: Component) => {
@@ -431,8 +441,14 @@ async function extractAgentData(
     }
   }
   logger.info(`[agent-export] Found ${allComponents.length} components`);
+  return allComponents;
+}
 
-  // 6. Memories — query all known table names
+async function fetchMemories(
+  db: AgentRuntime["adapter"],
+  agentId: UUID,
+  agentWorlds: World[],
+) {
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
@@ -470,24 +486,69 @@ async function extractAgentData(
   }
 
   logger.info(`[agent-export] Found ${allMemories.length} memories`);
+  return allMemories;
+}
 
-  // 7. Relationships
+async function fetchRelationships(db: AgentRuntime["adapter"], agentId: UUID) {
   const relationships = await db.getRelationships({ entityId: agentId });
   logger.info(`[agent-export] Found ${relationships.length} relationships`);
+  return relationships;
+}
 
-  // 8. Tasks
-  // The Task proto type does not declare agentId, but the DB schema stores
-  // agent_id. Filter using a dynamic property access to handle both shapes.
+async function fetchTasks(db: AgentRuntime["adapter"], agentId: UUID) {
   const allTasks = await db.getTasks({});
   const agentTasks = allTasks.filter((t) => taskAgentId(t) === agentId);
   logger.info(`[agent-export] Found ${agentTasks.length} tasks`);
+  return agentTasks;
+}
 
-  // 9. Logs (optional)
+async function fetchLogs(db: AgentRuntime["adapter"], includeLogs: boolean) {
   let logs: Log[] = [];
-  if (options.includeLogs) {
+  if (includeLogs) {
     logs = await db.getLogs({ count: Number.MAX_SAFE_INTEGER });
     logger.info(`[agent-export] Found ${logs.length} logs`);
   }
+  return logs;
+}
+
+async function extractAgentData(
+  runtime: AgentRuntime,
+  options: AgentExportOptions,
+): Promise<AgentExportPayload> {
+  const db = runtime.adapter;
+  const agentId = runtime.agentId;
+
+  logger.info(`[agent-export] Extracting data for agent ${agentId}`);
+
+  // 1. Agent record
+  const agent = await fetchAgent(db, agentId);
+
+  // 2. Worlds owned by this agent
+  const agentWorlds = await fetchAgentWorlds(db, agentId);
+
+  // 3. Rooms — gather from worlds and from participant list
+  const rooms = await fetchRooms(db, agentId, agentWorlds);
+
+  // 4. Entities and participants for each room
+  const { entities, participantRecords } = await fetchEntitiesAndParticipants(
+    db,
+    rooms,
+  );
+
+  // 5. Components for all entities (deduplicated by ID)
+  const allComponents = await fetchComponents(db, entities, agentWorlds);
+
+  // 6. Memories — query all known table names
+  const allMemories = await fetchMemories(db, agentId, agentWorlds);
+
+  // 7. Relationships
+  const relationships = await fetchRelationships(db, agentId);
+
+  // 8. Tasks
+  const agentTasks = await fetchTasks(db, agentId);
+
+  // 9. Logs (optional)
+  const logs = await fetchLogs(db, options.includeLogs ?? false);
 
   return {
     version: EXPORT_VERSION,
