@@ -1581,9 +1581,25 @@ function extractAuthToken(req: http.IncomingMessage): string | null {
   return null;
 }
 
-function isAuthorized(req: http.IncomingMessage): boolean {
+function isLoopback(ip: string): boolean {
+  // IPv4 127.0.0.1, IPv6 ::1, IPv4-mapped ::ffff:127.0.0.1
+  // Also covers 127.0.0.x (typical IPv4 loopback range)
+  return (
+    ip === "127.0.0.1" ||
+    ip === "::1" ||
+    ip === "::ffff:127.0.0.1" ||
+    /^127\.0\.0\.\d+$/.test(ip)
+  );
+}
+
+export function isAuthorized(req: http.IncomingMessage): boolean {
   const expected = process.env.MILAIDY_API_TOKEN?.trim();
-  if (!expected) return true;
+  if (!expected) {
+    // If no token is set, only allow requests from localhost.
+    // This prevents accidental exposure when bound to 0.0.0.0.
+    const remote = req.socket.remoteAddress;
+    return !!remote && isLoopback(remote);
+  }
   const provided = extractAuthToken(req);
   if (!provided) return false;
   const a = Buffer.from(expected, "utf8");
