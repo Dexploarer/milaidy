@@ -20,27 +20,35 @@ import { CORE_PLUGINS, collectPluginNames } from "./eliza.js";
 // ---------------------------------------------------------------------------
 
 describe("Shell plugin classification", () => {
-  it("@elizaos/plugin-shell IS in CORE_PLUGINS", () => {
-    expect(CORE_PLUGINS).toContain("@elizaos/plugin-shell");
+  it("@elizaos/plugin-shell is NOT in CORE_PLUGINS", () => {
+    expect(CORE_PLUGINS).not.toContain("@elizaos/plugin-shell");
   });
 
-  it("@elizaos/plugin-shell is loaded with empty config", () => {
+  it("@elizaos/plugin-shell is NOT loaded with empty config", () => {
     const names = collectPluginNames({} as MilaidyConfig);
-    expect(names.has("@elizaos/plugin-shell")).toBe(true);
+    expect(names.has("@elizaos/plugin-shell")).toBe(false);
   });
 
-  it("@elizaos/plugin-shell is loaded alongside other core plugins", () => {
+  it("@elizaos/plugin-shell is NOT loaded alongside other core plugins", () => {
     const names = collectPluginNames({} as MilaidyConfig);
-    expect(names.has("@elizaos/plugin-shell")).toBe(true);
+    expect(names.has("@elizaos/plugin-shell")).toBe(false);
     expect(names.has("@elizaos/plugin-sql")).toBe(true);
     expect(names.has("@elizaos/plugin-agent-skills")).toBe(true);
     expect(names.has("@elizaos/plugin-plugin-manager")).toBe(true);
   });
 
-  it("@elizaos/plugin-shell remains loaded even with other features enabled", () => {
+  it("@elizaos/plugin-shell remains unloaded with unrelated features enabled", () => {
     const config = {
       features: { browser: true, computeruse: true },
       channels: { discord: { token: "test" } },
+    } as unknown as MilaidyConfig;
+    const names = collectPluginNames(config);
+    expect(names.has("@elizaos/plugin-shell")).toBe(false);
+  });
+
+  it("@elizaos/plugin-shell IS loaded when config.features.shell is true", () => {
+    const config = {
+      features: { shell: true },
     } as unknown as MilaidyConfig;
     const names = collectPluginNames(config);
     expect(names.has("@elizaos/plugin-shell")).toBe(true);

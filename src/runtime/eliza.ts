@@ -150,7 +150,6 @@ export const CORE_PLUGINS: readonly string[] = [
   "@elizaos/plugin-local-embedding", // local embeddings — required for memory
   "@elizaos/plugin-agent-skills", // skill execution
   "@elizaos/plugin-agent-orchestrator", // multi-agent orchestration
-  "@elizaos/plugin-shell", // shell command execution
   "@elizaos/plugin-plugin-manager", // dynamic plugin management
 ];
 
@@ -159,6 +158,7 @@ export const CORE_PLUGINS: readonly string[] = [
  * Not loaded by default — kept separate due to packaging or spec issues.
  */
 export const OPTIONAL_CORE_PLUGINS: readonly string[] = [
+  "@elizaos/plugin-shell", // shell command execution
   "@elizaos/plugin-form", // packaging issue
   "@elizaos/plugin-goals", // spec mismatch
   "@elizaos/plugin-scheduling", // packaging issue
@@ -230,6 +230,7 @@ const PROVIDER_PLUGIN_MAP: Readonly<Record<string, string>> = {
  * so new entries work without additional wiring.
  */
 const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
+  shell: "@elizaos/plugin-shell",
   browser: "@elizaos/plugin-browser",
   vision: "@elizaos/plugin-vision",
   cron: "@elizaos/plugin-cron",

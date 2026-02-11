@@ -51,7 +51,7 @@ describe("Code writing plugin classification", () => {
     } as unknown as MilaidyConfig;
     const names = collectPluginNames(config);
     expect(names.has("@elizaos/plugin-code")).toBe(true);
-    expect(names.has("@elizaos/plugin-shell")).toBe(true);
+    expect(names.has("@elizaos/plugin-shell")).toBe(false);
     expect(names.has("@elizaos/plugin-sql")).toBe(true);
   });
 });
