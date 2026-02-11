@@ -36,6 +36,7 @@ import type {
 } from "@elizaos/core";
 import { logger } from "@elizaos/core";
 import { z } from "zod";
+import { MEMORY_TABLES, resolveMemoryTableName } from "./memory-utils.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,19 +53,6 @@ const KEY_LEN = 32; // AES-256
 const HEADER_SIZE = MAGIC_BYTES.length + 4 + SALT_LEN + IV_LEN + TAG_LEN; // 15 + 4 + 32 + 12 + 16 = 79
 const EXPORT_VERSION = 1;
 const MAX_IMPORT_DECOMPRESSED_BYTES = 16 * 1024 * 1024; // 16 MiB safety cap
-
-// Memory table names we need to export. The adapter's getMemories requires
-// a tableName parameter. These are the known built-in table names used by
-// ElizaOS. We query each individually and merge the results.
-const MEMORY_TABLES = [
-  "messages",
-  "facts",
-  "documents",
-  "fragments",
-  "descriptions",
-  "character_modifications",
-  "custom",
-] as const;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -721,27 +709,6 @@ async function restoreAgentData(
       logs: logsImported,
     },
   };
-}
-
-/**
- * Resolve the memory table name from a memory record's metadata.
- * The ElizaOS adapter requires a tableName for createMemory.
- */
-function resolveMemoryTableName(mem: Memory): string {
-  const metaType = mem.metadata?.type;
-  if (metaType === "message") return "messages";
-  if (metaType === "document") return "documents";
-  if (metaType === "fragment") return "fragments";
-  if (metaType === "description") return "descriptions";
-  if (metaType === "custom") return "custom";
-
-  // Fallback: use the "type" field on the memory itself (ElizaOS stores it
-  // as a top-level field in the DB row, which the proto Memory type inherits).
-  // Access via unknown to satisfy strict type checking.
-  const memType = (mem as unknown as Record<string, unknown>).type;
-  if (typeof memType === "string" && memType.length > 0) return memType;
-
-  return "messages";
 }
 
 // ---------------------------------------------------------------------------
