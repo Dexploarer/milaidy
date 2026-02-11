@@ -57,15 +57,25 @@ import {
 import { TrainingService } from "../services/training-service.js";
 import { type CloudRouteState, handleCloudRoute } from "./cloud-routes.js";
 import { handleDatabaseRoute } from "./database.js";
+import { DropService } from "./drop-service.js";
 import { handleKnowledgeRoutes } from "./knowledge-routes.js";
+import { initializeOGCode, readOGCode } from "./og-tracker.js";
 import {
   type PluginParamInfo,
   validatePluginConfig,
 } from "./plugin-validation.js";
+import { RegistryService } from "./registry-service.js";
 import { handleSandboxRoute } from "./sandbox-routes.js";
 import { handleTrainingRoutes } from "./training-routes.js";
 import { handleTrajectoryRoute } from "./trajectory-routes.js";
 import { handleTriggerRoutes } from "./trigger-routes.js";
+import {
+  generateVerificationMessage,
+  isAddressWhitelisted,
+  markAddressVerified,
+  verifyTweet,
+} from "./twitter-verify.js";
+import { TxService } from "./tx-service.js";
 import {
   fetchEvmBalances,
   fetchEvmNfts,
@@ -81,16 +91,6 @@ import {
   type WalletConfigStatus,
   type WalletNftsResponse,
 } from "./wallet.js";
-import { TxService } from "./tx-service.js";
-import { RegistryService } from "./registry-service.js";
-import { DropService } from "./drop-service.js";
-import { initializeOGCode, readOGCode } from "./og-tracker.js";
-import {
-  generateVerificationMessage,
-  verifyTweet,
-  markAddressVerified,
-  isAddressWhitelisted,
-} from "./twitter-verify.js";
 
 function resolveDefaultAgentWorkspaceDir(
   env: NodeJS.ProcessEnv = process.env,
@@ -178,6 +178,10 @@ interface ServerState {
   appManager: AppManager;
   /** Fine-tuning/training orchestration service. */
   trainingService: TrainingService | null;
+  /** ERC-8004 registry service (null when not configured). */
+  registryService: RegistryService | null;
+  /** Drop/mint service (null when not configured). */
+  dropService: DropService | null;
   /** In-memory queue for share ingest items. */
   shareIngestQueue: ShareIngestItem[];
   /** Broadcast current agent status to all WebSocket clients. Set by startApiServer. */
@@ -2825,9 +2829,9 @@ function decodePathComponent(
 
 const RUNTIME_DEBUG_DEFAULT_MAX_DEPTH = 10;
 const RUNTIME_DEBUG_MAX_DEPTH_CAP = 24;
-const RUNTIME_DEBUG_DEFAULT_MAX_ARRAY_LENGTH = 250;
-const RUNTIME_DEBUG_DEFAULT_MAX_OBJECT_ENTRIES = 250;
-const RUNTIME_DEBUG_DEFAULT_MAX_STRING_LENGTH = 4000;
+const RUNTIME_DEBUG_DEFAULT_MAX_ARRAY_LENGTH = 1000;
+const RUNTIME_DEBUG_DEFAULT_MAX_OBJECT_ENTRIES = 1000;
+const RUNTIME_DEBUG_DEFAULT_MAX_STRING_LENGTH = 8000;
 
 interface RuntimeDebugSerializeOptions {
   maxDepth: number;
@@ -2887,9 +2891,7 @@ function describeRuntimeOrder(
 ): RuntimeOrderItem[] {
   return values.map((value, index) => {
     const className =
-      value && typeof value === "object"
-        ? classNameFor(value)
-        : typeof value;
+      value && typeof value === "object" ? classNameFor(value) : typeof value;
     const name =
       stringDataProperty(value, "name") ??
       stringDataProperty(value, "id") ??
@@ -2905,15 +2907,17 @@ function describeRuntimeOrder(
 function describeRuntimeServiceOrder(
   servicesMap: Map<string, unknown[]>,
 ): RuntimeServiceOrderItem[] {
-  return Array.from(servicesMap.entries()).map(([serviceType, instances], i) => {
-    const values = Array.isArray(instances) ? instances : [];
-    return {
-      index: i,
-      serviceType,
-      count: values.length,
-      instances: describeRuntimeOrder(values, serviceType),
-    };
-  });
+  return Array.from(servicesMap.entries()).map(
+    ([serviceType, instances], i) => {
+      const values = Array.isArray(instances) ? instances : [];
+      return {
+        index: i,
+        serviceType,
+        count: values.length,
+        instances: describeRuntimeOrder(values, serviceType),
+      };
+    },
+  );
 }
 
 function serializeForRuntimeDebug(
@@ -2942,11 +2946,9 @@ function serializeForRuntimeDebug(
       return { __type: "number", value: String(n) };
     }
     if (kind === "boolean") return current;
-    if (kind === "bigint")
-      return { __type: "bigint", value: String(current) };
+    if (kind === "bigint") return { __type: "bigint", value: String(current) };
     if (kind === "undefined") return { __type: "undefined" };
-    if (kind === "symbol")
-      return { __type: "symbol", value: String(current) };
+    if (kind === "symbol") return { __type: "symbol", value: String(current) };
     if (kind === "function") {
       const fn = current as (...args: unknown[]) => unknown;
       return {
@@ -2994,11 +2996,7 @@ function serializeForRuntimeDebug(
     if (ArrayBuffer.isView(obj)) {
       const view = obj as ArrayBufferView;
       const previewLength = Math.min(view.byteLength, 64);
-      const bytes = new Uint8Array(
-        view.buffer,
-        view.byteOffset,
-        previewLength,
-      );
+      const bytes = new Uint8Array(view.buffer, view.byteOffset, previewLength);
       return {
         __type: classNameFor(obj),
         byteLength: view.byteLength,
@@ -3079,7 +3077,8 @@ function serializeForRuntimeDebug(
         size: obj.size,
         values,
       };
-      if (obj.size > values.length) out.truncatedEntries = obj.size - values.length;
+      if (obj.size > values.length)
+        out.truncatedEntries = obj.size - values.length;
       return out;
     }
 
@@ -3273,6 +3272,8 @@ async function handleRequest(
   }
   const pathname = url.pathname;
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
+  const registryService = state.registryService;
+  const dropService = state.dropService;
 
   const scheduleRuntimeRestart = (reason: string, delayMs = 300): void => {
     const restart = () => {
@@ -3821,7 +3822,10 @@ async function handleRequest(
       const orderServices = describeRuntimeServiceOrder(servicesMap);
       const orderPlugins = describeRuntimeOrder(runtime.plugins, "plugin");
       const orderActions = describeRuntimeOrder(runtime.actions, "action");
-      const orderProviders = describeRuntimeOrder(runtime.providers, "provider");
+      const orderProviders = describeRuntimeOrder(
+        runtime.providers,
+        "provider",
+      );
       const orderEvaluators = describeRuntimeOrder(
         runtime.evaluators,
         "evaluator",
@@ -3854,7 +3858,10 @@ async function handleRequest(
           runtime: serializeForRuntimeDebug(runtime, serializeOptions),
           plugins: serializeForRuntimeDebug(runtime.plugins, serializeOptions),
           actions: serializeForRuntimeDebug(runtime.actions, serializeOptions),
-          providers: serializeForRuntimeDebug(runtime.providers, serializeOptions),
+          providers: serializeForRuntimeDebug(
+            runtime.providers,
+            serializeOptions,
+          ),
           evaluators: serializeForRuntimeDebug(
             runtime.evaluators,
             serializeOptions,
@@ -7032,7 +7039,11 @@ async function handleRequest(
 
   if (method === "POST" && pathname === "/api/registry/register") {
     if (!registryService) {
-      error(res, "Registry service not configured. Set registry config and EVM_PRIVATE_KEY.", 503);
+      error(
+        res,
+        "Registry service not configured. Set registry config and EVM_PRIVATE_KEY.",
+        503,
+      );
       return;
     }
     const body = await readJsonBody<{
@@ -7121,12 +7132,9 @@ async function handleRequest(
     const agentName = body.name || state.agentName || "Milaidy Agent";
     const endpoint = body.endpoint || "";
 
-    let result;
-    if (body.shiny) {
-      result = await dropService.mintShiny(agentName, endpoint);
-    } else {
-      result = await dropService.mint(agentName, endpoint);
-    }
+    const result = body.shiny
+      ? await dropService.mintShiny(agentName, endpoint)
+      : await dropService.mint(agentName, endpoint);
     json(res, result);
     return;
   }
@@ -7164,7 +7172,9 @@ async function handleRequest(
   if (method === "GET" && pathname === "/api/whitelist/status") {
     const addrs = getWalletAddresses();
     const walletAddress = addrs.evmAddress ?? "";
-    const twitterVerified = walletAddress ? isAddressWhitelisted(walletAddress) : false;
+    const twitterVerified = walletAddress
+      ? isAddressWhitelisted(walletAddress)
+      : false;
     const ogCode = readOGCode();
 
     json(res, {
@@ -9207,6 +9217,8 @@ export async function startApiServer(opts?: {
     sandboxManager: null,
     appManager: new AppManager(),
     trainingService: null,
+    registryService: null,
+    dropService: null,
     shareIngestQueue: [],
     broadcastStatus: null,
     broadcastWs: null,
@@ -9337,7 +9349,10 @@ export async function startApiServer(opts?: {
   const registryConfig = config.registry;
   if (evmKey && registryConfig?.registryAddress && registryConfig?.mainnetRpc) {
     const txService = new TxService(registryConfig.mainnetRpc, evmKey);
-    registryService = new RegistryService(txService, registryConfig.registryAddress);
+    registryService = new RegistryService(
+      txService,
+      registryConfig.registryAddress,
+    );
 
     if (registryConfig.collectionAddress) {
       const dropEnabled = config.features?.dropEnabled === true;
@@ -9355,6 +9370,9 @@ export async function startApiServer(opts?: {
       ["system"],
     );
   }
+
+  state.registryService = registryService;
+  state.dropService = dropService;
 
   addLog(
     "info",

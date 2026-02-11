@@ -32,8 +32,6 @@ const SECTION_TABS: Array<{ key: RuntimeSectionKey; label: string }> = [
   { key: "evaluators", label: "Evaluators" },
 ];
 
-const TREE_CHILD_LIMIT = 300;
-
 function formatTimestamp(ms: number): string {
   if (!Number.isFinite(ms)) return "n/a";
   return new Date(ms).toLocaleString();
@@ -127,12 +125,6 @@ function TreeNode(props: {
   const canExpand = isExpandable(value);
   const open = expanded.has(path);
   const entries = canExpand ? nodeEntries(value, path) : [];
-  const hiddenChildren = entries.length > TREE_CHILD_LIMIT
-    ? entries.length - TREE_CHILD_LIMIT
-    : 0;
-  const visibleEntries = hiddenChildren > 0
-    ? entries.slice(0, TREE_CHILD_LIMIT)
-    : entries;
 
   return (
     <div>
@@ -158,7 +150,7 @@ function TreeNode(props: {
 
       {canExpand && open && (
         <div>
-          {visibleEntries.map((entry) => (
+          {entries.map((entry) => (
             <TreeNode
               key={entry.path}
               label={entry.key}
@@ -169,14 +161,6 @@ function TreeNode(props: {
               onToggle={onToggle}
             />
           ))}
-          {hiddenChildren > 0 && (
-            <div
-              className="text-[11px] font-mono text-[var(--muted)]"
-              style={{ paddingLeft: `${(depth + 1) * 14}px` }}
-            >
-              ... {hiddenChildren} additional children omitted in UI
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -245,8 +229,8 @@ export function RuntimeView() {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
   const [depth, setDepth] = useState(10);
-  const [maxArrayLength, setMaxArrayLength] = useState(250);
-  const [maxObjectEntries, setMaxObjectEntries] = useState(250);
+  const [maxArrayLength, setMaxArrayLength] = useState(1000);
+  const [maxObjectEntries, setMaxObjectEntries] = useState(1000);
 
   const sectionData = snapshot?.sections[activeSection] ?? null;
   const rootPath = useMemo(() => `$${activeSection}`, [activeSection]);
@@ -418,4 +402,3 @@ export function RuntimeView() {
     </div>
   );
 }
-

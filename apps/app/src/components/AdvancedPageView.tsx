@@ -3,33 +3,53 @@
  *
  * Sub-tabs:
  *   - Config: Wallet/RPC providers, secrets (original ConfigPageView content)
+ *   - Plugins: Feature/connector/skills plugin management
  *   - Trajectories: LLM call viewer and analysis
  *   - Voice: TTS/STT provider selection
+ *   - Runtime: Runtime object inspection
+ *   - Databases: Tables/media/vector browser
+ *   - Logs: Runtime log viewer
  */
 
 import { useState } from "react";
 import { useApp } from "../AppContext";
 import { ConfigPageView } from "./ConfigPageView";
+import { PluginsPageView } from "./PluginsPageView";
 import { TrajectoriesView } from "./TrajectoriesView";
 import { TrajectoryDetailView } from "./TrajectoryDetailView";
 import { VoiceConfigView } from "./VoiceConfigView";
 import { RuntimeView } from "./RuntimeView";
+import { DatabasePageView } from "./DatabasePageView";
+import { LogsPageView } from "./LogsPageView";
 import type { Tab } from "../navigation";
 
-type SubTab = "config" | "trajectories" | "voice" | "runtime";
+type SubTab =
+  | "config"
+  | "plugins"
+  | "trajectories"
+  | "voice"
+  | "runtime"
+  | "database"
+  | "logs";
 
 const SUB_TABS: Array<{ id: SubTab; label: string; description: string }> = [
   { id: "config", label: "Config", description: "Wallet, RPC providers, and secrets" },
+  { id: "plugins", label: "Plugins", description: "Features, connectors, and skills" },
   { id: "trajectories", label: "Trajectories", description: "LLM call history and analysis" },
   { id: "voice", label: "Voice", description: "TTS and transcription settings" },
   { id: "runtime", label: "Runtime", description: "Deep runtime object introspection and load order" },
+  { id: "database", label: "Databases", description: "Tables, media, and vector browser" },
+  { id: "logs", label: "Logs", description: "Runtime and service logs" },
 ];
 
 function mapTabToSubTab(tab: Tab): SubTab {
   switch (tab) {
+    case "plugins": return "plugins";
     case "trajectories": return "trajectories";
     case "voice": return "voice";
     case "runtime": return "runtime";
+    case "database": return "database";
+    case "logs": return "logs";
     default: return "config";
   }
 }
@@ -43,6 +63,9 @@ export function AdvancedPageView() {
   const handleSubTabChange = (subTab: SubTab) => {
     setSelectedTrajectoryId(null);
     switch (subTab) {
+      case "plugins":
+        setTab("plugins");
+        break;
       case "trajectories":
         setTab("trajectories");
         break;
@@ -52,6 +75,12 @@ export function AdvancedPageView() {
       case "runtime":
         setTab("runtime");
         break;
+      case "database":
+        setTab("database");
+        break;
+      case "logs":
+        setTab("logs");
+        break;
       default:
         setTab("advanced");
     }
@@ -59,6 +88,8 @@ export function AdvancedPageView() {
 
   const renderContent = () => {
     switch (currentSubTab) {
+      case "plugins":
+        return <PluginsPageView />;
       case "trajectories":
         if (selectedTrajectoryId) {
           return (
@@ -75,6 +106,10 @@ export function AdvancedPageView() {
         return <VoiceConfigView />;
       case "runtime":
         return <RuntimeView />;
+      case "database":
+        return <DatabasePageView />;
+      case "logs":
+        return <LogsPageView />;
       default:
         return <ConfigPageView />;
     }

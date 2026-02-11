@@ -16,9 +16,9 @@
 import type { Action, HandlerOptions, IAgentRuntime } from "@elizaos/core";
 import { loadMilaidyConfig } from "../config/config.js";
 import {
+  createAudioProvider,
   createImageProvider,
   createVideoProvider,
-  createAudioProvider,
   createVisionProvider,
   type MediaProviderFactoryOptions,
 } from "../providers/media-provider.js";
@@ -76,7 +76,10 @@ export const generateImageAction: Action = {
     }
 
     const config = loadMilaidyConfig();
-    const provider = createImageProvider(config.media?.image, getMediaProviderOptions());
+    const provider = createImageProvider(
+      config.media?.image,
+      getMediaProviderOptions(),
+    );
 
     const result = await provider.generate({
       prompt: prompt.trim(),
@@ -195,7 +198,10 @@ export const generateVideoAction: Action = {
     }
 
     const config = loadMilaidyConfig();
-    const provider = createVideoProvider(config.media?.video, getMediaProviderOptions());
+    const provider = createVideoProvider(
+      config.media?.video,
+      getMediaProviderOptions(),
+    );
 
     const result = await provider.generate({
       prompt: prompt.trim(),
@@ -302,7 +308,10 @@ export const generateAudioAction: Action = {
     }
 
     const config = loadMilaidyConfig();
-    const provider = createAudioProvider(config.media?.audio, getMediaProviderOptions());
+    const provider = createAudioProvider(
+      config.media?.audio,
+      getMediaProviderOptions(),
+    );
 
     const result = await provider.generate({
       prompt: prompt.trim(),
@@ -363,7 +372,8 @@ export const generateAudioAction: Action = {
     },
     {
       name: "genre",
-      description: "Music genre (e.g., 'pop', 'rock', 'classical', 'electronic')",
+      description:
+        "Music genre (e.g., 'pop', 'rock', 'classical', 'electronic')",
       required: false,
       schema: { type: "string" as const },
     },
@@ -413,7 +423,10 @@ export const analyzeImageAction: Action = {
     }
 
     const config = loadMilaidyConfig();
-    const provider = createVisionProvider(config.media?.vision, getMediaProviderOptions());
+    const provider = createVisionProvider(
+      config.media?.vision,
+      getMediaProviderOptions(),
+    );
 
     const result = await provider.analyze({
       imageUrl: params?.imageUrl,

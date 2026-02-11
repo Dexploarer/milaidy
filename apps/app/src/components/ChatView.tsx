@@ -233,7 +233,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-5 relative">
+    <div className="flex flex-col flex-1 min-h-0 px-3 relative">
       {/* 3D Avatar — behind chat on the right side */}
       {/* When using ElevenLabs audio analysis, mouthOpen carries real volume
           data — don't pass isSpeaking so the engine uses the external values
@@ -252,7 +252,7 @@ export function ChatView() {
             Send a message to start chatting.
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[720px] px-1">
+          <div className="mx-auto w-full max-w-[720px] px-0">
             {msgs.map((msg, i) => {
               const prev = i > 0 ? msgs[i - 1] : null;
               const grouped = prev?.role === msg.role;
@@ -271,22 +271,16 @@ export function ChatView() {
                 >
                   <div
                     title={new Date(msg.timestamp).toLocaleString()}
-                    className={`max-w-[85%] rounded-2xl px-2 py-2 border text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                      isUser
-                        ? "bg-accent text-accent-fg border-accent"
-                        : "bg-card text-txt border-border"
-                    }`}
+                    className="max-w-[85%] px-0 py-1 text-sm leading-relaxed whitespace-pre-wrap break-words"
                   >
                     {!grouped && (
-                      <div
-                        className={`font-bold text-[12px] mb-1 ${isUser ? "text-accent-fg/80" : "text-accent"}`}
-                      >
+                      <div className="font-bold text-[12px] mb-1 text-accent">
                         {isUser ? "You" : agentName}
                         {!isUser &&
                           typeof msg.source === "string" &&
                           msg.source &&
                           msg.source !== "client_chat" && (
-                            <span className="ml-1.5 text-[10px] font-normal text-muted px-1.5 py-0.5 bg-bg-hover rounded">
+                            <span className="ml-1.5 text-[10px] font-normal text-muted">
                               via {msg.source}
                             </span>
                           )}
@@ -303,7 +297,7 @@ export function ChatView() {
 
             {chatSending && !chatFirstTokenReceived && (
               <div className="mt-3 flex justify-start">
-                <div className="rounded-2xl px-2 py-2 border border-border bg-card">
+                <div className="max-w-[85%] px-0 py-1 text-sm leading-relaxed">
                   <div className="font-bold text-[12px] mb-1 text-accent">{agentName}</div>
                   <div className="flex gap-1 py-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-muted-strong animate-[typing-bounce_1.2s_ease-in-out_infinite]" />

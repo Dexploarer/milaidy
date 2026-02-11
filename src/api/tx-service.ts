@@ -6,8 +6,8 @@
  * Used by the registry and drop services for on-chain operations.
  */
 
-import { ethers } from "ethers";
 import { logger } from "@elizaos/core";
+import { ethers } from "ethers";
 
 export class TxService {
   private readonly provider: ethers.JsonRpcProvider;
@@ -39,10 +39,7 @@ export class TxService {
     return Number(network.chainId);
   }
 
-  getContract(
-    address: string,
-    abi: ethers.InterfaceAbi,
-  ): ethers.Contract {
+  getContract(address: string, abi: ethers.InterfaceAbi): ethers.Contract {
     return new ethers.Contract(address, abi, this.wallet);
   }
 

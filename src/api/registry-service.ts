@@ -8,8 +8,8 @@
  * - Status queries
  */
 
-import { ethers } from "ethers";
 import { logger } from "@elizaos/core";
+import { ethers } from "ethers";
 import type { TxService } from "./tx-service.js";
 
 // ── ABI ──────────────────────────────────────────────────────────────────
@@ -145,8 +145,7 @@ export class RegistryService {
    * The NFT is minted to the wallet address stored in EVM_PRIVATE_KEY.
    */
   async register(params: AgentRegistrationParams): Promise<RegistrationResult> {
-    const capHash =
-      params.capabilitiesHash || DEFAULT_CAPABILITIES_HASH;
+    const capHash = params.capabilitiesHash || DEFAULT_CAPABILITIES_HASH;
 
     logger.info(
       `[registry] Registering agent "${params.name}" from ${this.txService.address}`,
@@ -201,9 +200,7 @@ export class RegistryService {
       throw new Error("Agent not registered, cannot update token URI");
     }
 
-    logger.info(
-      `[registry] Updating tokenURI for token ${tokenId}: ${newURI}`,
-    );
+    logger.info(`[registry] Updating tokenURI for token ${tokenId}: ${newURI}`);
 
     const tx = await this.contract.updateTokenURI(tokenId, newURI);
     const receipt = await tx.wait();

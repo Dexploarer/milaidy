@@ -325,7 +325,12 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
       mediaProvider,
     ],
 
-    actions: [restartAction, createTriggerTaskAction, emoteAction, ...mediaActions],
+    actions: [
+      restartAction,
+      createTriggerTaskAction,
+      emoteAction,
+      ...mediaActions,
+    ],
 
     services: [TrajectoryLoggerServiceClass],
 

@@ -8,8 +8,8 @@
  * - Supply tracking and status
  */
 
-import { ethers } from "ethers";
 import { logger } from "@elizaos/core";
+import { ethers } from "ethers";
 import type { TxService } from "./tx-service.js";
 
 // ── ABI ──────────────────────────────────────────────────────────────────
@@ -102,19 +102,15 @@ export class DropService {
       };
     }
 
-    const [
-      collectionDetails,
-      whitelistOpen,
-      hasMinted,
-      shinyPriceBN,
-    ] = await Promise.all([
-      this.contract.getCollectionDetails() as Promise<
-        [bigint, bigint, boolean]
-      >,
-      this.contract.whitelistMintOpen() as Promise<boolean>,
-      this.contract.hasMinted(this.txService.address) as Promise<boolean>,
-      this.contract.SHINY_PRICE() as Promise<bigint>,
-    ]);
+    const [collectionDetails, whitelistOpen, hasMinted, shinyPriceBN] =
+      await Promise.all([
+        this.contract.getCollectionDetails() as Promise<
+          [bigint, bigint, boolean]
+        >,
+        this.contract.whitelistMintOpen() as Promise<boolean>,
+        this.contract.hasMinted(this.txService.address) as Promise<boolean>,
+        this.contract.SHINY_PRICE() as Promise<bigint>,
+      ]);
 
     const [maxSupply, currentSupply, publicOpen] = collectionDetails;
     const maxSupplyNum = Number(maxSupply);
@@ -162,7 +158,7 @@ export class DropService {
     capabilitiesHash?: string,
   ): Promise<MintResult> {
     const capHash = capabilitiesHash || DEFAULT_CAP_HASH;
-    const shinyPrice = await this.contract.SHINY_PRICE() as bigint;
+    const shinyPrice = (await this.contract.SHINY_PRICE()) as bigint;
 
     logger.info(
       `[drop] Minting SHINY agent "${name}" for ${this.txService.address} (${ethers.formatEther(shinyPrice)} ETH)`,

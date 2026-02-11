@@ -14,11 +14,8 @@ import { ConversationsSidebar } from "./components/ConversationsSidebar.js";
 import { AutonomousPanel } from "./components/AutonomousPanel.js";
 import { AgentView } from "./components/AgentView.js";
 import { AppsPageView } from "./components/AppsPageView.js";
-import { PluginsPageView } from "./components/PluginsPageView.js";
 import { AdvancedPageView } from "./components/AdvancedPageView.js";
-import { DatabasePageView } from "./components/DatabasePageView.js";
 import { SettingsView } from "./components/SettingsView.js";
-import { LogsPageView } from "./components/LogsPageView.js";
 import { LoadingScreen } from "./components/LoadingScreen.js";
 
 function ViewRouter() {
@@ -27,15 +24,15 @@ function ViewRouter() {
     case "chat": return <ChatView />;
     case "apps": return <AppsPageView />;
     case "agent": return <AgentView />;
-    case "plugins": return <PluginsPageView />;
     case "advanced":
+    case "plugins":
     case "trajectories":
     case "voice":
     case "runtime":
+    case "database":
+    case "logs":
       return <AdvancedPageView />;
-    case "database": return <DatabasePageView />;
     case "settings": return <SettingsView />;
-    case "logs": return <LogsPageView />;
     default: return <ChatView />;
   }
 }

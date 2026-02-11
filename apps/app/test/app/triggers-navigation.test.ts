@@ -24,9 +24,17 @@ describe("navigation", () => {
     const advanced = TAB_GROUPS.find((group) => group.label === "Advanced");
     expect(advanced).toBeDefined();
     expect(advanced?.tabs.includes("advanced")).toBe(true);
+    expect(advanced?.tabs.includes("plugins")).toBe(true);
     expect(advanced?.tabs.includes("trajectories")).toBe(true);
-    expect(advanced?.tabs.includes("voice")).toBe(true);
     expect(advanced?.tabs.includes("runtime")).toBe(true);
+    expect(advanced?.tabs.includes("database")).toBe(true);
+    expect(advanced?.tabs.includes("logs")).toBe(true);
+  });
+
+  test("keeps Voice as a dedicated top-level group", () => {
+    const voice = TAB_GROUPS.find((group) => group.label === "Voice");
+    expect(voice).toBeDefined();
+    expect(voice?.tabs).toEqual(["voice"]);
   });
 
   test("keeps /game as a legacy redirect to apps", () => {

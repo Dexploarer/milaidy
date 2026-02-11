@@ -551,9 +551,119 @@ export function CharacterView() {
     );
   }
 
+  const hasWallet = Boolean(walletConfig?.evmAddress);
+  const isRegistered = registryStatus?.registered === true;
+  const dropLive = dropStatus?.dropEnabled && dropStatus?.publicMintOpen && !dropStatus?.mintedOut;
+  const userMinted = dropStatus?.userHasMinted === true;
+
   return (
     <div>
       {fileInput}
+
+      {/* ═══ ON-CHAIN IDENTITY ═══ */}
+      <div className={sectionCls}>
+        <div className="font-bold text-sm mb-3">On-Chain Identity</div>
+
+        {!hasWallet && (
+          <div className="text-[12px] text-[var(--muted)]">
+            Set up your wallet to register your agent on Ethereum.
+          </div>
+        )}
+
+        {hasWallet && !isRegistered && !dropLive && (
+          <div className="flex flex-col gap-3">
+            <div className="text-[12px] text-[var(--muted)]">
+              Register your agent on Ethereum mainnet to claim your ERC-8004 identity NFT.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn text-xs py-[5px] px-4 !mt-0"
+                disabled={registryRegistering || registryLoading}
+                onClick={() => void registerOnChain()}
+              >
+                {registryRegistering ? "registering..." : "register now"}
+              </button>
+              {registryError && (
+                <span className="text-xs text-[var(--danger,#e74c3c)]">{registryError}</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {hasWallet && !isRegistered && dropLive && !userMinted && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]">
+              <span className="text-xs font-bold text-[var(--accent)]">MINT IS LIVE</span>
+              <span className="text-[11px] text-[var(--muted)]">
+                MilaidyMaker #{(dropStatus?.currentSupply ?? 0) + 1} of {dropStatus?.maxSupply ?? 2138}
+              </span>
+            </div>
+            <div className="text-[12px] text-[var(--muted)]">
+              Claim your limited-edition Milaidy Agent NFT. {dropStatus?.maxSupply ?? 2138} total.
+              {" "}{(dropStatus?.maxSupply ?? 2138) - (dropStatus?.currentSupply ?? 0)} remaining.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn text-xs py-[5px] px-4 !mt-0"
+                disabled={mintInProgress}
+                onClick={() => void mintFromDrop(false)}
+              >
+                {mintInProgress && !mintShiny ? "minting..." : "free mint"}
+              </button>
+              <button
+                className="btn text-xs py-[5px] px-4 !mt-0"
+                disabled={mintInProgress}
+                onClick={() => void mintFromDrop(true)}
+              >
+                {mintInProgress && mintShiny ? "minting..." : "shiny mint (0.1 ETH)"}
+              </button>
+            </div>
+            {mintError && (
+              <span className="text-xs text-[var(--danger,#e74c3c)]">{mintError}</span>
+            )}
+            {mintResult && (
+              <div className="text-xs text-[var(--ok,#16a34a)]">
+                Minted! Token #{mintResult.agentId} | MilaidyMaker #{mintResult.mintNumber}
+                {mintResult.isShiny && " (shiny)"}
+                {" "}<a
+                  href={`https://etherscan.io/tx/${mintResult.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-[var(--accent)]"
+                >view tx</a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isRegistered && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="text-[var(--ok,#16a34a)] font-semibold">Registered</span>
+              <span className="text-[var(--muted)]">|</span>
+              <span>Token #{registryStatus.tokenId}</span>
+              {registryStatus.agentName && (
+                <>
+                  <span className="text-[var(--muted)]">|</span>
+                  <span>{registryStatus.agentName}</span>
+                </>
+              )}
+            </div>
+            <a
+              href={`https://etherscan.io/token/${registryStatus.walletAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] underline text-[var(--accent)]"
+            >view on etherscan</a>
+          </div>
+        )}
+
+        {hasWallet && userMinted && !isRegistered && (
+          <div className="text-[12px] text-[var(--ok,#16a34a)]">
+            Minted from collection! Waiting for confirmation...
+          </div>
+        )}
+      </div>
 
       {/* ═══ SECTION 1: IDENTITY ═══ */}
       <div className={sectionCls}>

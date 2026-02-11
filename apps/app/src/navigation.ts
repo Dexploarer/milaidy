@@ -19,11 +19,19 @@ export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] as Tab[] },
   { label: "Apps", tabs: ["apps"] as Tab[] },
   { label: "Agent", tabs: ["agent"] as Tab[] },
-  { label: "Plugins", tabs: ["plugins"] as Tab[] },
-  { label: "Advanced", tabs: ["advanced", "trajectories", "voice", "runtime"] as Tab[] },
-  { label: "Databases", tabs: ["database"] as Tab[] },
+  {
+    label: "Advanced",
+    tabs: [
+      "advanced",
+      "plugins",
+      "trajectories",
+      "runtime",
+      "database",
+      "logs",
+    ] as Tab[],
+  },
+  { label: "Voice", tabs: ["voice"] as Tab[] },
   { label: "Settings", tabs: ["settings"] as Tab[] },
-  { label: "Logs", tabs: ["logs"] as Tab[] },
 ] as const;
 
 const TAB_PATHS: Record<Tab, string> = {
