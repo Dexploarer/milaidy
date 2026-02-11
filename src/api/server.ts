@@ -1085,6 +1085,66 @@ function validateSkillId(
 }
 
 // ---------------------------------------------------------------------------
+// MCP Security
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if the MCP configuration payload violates security policies.
+ * Returns true if the operation should be blocked.
+ *
+ * Policy:
+ * - If MILAIDY_API_TOKEN is set (authenticated mode), allow.
+ * - If MILAIDY_ALLOW_MCP_RCE=1 (explicit opt-in), allow.
+ * - Otherwise (open mode), BLOCK any "stdio" server configuration because it allows arbitrary command execution.
+ */
+function isMcpSecurityViolation(input: unknown): boolean {
+  if (!input || typeof input !== "object") return false;
+
+  // 1. Check if we are in a secure state
+  const isSecure = Boolean(process.env.MILAIDY_API_TOKEN?.trim());
+  if (isSecure) return false;
+
+  // 2. Check for explicit opt-in
+  const allowRce =
+    process.env.MILAIDY_ALLOW_MCP_RCE === "1" ||
+    process.env.MILAIDY_ALLOW_MCP_RCE === "true";
+  if (allowRce) return false;
+
+  // 3. Scan for stdio servers
+  const scan = (obj: unknown): boolean => {
+    if (!obj || typeof obj !== "object") return false;
+
+    // Check if this object itself is a stdio server config
+    if ("type" in obj && (obj as { type: unknown }).type === "stdio") {
+      return true;
+    }
+
+    // Recurse into values
+    for (const value of Object.values(obj)) {
+      if (scan(value)) return true;
+    }
+    return false;
+  };
+
+  return scan(input);
+}
+
+function validateMcpSecurity(
+  input: unknown,
+  res: http.ServerResponse,
+): boolean {
+  if (isMcpSecurityViolation(input)) {
+    error(
+      res,
+      "Secure mode (MILAIDY_API_TOKEN) is required to configure stdio MCP servers via API, or set MILAIDY_ALLOW_MCP_RCE=1.",
+      403,
+    );
+    return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Onboarding helpers
 // ---------------------------------------------------------------------------
 
@@ -4679,6 +4739,10 @@ async function handleRequest(
     const body = await readJsonBody(req, res);
     if (!body) return;
 
+    // Check for MCP security violation
+    const mcpConfig = (body as { mcp?: unknown }).mcp;
+    if (mcpConfig && !validateMcpSecurity(mcpConfig, res)) return;
+
     // --- Security: validate and safely merge config updates ----------------
 
     // Only accept known top-level keys from MilaidyConfig.
@@ -5783,6 +5847,8 @@ async function handleRequest(
       return;
     }
 
+    if (!validateMcpSecurity(config, res)) return;
+
     const configType = config.type as string | undefined;
     const validTypes = ["stdio", "http", "streamable-http", "sse"];
     if (!configType || !validTypes.includes(configType)) {
@@ -5857,6 +5923,8 @@ async function handleRequest(
       servers?: Record<string, unknown>;
     }>(req, res);
     if (!body) return;
+
+    if (body.servers && !validateMcpSecurity(body.servers, res)) return;
 
     if (!state.config.mcp) state.config.mcp = {};
     if (body.servers && typeof body.servers === "object") {

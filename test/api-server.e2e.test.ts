@@ -78,6 +78,9 @@ describe("API Server E2E (no runtime)", () => {
   let close: () => Promise<void>;
 
   beforeAll(async () => {
+    // Allow MCP RCE for testing purposes so we can add stdio servers
+    process.env.MILAIDY_ALLOW_MCP_RCE = "1";
+
     // Start the REAL server with no runtime (port 0 = auto-assign)
     const server = await startApiServer({ port: 0 });
     port = server.port;
@@ -85,6 +88,7 @@ describe("API Server E2E (no runtime)", () => {
   }, 30_000);
 
   afterAll(async () => {
+    delete process.env.MILAIDY_ALLOW_MCP_RCE;
     await close();
   });
 
