@@ -17,7 +17,7 @@ import {
   CORE_PLUGINS,
   collectPluginNames,
   OPTIONAL_CORE_PLUGINS,
-} from "./eliza.js";
+} from "./plugin-resolution.js";
 
 // ---------------------------------------------------------------------------
 // Plugin classification — code is an optional plugin (admin-panel toggleable)

@@ -16,13 +16,15 @@ import {
   applyCloudConfigToEnv,
   applyConnectorSecretsToEnv,
   buildCharacterFromConfig,
+  resolvePrimaryModel,
+} from "./eliza.js";
+import {
   CUSTOM_PLUGINS_DIRNAME,
   collectPluginNames,
   mergeDropInPlugins,
   resolvePackageEntry,
-  resolvePrimaryModel,
   scanDropInPlugins,
-} from "./eliza.js";
+} from "./plugin-resolution.js";
 
 // ---------------------------------------------------------------------------
 // helpers

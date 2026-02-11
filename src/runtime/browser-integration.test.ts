@@ -17,7 +17,7 @@ import {
   CORE_PLUGINS,
   collectPluginNames,
   ensureBrowserServerLink,
-} from "./eliza.js";
+} from "./plugin-resolution.js";
 
 // ---------------------------------------------------------------------------
 // ensureBrowserServerLink — symlink creation tests

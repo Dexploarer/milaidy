@@ -13,7 +13,10 @@
 
 import { describe, expect, it } from "vitest";
 import type { MilaidyConfig } from "../config/config.js";
-import { CORE_PLUGINS, collectPluginNames } from "./eliza.js";
+import {
+  CORE_PLUGINS,
+  collectPluginNames,
+} from "./plugin-resolution.js";
 
 // ---------------------------------------------------------------------------
 // Plugin classification — shell is a core plugin

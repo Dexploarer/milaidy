@@ -3286,7 +3286,7 @@ async function handleRequest(
   // Returns all core and optional core plugins with their loaded/running status.
   if (method === "GET" && pathname === "/api/plugins/core") {
     const { CORE_PLUGINS, OPTIONAL_CORE_PLUGINS } = await import(
-      "../runtime/eliza.js"
+      "../runtime/plugin-resolution.js"
     );
 
     // Build a set of loaded plugin names for robust matching.
