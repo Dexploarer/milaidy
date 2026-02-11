@@ -159,25 +159,22 @@ async function scanHooksDir(
 ): Promise<HookEntry[]> {
   if (!(await isDirectory(dir))) return [];
 
-  const entries: HookEntry[] = [];
-
   try {
     const items = await readdir(dir);
-    for (const item of items) {
+    const promises = items.map(async (item) => {
       const itemPath = join(dir, item);
-      if (!(await isDirectory(itemPath))) continue;
+      if (!(await isDirectory(itemPath))) return null;
 
-      const entry = await loadHookFromDir(itemPath, source);
-      if (entry) {
-        entries.push(entry);
-      }
-    }
+      return loadHookFromDir(itemPath, source);
+    });
+
+    const results = await Promise.all(promises);
+    return results.filter((entry): entry is HookEntry => entry !== null);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.warn(`[hooks] Error scanning ${dir}: ${msg}`);
+    return [];
   }
-
-  return entries;
 }
 
 export interface DiscoveryOptions {
