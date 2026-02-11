@@ -16,15 +16,11 @@ import {
   ChannelType,
   type Content,
   createMessageMemory,
-  type IAgentRuntime,
   logger,
-  type Memory,
-  type MessageProcessingOptions,
-  type MessageProcessingResult,
   stringToUuid,
   type UUID,
 } from "@elizaos/core";
-import { getModels, getProviders } from "@mariozechner/pi-ai";
+import * as piAi from "@mariozechner/pi-ai";
 import { type WebSocket, WebSocketServer } from "ws";
 import { CloudManager } from "../cloud/cloud-manager.js";
 import {
@@ -2662,8 +2658,8 @@ function getPiModelOptions(): Array<{
   }> = [];
 
   try {
-    for (const providerId of getProviders()) {
-      for (const model of getModels(providerId)) {
+    for (const providerId of piAi.getProviders()) {
+      for (const model of piAi.getModels(providerId)) {
         const id = `${model.provider}/${model.id}`;
         options.push({
           id,
@@ -2986,6 +2982,33 @@ function rejectWebSocketUpgrade(
       body,
   );
   socket.destroy();
+}
+
+export interface WebSocketUpgradeRejection {
+  status: 401 | 403 | 404;
+  reason: string;
+}
+
+export function resolveWebSocketUpgradeRejection(
+  req: http.IncomingMessage,
+  pathname: string,
+): WebSocketUpgradeRejection | null {
+  if (pathname !== "/ws") {
+    return { status: 404, reason: "Not found" };
+  }
+
+  const origin =
+    typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const allowedOrigin = resolveCorsOrigin(origin);
+  if (origin && !allowedOrigin) {
+    return { status: 403, reason: "Origin not allowed" };
+  }
+
+  if (!isAuthorized(req)) {
+    return { status: 401, reason: "Unauthorized" };
+  }
+
+  return null;
 }
 
 function decodePathComponent(
@@ -3327,7 +3350,7 @@ function serializeForRuntimeDebug(
  */
 async function routeAutonomyToUser(
   state: ServerState,
-  responseMessages: Memory[],
+  responseMessages: import("@elizaos/core").Memory[],
   source = "autonomy",
 ): Promise<void> {
   const runtime = state.runtime;
@@ -3395,11 +3418,11 @@ function patchMessageServiceForAutonomy(state: ServerState): void {
 
   const svc = runtime.messageService as unknown as {
     handleMessage: (
-      rt: IAgentRuntime,
-      message: Memory,
-      callback?: (content: Content) => Promise<Memory[]>,
-      options?: MessageProcessingOptions,
-    ) => Promise<MessageProcessingResult>;
+      rt: import("@elizaos/core").IAgentRuntime,
+      message: import("@elizaos/core").Memory,
+      callback?: (content: Content) => Promise<import("@elizaos/core").Memory[]>,
+      options?: import("@elizaos/core").MessageProcessingOptions,
+    ) => Promise<import("@elizaos/core").MessageProcessingResult>;
     __milaidyAutonomyPatched?: boolean;
   };
 
@@ -3409,11 +3432,11 @@ function patchMessageServiceForAutonomy(state: ServerState): void {
   const orig = svc.handleMessage.bind(svc);
 
   svc.handleMessage = async (
-    rt: IAgentRuntime,
-    message: Memory,
-    callback?: (content: Content) => Promise<Memory[]>,
-    options?: MessageProcessingOptions,
-  ): Promise<MessageProcessingResult> => {
+    rt: import("@elizaos/core").IAgentRuntime,
+    message: import("@elizaos/core").Memory,
+    callback?: (content: Content) => Promise<import("@elizaos/core").Memory[]>,
+    options?: import("@elizaos/core").MessageProcessingOptions,
+  ): Promise<import("@elizaos/core").MessageProcessingResult> => {
     const result = await orig(rt, message, callback, options);
 
     // Detect non-conversation messages (autonomy, background tasks, etc.)
@@ -10192,28 +10215,14 @@ export async function startApiServer(opts?: {
         request.url ?? "/",
         `http://${request.headers.host ?? "localhost"}`,
       );
-      if (wsUrl.pathname !== "/ws") {
-        socket.destroy();
+      const rejection = resolveWebSocketUpgradeRejection(
+        request,
+        wsUrl.pathname,
+      );
+      if (rejection) {
+        rejectWebSocketUpgrade(socket, rejection.status, rejection.reason);
         return;
       }
-
-      // Enforce the same origin allowlist used by HTTP routes.
-      const origin =
-        typeof request.headers.origin === "string"
-          ? request.headers.origin
-          : undefined;
-      const allowedOrigin = resolveCorsOrigin(origin);
-      if (origin && !allowedOrigin) {
-        rejectWebSocketUpgrade(socket, 403, "Origin not allowed");
-        return;
-      }
-
-      // Enforce API token auth for WebSocket upgrades.
-      if (!isWebSocketAuthorized(request, wsUrl)) {
-        rejectWebSocketUpgrade(socket, 401, "Unauthorized");
-        return;
-      }
-
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit("connection", ws, request);
       });
@@ -10221,7 +10230,7 @@ export async function startApiServer(opts?: {
       logger.error(
         `[milaidy-api] WebSocket upgrade error: ${err instanceof Error ? err.message : err}`,
       );
-      socket.destroy();
+      rejectWebSocketUpgrade(socket, 404, "Not found");
     }
   });
 
