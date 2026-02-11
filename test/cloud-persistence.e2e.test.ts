@@ -13,10 +13,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { MilaidyConfig } from "../src/config/config.js";
 import {
-  applyCloudConfigToEnv,
   buildCharacterFromConfig,
   collectPluginNames,
 } from "../src/runtime/eliza.js";
+import { applyCloudConfigToEnv } from "../src/runtime/env-setup.js";
 
 // ---------------------------------------------------------------------------
 // Env snapshot helper

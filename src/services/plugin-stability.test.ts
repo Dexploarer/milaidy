@@ -19,14 +19,16 @@ import type { MilaidyConfig } from "../config/types.milaidy.js";
 import { createSessionKeyProvider } from "../providers/session-bridge.js";
 import { createWorkspaceProvider } from "../providers/workspace-provider.js";
 import {
-  applyCloudConfigToEnv,
-  applyConnectorSecretsToEnv,
   buildCharacterFromConfig,
   CORE_PLUGINS,
   collectPluginNames,
   OPTIONAL_CORE_PLUGINS,
   resolvePrimaryModel,
 } from "../runtime/eliza.js";
+import {
+  applyCloudConfigToEnv,
+  applyConnectorSecretsToEnv,
+} from "../runtime/env-setup.js";
 import { createMilaidyPlugin } from "../runtime/milaidy-plugin.js";
 
 // ---------------------------------------------------------------------------
