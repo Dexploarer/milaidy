@@ -23,6 +23,12 @@ import type {
   DatabaseProviderType,
   PostgresCredentials,
 } from "../config/types.milaidy.js";
+import {
+  decodePathComponent,
+  error as errorResponse,
+  json as jsonResponse,
+  readJsonBody,
+} from "./utils.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,84 +75,6 @@ interface ConnectionTestResult {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function jsonResponse(
-  res: http.ServerResponse,
-  data: unknown,
-  status = 200,
-): void {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(data));
-}
-
-function errorResponse(
-  res: http.ServerResponse,
-  message: string,
-  status = 400,
-): void {
-  jsonResponse(res, { error: message }, status);
-}
-
-function decodePathComponent(
-  raw: string,
-  res: http.ServerResponse,
-  fieldName: string,
-): string | null {
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    errorResponse(res, `Invalid ${fieldName}: malformed URL encoding`, 400);
-    return null;
-  }
-}
-
-function readBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    req.on("data", (c: Buffer) => {
-      totalBytes += c.length;
-      if (totalBytes > 2 * 1024 * 1024) {
-        reject(new Error("Request body too large"));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString()));
-    req.on("error", reject);
-  });
-}
-
-/**
- * Read and parse a JSON request body with size limits and error handling.
- * Returns null (and sends a 4xx response) if reading or parsing fails.
- */
-async function readJsonBody<T = Record<string, unknown>>(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-): Promise<T | null> {
-  let raw: string;
-  try {
-    raw = await readBody(req);
-  } catch (err) {
-    const msg =
-      err instanceof Error ? err.message : "Failed to read request body";
-    errorResponse(res, msg, 413);
-    return null;
-  }
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      errorResponse(res, "Request body must be a JSON object", 400);
-      return null;
-    }
-    return parsed as T;
-  } catch {
-    errorResponse(res, "Invalid JSON in request body", 400);
-    return null;
-  }
-}
 
 /**
  * Safely quote a SQL identifier (table or column name).

@@ -55,20 +55,19 @@ import {
   validatePluginConfig,
 } from "./plugin-validation.js";
 import {
-  fetchEvmBalances,
-  fetchEvmNfts,
-  fetchSolanaBalances,
-  fetchSolanaNfts,
-  generateWalletForChain,
   generateWalletKeys,
   getWalletAddresses,
-  importWallet,
-  validatePrivateKey,
-  type WalletBalancesResponse,
-  type WalletChain,
-  type WalletConfigStatus,
-  type WalletNftsResponse,
 } from "./wallet.js";
+import {
+  decodePathComponent,
+  error,
+  json,
+  readBody,
+  readJsonBody,
+  readRawBody,
+  MAX_IMPORT_BYTES,
+} from "./utils.js";
+import { handleWalletRoute } from "./wallet-routes.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -880,102 +879,6 @@ function scanSkillsDir(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Request helpers
-// ---------------------------------------------------------------------------
-
-/** Maximum request body size (1 MB) — prevents memory-based DoS. */
-const MAX_BODY_BYTES = 1_048_576;
-const MAX_IMPORT_BYTES = 512 * 1_048_576; // 512 MB for agent imports
-
-function readBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    req.on("data", (c: Buffer) => {
-      totalBytes += c.length;
-      if (totalBytes > MAX_BODY_BYTES) {
-        req.destroy();
-        reject(
-          new Error(
-            `Request body exceeds maximum size (${MAX_BODY_BYTES} bytes)`,
-          ),
-        );
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject);
-  });
-}
-
-/**
- * Read raw binary request body with a configurable size limit.
- * Used for agent import file uploads.
- */
-function readRawBody(
-  req: http.IncomingMessage,
-  maxBytes: number,
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    req.on("data", (c: Buffer) => {
-      totalBytes += c.length;
-      if (totalBytes > maxBytes) {
-        req.destroy();
-        reject(
-          new Error(`Request body exceeds maximum size (${maxBytes} bytes)`),
-        );
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
-
-/**
- * Read and parse a JSON request body with size limits and error handling.
- * Returns null (and sends a 4xx response) if reading or parsing fails.
- */
-async function readJsonBody<T = Record<string, unknown>>(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-): Promise<T | null> {
-  let raw: string;
-  try {
-    raw = await readBody(req);
-  } catch (err) {
-    const msg =
-      err instanceof Error ? err.message : "Failed to read request body";
-    error(res, msg, 413);
-    return null;
-  }
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      error(res, "Request body must be a JSON object", 400);
-      return null;
-    }
-    return parsed as T;
-  } catch {
-    error(res, "Invalid JSON in request body", 400);
-    return null;
-  }
-}
-
-function json(res: http.ServerResponse, data: unknown, status = 200): void {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(data));
-}
-
-function error(res: http.ServerResponse, message: string, status = 400): void {
-  json(res, { error: message }, status);
-}
 
 // ---------------------------------------------------------------------------
 // Config redaction
@@ -1592,18 +1495,6 @@ function isAuthorized(req: http.IncomingMessage): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
-function decodePathComponent(
-  raw: string,
-  res: http.ServerResponse,
-  fieldName: string,
-): string | null {
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    error(res, `Invalid ${fieldName}: malformed URL encoding`, 400);
-    return null;
-  }
-}
 
 async function handleRequest(
   req: http.IncomingMessage,
@@ -4342,275 +4233,11 @@ async function handleRequest(
   // Wallet / Inventory routes
   // ═══════════════════════════════════════════════════════════════════════
 
-  // ── GET /api/wallet/addresses ──────────────────────────────────────────
-  if (method === "GET" && pathname === "/api/wallet/addresses") {
-    const addrs = getWalletAddresses();
-    json(res, addrs);
-    return;
-  }
-
-  // ── GET /api/wallet/balances ───────────────────────────────────────────
-  if (method === "GET" && pathname === "/api/wallet/balances") {
-    const addrs = getWalletAddresses();
-    const alchemyKey = process.env.ALCHEMY_API_KEY;
-    const heliusKey = process.env.HELIUS_API_KEY;
-
-    const result: WalletBalancesResponse = { evm: null, solana: null };
-
-    if (addrs.evmAddress && alchemyKey) {
-      try {
-        const chains = await fetchEvmBalances(addrs.evmAddress, alchemyKey);
-        result.evm = { address: addrs.evmAddress, chains };
-      } catch (err) {
-        logger.warn(`[wallet] EVM balance fetch failed: ${err}`);
-      }
-    }
-
-    if (addrs.solanaAddress && heliusKey) {
-      try {
-        const solData = await fetchSolanaBalances(
-          addrs.solanaAddress,
-          heliusKey,
-        );
-        result.solana = { address: addrs.solanaAddress, ...solData };
-      } catch (err) {
-        logger.warn(`[wallet] Solana balance fetch failed: ${err}`);
-      }
-    }
-
-    json(res, result);
-    return;
-  }
-
-  // ── GET /api/wallet/nfts ───────────────────────────────────────────────
-  if (method === "GET" && pathname === "/api/wallet/nfts") {
-    const addrs = getWalletAddresses();
-    const alchemyKey = process.env.ALCHEMY_API_KEY;
-    const heliusKey = process.env.HELIUS_API_KEY;
-
-    const result: WalletNftsResponse = { evm: [], solana: null };
-
-    if (addrs.evmAddress && alchemyKey) {
-      try {
-        result.evm = await fetchEvmNfts(addrs.evmAddress, alchemyKey);
-      } catch (err) {
-        logger.warn(`[wallet] EVM NFT fetch failed: ${err}`);
-      }
-    }
-
-    if (addrs.solanaAddress && heliusKey) {
-      try {
-        const nfts = await fetchSolanaNfts(addrs.solanaAddress, heliusKey);
-        result.solana = { nfts };
-      } catch (err) {
-        logger.warn(`[wallet] Solana NFT fetch failed: ${err}`);
-      }
-    }
-
-    json(res, result);
-    return;
-  }
-
-  // ── POST /api/wallet/import ──────────────────────────────────────────
-  // Import a wallet by providing a private key + chain.
-  if (method === "POST" && pathname === "/api/wallet/import") {
-    const body = await readJsonBody<{ chain?: string; privateKey?: string }>(
-      req,
-      res,
-    );
-    if (!body) return;
-
-    if (!body.privateKey?.trim()) {
-      error(res, "privateKey is required");
-      return;
-    }
-
-    // Auto-detect chain if not specified
-    let chain: WalletChain;
-    if (body.chain === "evm" || body.chain === "solana") {
-      chain = body.chain;
-    } else if (body.chain) {
-      error(
-        res,
-        `Unsupported chain: ${body.chain}. Must be "evm" or "solana".`,
-      );
-      return;
-    } else {
-      // Auto-detect from key format
-      const detection = validatePrivateKey(body.privateKey.trim());
-      chain = detection.chain;
-    }
-
-    const result = importWallet(chain, body.privateKey.trim());
-
-    if (!result.success) {
-      error(res, result.error ?? "Import failed", 422);
-      return;
-    }
-
-    // Persist to config.env so it survives restarts
-    if (!state.config.env) state.config.env = {};
-    const envKey = chain === "evm" ? "EVM_PRIVATE_KEY" : "SOLANA_PRIVATE_KEY";
-    (state.config.env as Record<string, string>)[envKey] =
-      process.env[envKey] ?? "";
-
-    try {
-      saveMilaidyConfig(state.config);
-    } catch (err) {
-      logger.warn(
-        `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-
-    json(res, {
-      ok: true,
-      chain,
-      address: result.address,
+  if (pathname.startsWith("/api/wallet/")) {
+    const handled = await handleWalletRoute(req, res, pathname, method, {
+      config: state.config,
     });
-    return;
-  }
-
-  // ── POST /api/wallet/generate ──────────────────────────────────────────
-  // Generate a new wallet for a specific chain (or both).
-  if (method === "POST" && pathname === "/api/wallet/generate") {
-    const body = await readJsonBody<{ chain?: string }>(req, res);
-    if (!body) return;
-
-    const chain = body.chain as string | undefined;
-    const validChains: Array<WalletChain | "both"> = ["evm", "solana", "both"];
-
-    if (chain && !validChains.includes(chain as WalletChain | "both")) {
-      error(
-        res,
-        `Unsupported chain: ${chain}. Must be "evm", "solana", or "both".`,
-      );
-      return;
-    }
-
-    const targetChain = (chain ?? "both") as WalletChain | "both";
-
-    if (!state.config.env) state.config.env = {};
-
-    const generated: Array<{ chain: WalletChain; address: string }> = [];
-
-    if (targetChain === "both" || targetChain === "evm") {
-      const result = generateWalletForChain("evm");
-      process.env.EVM_PRIVATE_KEY = result.privateKey;
-      (state.config.env as Record<string, string>).EVM_PRIVATE_KEY =
-        result.privateKey;
-      generated.push({ chain: "evm", address: result.address });
-      logger.info(`[milaidy-api] Generated EVM wallet: ${result.address}`);
-    }
-
-    if (targetChain === "both" || targetChain === "solana") {
-      const result = generateWalletForChain("solana");
-      process.env.SOLANA_PRIVATE_KEY = result.privateKey;
-      (state.config.env as Record<string, string>).SOLANA_PRIVATE_KEY =
-        result.privateKey;
-      generated.push({ chain: "solana", address: result.address });
-      logger.info(`[milaidy-api] Generated Solana wallet: ${result.address}`);
-    }
-
-    try {
-      saveMilaidyConfig(state.config);
-    } catch (err) {
-      logger.warn(
-        `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-
-    json(res, { ok: true, wallets: generated });
-    return;
-  }
-
-  // ── GET /api/wallet/config ─────────────────────────────────────────────
-  if (method === "GET" && pathname === "/api/wallet/config") {
-    const addrs = getWalletAddresses();
-    const configStatus: WalletConfigStatus = {
-      alchemyKeySet: Boolean(process.env.ALCHEMY_API_KEY),
-      infuraKeySet: Boolean(process.env.INFURA_API_KEY),
-      ankrKeySet: Boolean(process.env.ANKR_API_KEY),
-      heliusKeySet: Boolean(process.env.HELIUS_API_KEY),
-      birdeyeKeySet: Boolean(process.env.BIRDEYE_API_KEY),
-      evmChains: ["Ethereum", "Base", "Arbitrum", "Optimism", "Polygon"],
-      evmAddress: addrs.evmAddress,
-      solanaAddress: addrs.solanaAddress,
-    };
-    json(res, configStatus);
-    return;
-  }
-
-  // ── PUT /api/wallet/config ─────────────────────────────────────────────
-  if (method === "PUT" && pathname === "/api/wallet/config") {
-    const body = await readJsonBody<Record<string, string>>(req, res);
-    if (!body) return;
-    const allowedKeys = [
-      "ALCHEMY_API_KEY",
-      "INFURA_API_KEY",
-      "ANKR_API_KEY",
-      "HELIUS_API_KEY",
-      "BIRDEYE_API_KEY",
-    ];
-
-    if (!state.config.env) state.config.env = {};
-
-    for (const key of allowedKeys) {
-      const value = body[key];
-      if (typeof value === "string" && value.trim()) {
-        process.env[key] = value.trim();
-        (state.config.env as Record<string, string>)[key] = value.trim();
-      }
-    }
-
-    // If Helius key is set, also update SOLANA_RPC_URL for the plugin
-    const heliusValue = body.HELIUS_API_KEY;
-    if (typeof heliusValue === "string" && heliusValue.trim()) {
-      const rpcUrl = `https://mainnet.helius-rpc.com/?api-key=${heliusValue.trim()}`;
-      process.env.SOLANA_RPC_URL = rpcUrl;
-      (state.config.env as Record<string, string>).SOLANA_RPC_URL = rpcUrl;
-    }
-
-    try {
-      saveMilaidyConfig(state.config);
-    } catch (err) {
-      logger.warn(
-        `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-
-    json(res, { ok: true });
-    return;
-  }
-
-  // ── POST /api/wallet/export ────────────────────────────────────────────
-  // SECURITY: Requires { confirm: true } in the request body to prevent
-  // accidental exposure of private keys.
-  if (method === "POST" && pathname === "/api/wallet/export") {
-    const body = await readJsonBody<{ confirm?: boolean }>(req, res);
-    if (!body) return;
-
-    if (!body.confirm) {
-      error(
-        res,
-        'Export requires explicit confirmation. Send { "confirm": true } in the request body.',
-        403,
-      );
-      return;
-    }
-
-    const evmKey = process.env.EVM_PRIVATE_KEY ?? null;
-    const solKey = process.env.SOLANA_PRIVATE_KEY ?? null;
-    const addrs = getWalletAddresses();
-
-    logger.warn("[wallet] Private keys exported via API");
-
-    json(res, {
-      evm: evmKey ? { privateKey: evmKey, address: addrs.evmAddress } : null,
-      solana: solKey
-        ? { privateKey: solKey, address: addrs.solanaAddress }
-        : null,
-    });
-    return;
+    if (handled) return;
   }
 
   // ── GET /api/update/status ───────────────────────────────────────────────

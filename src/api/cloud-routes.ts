@@ -8,6 +8,11 @@ import { logger } from "@elizaos/core";
 import type { CloudManager } from "../cloud/cloud-manager.js";
 import type { MilaidyConfig } from "../config/config.js";
 import { saveMilaidyConfig } from "../config/config.js";
+import {
+  error as err,
+  json,
+  readBody,
+} from "./utils.js";
 
 export interface CloudRouteState {
   config: MilaidyConfig;
@@ -22,34 +27,6 @@ const UUID_RE =
 function extractAgentId(pathname: string): string | null {
   const id = pathname.split("/")[4];
   return id && UUID_RE.test(id) ? id : null;
-}
-
-function readBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    req.on("data", (c: Buffer) => {
-      totalBytes += c.length;
-      if (totalBytes > 1_048_576) {
-        req.destroy();
-        reject(new Error("Request body too large"));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject);
-  });
-}
-
-function json(res: http.ServerResponse, data: unknown, status = 200): void {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(data));
-}
-
-function err(res: http.ServerResponse, message: string, status = 400): void {
-  json(res, { error: message }, status);
 }
 
 /**
