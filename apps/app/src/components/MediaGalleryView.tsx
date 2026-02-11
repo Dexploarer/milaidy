@@ -210,7 +210,7 @@ export function MediaGalleryView() {
               key={chip.id}
               className={`px-3 py-1 text-xs cursor-pointer border transition-colors ${
                 filter === chip.id
-                  ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
+                  ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
                   : "bg-transparent text-[var(--muted)] border-[var(--border)] hover:text-[var(--txt)]"
               }`}
               onClick={() => setFilter(chip.id)}

@@ -113,7 +113,7 @@ export function GameView() {
   if (!activeGameViewerUrl) {
     return (
       <div className="flex items-center justify-center py-10 text-muted italic">
-        No game is currently running.{" "}
+        No active game session.{" "}
         <button
           onClick={() => {
             setState("tab", "apps");
@@ -121,7 +121,7 @@ export function GameView() {
           }}
           className="text-xs px-3 py-1 bg-accent text-accent-fg border border-accent cursor-pointer hover:bg-accent-hover disabled:opacity-40 ml-2"
         >
-          Browse Apps
+          Back to Apps
         </button>
       </div>
     );

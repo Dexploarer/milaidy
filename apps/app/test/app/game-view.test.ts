@@ -89,7 +89,7 @@ describe("GameView", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders empty state and Browse Apps returns to apps tab", async () => {
+  it("renders empty state and Back to Apps returns to apps tab", async () => {
     const ctx = createContext({
       activeGameApp: "",
       activeGameDisplayName: "",
@@ -104,7 +104,7 @@ describe("GameView", () => {
     await flush();
 
     await act(async () => {
-      findButtonByText(tree!.root, "Browse Apps").props.onClick();
+      findButtonByText(tree!.root, "Back to Apps").props.onClick();
     });
 
     expect(ctx.setState).toHaveBeenCalledWith("tab", "apps");

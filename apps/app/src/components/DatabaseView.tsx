@@ -411,7 +411,7 @@ export function DatabaseView() {
           <button
             className={`px-3 py-1 text-[11px] cursor-pointer border-0 transition-colors ${
               view === "tables"
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
                 : "bg-[var(--card)] text-[var(--muted)] hover:text-[var(--txt)]"
             }`}
             onClick={() => setView("tables")}
@@ -421,7 +421,7 @@ export function DatabaseView() {
           <button
             className={`px-3 py-1 text-[11px] cursor-pointer border-0 border-l border-[var(--border)] transition-colors ${
               view === "query"
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
                 : "bg-[var(--card)] text-[var(--muted)] hover:text-[var(--txt)]"
             }`}
             onClick={() => setView("query")}
@@ -588,7 +588,7 @@ export function DatabaseView() {
             </div>
             <div className="flex items-center gap-2 mt-2">
               <button
-                className="px-4 py-1.5 text-[11px] font-medium bg-[var(--accent)] text-[var(--accent-fg)] border border-[var(--accent)] cursor-pointer hover:opacity-80 disabled:opacity-30 disabled:cursor-default transition-opacity"
+                className="px-4 py-1.5 text-[11px] font-medium bg-[var(--accent)] text-[var(--accent-foreground)] border border-[var(--accent)] cursor-pointer hover:opacity-80 disabled:opacity-30 disabled:cursor-default transition-opacity"
                 disabled={queryLoading || !queryText.trim()}
                 onClick={runQuery}
               >

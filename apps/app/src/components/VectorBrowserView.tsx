@@ -8,11 +8,12 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import * as THREE from "three";
 import { client, type TableInfo, type QueryResult } from "../api-client";
 
 const PAGE_SIZE = 25;
 
-type ViewMode = "list" | "graph";
+type ViewMode = "list" | "graph" | "3d";
 
 /** The dimension columns in the ElizaOS `embeddings` table. */
 const DIM_COLUMNS = ["dim_384", "dim_512", "dim_768", "dim_1024", "dim_1536", "dim_3072"] as const;
@@ -99,34 +100,7 @@ function rowToMemory(row: Record<string, unknown>): MemoryRecord {
   };
 }
 
-// ── Simple PCA-like 2D projection ──────────────────────────────────────
-
-/** Project high-dimensional vectors to 2D using the first two principal axes. */
-function projectTo2D(vectors: number[][]): [number, number][] {
-  if (vectors.length === 0) return [];
-  const dims = vectors[0].length;
-  const n = vectors.length;
-
-  // Compute mean
-  const mean = new Float64Array(dims);
-  for (const v of vectors) {
-    for (let d = 0; d < dims; d++) mean[d] += v[d];
-  }
-  for (let d = 0; d < dims; d++) mean[d] /= n;
-
-  // Center data
-  const centered = vectors.map((v) => v.map((x, d) => x - mean[d]));
-
-  // Power iteration for top-2 components
-  const pc1 = powerIteration(centered, dims);
-  // Deflate
-  const proj1 = centered.map((v) => dot(v, pc1));
-  const deflated = centered.map((v, i) => v.map((x, d) => x - proj1[i] * pc1[d]));
-  const pc2 = powerIteration(deflated, dims);
-
-  // Project
-  return centered.map((v) => [dot(v, pc1), dot(v, pc2)] as [number, number]);
-}
+// ── PCA projection utilities ───────────────────────────────────────────
 
 function dot(a: number[], b: Float64Array | number[]): number {
   let s = 0;
@@ -157,6 +131,53 @@ function normalize(v: Float64Array) {
   for (let i = 0; i < v.length; i++) len += v[i] * v[i];
   len = Math.sqrt(len) || 1;
   for (let i = 0; i < v.length; i++) v[i] /= len;
+}
+
+/** Compute mean and center data for PCA. */
+function centerData(vectors: number[][]): { centered: number[][]; mean: Float64Array } {
+  const dims = vectors[0].length;
+  const n = vectors.length;
+  const mean = new Float64Array(dims);
+  for (const v of vectors) {
+    for (let d = 0; d < dims; d++) mean[d] += v[d];
+  }
+  for (let d = 0; d < dims; d++) mean[d] /= n;
+  const centered = vectors.map((v) => v.map((x, d) => x - mean[d]));
+  return { centered, mean };
+}
+
+/** Deflate data by removing projection onto a principal component. */
+function deflate(data: number[][], pc: Float64Array): number[][] {
+  const proj = data.map((v) => dot(v, pc));
+  return data.map((v, i) => v.map((x, d) => x - proj[i] * pc[d]));
+}
+
+/** Project high-dimensional vectors to 2D using the first two principal axes. */
+function projectTo2D(vectors: number[][]): [number, number][] {
+  if (vectors.length === 0) return [];
+  const dims = vectors[0].length;
+  const { centered } = centerData(vectors);
+
+  const pc1 = powerIteration(centered, dims);
+  const deflated1 = deflate(centered, pc1);
+  const pc2 = powerIteration(deflated1, dims);
+
+  return centered.map((v) => [dot(v, pc1), dot(v, pc2)] as [number, number]);
+}
+
+/** Project high-dimensional vectors to 3D using the first three principal axes. */
+function projectTo3D(vectors: number[][]): [number, number, number][] {
+  if (vectors.length === 0) return [];
+  const dims = vectors[0].length;
+  const { centered } = centerData(vectors);
+
+  const pc1 = powerIteration(centered, dims);
+  const deflated1 = deflate(centered, pc1);
+  const pc2 = powerIteration(deflated1, dims);
+  const deflated2 = deflate(deflated1, pc2);
+  const pc3 = powerIteration(deflated2, dims);
+
+  return centered.map((v) => [dot(v, pc1), dot(v, pc2), dot(v, pc3)] as [number, number, number]);
 }
 
 // ── Graph sub-component ────────────────────────────────────────────────
@@ -399,6 +420,336 @@ function VectorGraph({
   );
 }
 
+// ── 3D Graph sub-component (Three.js) ──────────────────────────────────
+
+function VectorGraph3D({
+  memories,
+  onSelect,
+}: {
+  memories: MemoryRecord[];
+  onSelect: (mem: MemoryRecord) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const spheresRef = useRef<THREE.Mesh[]>([]);
+  const animationRef = useRef<number>(0);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const withEmbeddings = useMemo(
+    () => memories.filter((m) => m.embedding !== null),
+    [memories],
+  );
+
+  const points3D = useMemo(() => {
+    if (withEmbeddings.length < 2) return [];
+    const vecs = withEmbeddings.map((m) => m.embedding!);
+    return projectTo3D(vecs);
+  }, [withEmbeddings]);
+
+  // Color palette for types
+  const typeColors = useMemo(() => {
+    const types = [...new Set(withEmbeddings.map((m) => m.type))];
+    const palette = [0x6699ff, 0xf59e0b, 0x10b981, 0xef4444, 0x8b5cf6, 0xec4899, 0x06b6d4, 0x84cc16];
+    const map: Record<string, number> = {};
+    types.forEach((t, i) => {
+      map[t] = palette[i % palette.length];
+    });
+    return map;
+  }, [withEmbeddings]);
+
+  // Initialize Three.js scene
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || points3D.length === 0) return;
+
+    const W = container.clientWidth;
+    const H = 550;
+
+    // Scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+    sceneRef.current = scene;
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 1000);
+    camera.position.set(0, 0, 5);
+    cameraRef.current = camera;
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(W, H);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    // Compute bounds for scaling
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+    for (const [x, y, z] of points3D) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+    const rangeZ = maxZ - minZ || 1;
+    const maxRange = Math.max(rangeX, rangeY, rangeZ);
+    const scale = 3 / maxRange;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+
+    // Create spheres
+    const spheres: THREE.Mesh[] = [];
+    const geometry = new THREE.SphereGeometry(0.06, 16, 16);
+
+    for (let i = 0; i < points3D.length; i++) {
+      const [x, y, z] = points3D[i];
+      const mem = withEmbeddings[i];
+      const color = typeColors[mem.type] ?? 0x6699ff;
+      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
+      const sphere = new THREE.Mesh(geometry, material);
+      sphere.position.set(
+        (x - centerX) * scale,
+        (y - centerY) * scale,
+        (z - centerZ) * scale
+      );
+      sphere.userData = { index: i };
+      scene.add(sphere);
+      spheres.push(sphere);
+    }
+    spheresRef.current = spheres;
+
+    // Add subtle grid helper
+    const gridHelper = new THREE.GridHelper(6, 12, 0x333333, 0x222222);
+    gridHelper.position.y = -2;
+    scene.add(gridHelper);
+
+    // Add axis lines
+    const axisLength = 2.5;
+    const axisGeom = new THREE.BufferGeometry();
+    const axisPositions = new Float32Array([
+      -axisLength, 0, 0, axisLength, 0, 0,  // X axis
+      0, -axisLength, 0, 0, axisLength, 0,  // Y axis
+      0, 0, -axisLength, 0, 0, axisLength,  // Z axis
+    ]);
+    axisGeom.setAttribute('position', new THREE.BufferAttribute(axisPositions, 3));
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x444444 });
+    const axisLines = new THREE.LineSegments(axisGeom, axisMat);
+    scene.add(axisLines);
+
+    // Simple orbit controls (manual implementation)
+    let theta = 0;
+    let phi = Math.PI / 4;
+    let radius = 5;
+    let targetTheta = theta;
+    let targetPhi = phi;
+    let targetRadius = radius;
+
+    const updateCamera = () => {
+      theta += (targetTheta - theta) * 0.1;
+      phi += (targetPhi - phi) * 0.1;
+      radius += (targetRadius - radius) * 0.1;
+      phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi));
+      camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+      camera.position.y = radius * Math.cos(phi);
+      camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+      camera.lookAt(0, 0, 0);
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      isDraggingRef.current = true;
+      mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      mouseDownPosRef.current = null;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (isDraggingRef.current) {
+        targetTheta -= e.movementX * 0.01;
+        targetPhi -= e.movementY * 0.01;
+      }
+
+      // Raycasting for hover
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(spheres);
+
+      if (intersects.length > 0) {
+        const idx = intersects[0].object.userData.index;
+        setHoveredIdx(idx);
+        setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        // Highlight hovered sphere
+        spheres.forEach((s, i) => {
+          const mat = s.material as THREE.MeshBasicMaterial;
+          mat.opacity = i === idx ? 1 : 0.5;
+          s.scale.setScalar(i === idx ? 1.5 : 1);
+        });
+      } else {
+        setHoveredIdx(null);
+        setTooltipPos(null);
+        spheres.forEach((s) => {
+          const mat = s.material as THREE.MeshBasicMaterial;
+          mat.opacity = 0.85;
+          s.scale.setScalar(1);
+        });
+      }
+    };
+
+    const onClick = (e: MouseEvent) => {
+      // Only trigger click if we didn't drag much
+      if (mouseDownPosRef.current) {
+        const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+        const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+        if (dx > 5 || dy > 5) return; // Was a drag, not a click
+      }
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(spheres);
+      if (intersects.length > 0) {
+        const idx = intersects[0].object.userData.index;
+        if (idx < withEmbeddings.length) {
+          onSelect(withEmbeddings[idx]);
+        }
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      targetRadius += e.deltaY * 0.005;
+      targetRadius = Math.max(2, Math.min(15, targetRadius));
+    };
+
+    renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('click', onClick);
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+    renderer.domElement.addEventListener('mouseleave', () => {
+      isDraggingRef.current = false;
+      setHoveredIdx(null);
+      setTooltipPos(null);
+    });
+
+    // Animation loop
+    const animate = () => {
+      updateCamera();
+      renderer.render(scene, camera);
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+
+    // Resize handler
+    const handleResize = () => {
+      const newW = container.clientWidth;
+      camera.aspect = newW / H;
+      camera.updateProjectionMatrix();
+      renderer.setSize(newW, H);
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationRef.current);
+      window.removeEventListener('resize', handleResize);
+      renderer.domElement.removeEventListener('mousedown', onMouseDown);
+      renderer.domElement.removeEventListener('mouseup', onMouseUp);
+      renderer.domElement.removeEventListener('mousemove', onMouseMove);
+      renderer.domElement.removeEventListener('click', onClick);
+      renderer.domElement.removeEventListener('wheel', onWheel);
+      renderer.dispose();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+    };
+  }, [points3D, withEmbeddings, typeColors, onSelect]);
+
+  if (withEmbeddings.length < 2) {
+    return (
+      <div className="text-center py-16">
+        <div className="text-[var(--muted)] text-sm mb-2">Not enough embeddings for 3D view</div>
+        <div className="text-[var(--muted)] text-xs">
+          Need at least 2 memories with embedding data. Found {withEmbeddings.length}.
+        </div>
+      </div>
+    );
+  }
+
+  const hoveredMem = hoveredIdx !== null ? withEmbeddings[hoveredIdx] : null;
+
+  return (
+    <div className="relative">
+      <div className="text-[11px] text-[var(--muted)] mb-2">
+        {withEmbeddings.length} vectors projected to 3D via PCA — drag to rotate, scroll to zoom, click a node to view details
+      </div>
+      <div
+        ref={containerRef}
+        className="w-full border border-[var(--border)] cursor-grab active:cursor-grabbing"
+        style={{ height: 550 }}
+      />
+      {/* Tooltip */}
+      {hoveredMem && tooltipPos && (
+        <div
+          className="absolute pointer-events-none bg-black/90 text-white text-[11px] px-3 py-2 max-w-[300px] z-10"
+          style={{
+            left: tooltipPos.x + 15,
+            top: tooltipPos.y + 15,
+            transform: tooltipPos.x > 400 ? 'translateX(-100%)' : undefined,
+          }}
+        >
+          <div className="font-medium mb-1 truncate">
+            {hoveredMem.type && hoveredMem.type !== "undefined" && (
+              <span className="px-1.5 py-0.5 bg-[var(--accent)]/30 text-[var(--accent)] mr-2 text-[10px]">
+                {hoveredMem.type}
+              </span>
+            )}
+            {hoveredMem.id.slice(0, 12)}...
+          </div>
+          <div className="text-[var(--muted)] line-clamp-3">
+            {hoveredMem.content.slice(0, 150)}{hoveredMem.content.length > 150 ? "..." : ""}
+          </div>
+        </div>
+      )}
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 mt-2 text-[10px]">
+        {Object.entries(typeColors).map(([type, color]) => (
+          type && type !== "undefined" && (
+            <div key={type} className="flex items-center gap-1.5">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}
+              />
+              <span className="text-[var(--muted)]">{type}</span>
+            </div>
+          )
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Detail modal ───────────────────────────────────────────────────────
 
 function MemoryDetailModal({
@@ -521,7 +872,12 @@ export function VectorBrowserView() {
         setSelectedTable(preferred?.name ?? available[0].name);
       }
     } catch (err) {
-      setError(`Failed to load tables: ${err instanceof Error ? err.message : "error"}`);
+      const msg = err instanceof Error ? err.message : "error";
+      if (msg === "Failed to fetch" || msg.includes("fetch")) {
+        setError("Cannot connect to database. Make sure the agent is running.");
+      } else {
+        setError(`Failed to load tables: ${msg}`);
+      }
     }
   }, [selectedTable]);
 
@@ -679,7 +1035,7 @@ export function VectorBrowserView() {
   }, [loadMemories, viewMode]);
 
   useEffect(() => {
-    if (viewMode === "graph") loadGraphData();
+    if (viewMode === "graph" || viewMode === "3d") loadGraphData();
   }, [loadGraphData, viewMode]);
 
   const handleSearch = () => {
@@ -689,18 +1045,22 @@ export function VectorBrowserView() {
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
+  // Show connection error state prominently
+  const isConnectionError = error?.includes("agent is running");
+
   return (
     <div>
       {/* Stats bar */}
-      {stats && (
+      {stats && !isConnectionError && (
         <div className="flex gap-4 mb-4 text-[11px] text-[var(--muted)]">
-          <span>{stats.total.toLocaleString()} memories</span>
-          {stats.uniqueCount > 0 && <span>{stats.uniqueCount.toLocaleString()} unique</span>}
-          {stats.dimensions > 0 && <span>{stats.dimensions} dimensions</span>}
+          <span>{Number(stats.total).toLocaleString()} memories</span>
+          {Number(stats.uniqueCount) > 0 && <span>{Number(stats.uniqueCount).toLocaleString()} unique</span>}
+          {Number(stats.dimensions) > 0 && <span>{stats.dimensions} dimensions</span>}
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar - hide when not connected */}
+      {!isConnectionError && (
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {viewMode === "list" && (
           <div className="flex gap-1">
@@ -713,7 +1073,7 @@ export function VectorBrowserView() {
               className="px-2.5 py-1.5 border border-[var(--border)] bg-[var(--card)] text-[var(--txt)] text-xs w-[220px]"
             />
             <button
-              className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-fg)] border border-[var(--accent)] cursor-pointer hover:opacity-80"
+              className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-foreground)] border border-[var(--accent)] cursor-pointer hover:opacity-80"
               onClick={handleSearch}
             >
               Search
@@ -734,7 +1094,7 @@ export function VectorBrowserView() {
           >
             {tables.map((t) => (
               <option key={t.name} value={t.name}>
-                {t.name} ({t.rowCount})
+                {t.name} ({typeof t.rowCount === 'object' ? JSON.stringify(t.rowCount) : t.rowCount})
               </option>
             ))}
           </select>
@@ -745,7 +1105,7 @@ export function VectorBrowserView() {
           <button
             className={`px-3 py-1.5 text-xs cursor-pointer border transition-colors ${
               viewMode === "list"
-                ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
+                ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
                 : "bg-transparent text-[var(--muted)] border-[var(--border)] hover:text-[var(--txt)]"
             }`}
             onClick={() => setViewMode("list")}
@@ -755,36 +1115,71 @@ export function VectorBrowserView() {
           <button
             className={`px-3 py-1.5 text-xs cursor-pointer border transition-colors ${
               viewMode === "graph"
-                ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
+                ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
                 : "bg-transparent text-[var(--muted)] border-[var(--border)] hover:text-[var(--txt)]"
             }`}
             onClick={() => setViewMode("graph")}
           >
-            Graph
+            2D
+          </button>
+          <button
+            className={`px-3 py-1.5 text-xs cursor-pointer border transition-colors ${
+              viewMode === "3d"
+                ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
+                : "bg-transparent text-[var(--muted)] border-[var(--border)] hover:text-[var(--txt)]"
+            }`}
+            onClick={() => setViewMode("3d")}
+          >
+            3D
           </button>
         </div>
 
         {viewMode === "list" && (
           <span className="text-[11px] text-[var(--muted)]">
-            {totalCount > 0
-              ? `${page * PAGE_SIZE + 1}-${Math.min((page + 1) * PAGE_SIZE, totalCount)} of ${totalCount.toLocaleString()}`
+            {Number(totalCount) > 0
+              ? `${page * PAGE_SIZE + 1}-${Math.min((page + 1) * PAGE_SIZE, Number(totalCount))} of ${Number(totalCount).toLocaleString()}`
               : ""}
           </span>
         )}
       </div>
-
-      {error && (
-        <div className="p-2.5 border border-[var(--danger)] text-[var(--danger)] text-xs mb-3">
-          {error}
-        </div>
       )}
 
-      {/* Graph view */}
+      {error && (
+        error.includes("agent is running") ? (
+          <div className="text-center py-16">
+            <div className="text-[var(--muted)] text-sm mb-2">Database not available</div>
+            <div className="text-[var(--muted)] text-xs mb-4">
+              Start the agent to browse vector embeddings.
+            </div>
+            <button
+              className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-foreground)] border border-[var(--accent)] cursor-pointer hover:opacity-80"
+              onClick={() => { setError(""); loadTables(); }}
+            >
+              Retry Connection
+            </button>
+          </div>
+        ) : (
+          <div className="p-2.5 border border-[var(--danger)] text-[var(--danger)] text-xs mb-3">
+            {error}
+          </div>
+        )
+      )}
+
+      {/* 2D Graph view */}
       {viewMode === "graph" && (
         graphLoading ? (
           <div className="text-center py-16 text-[var(--muted)] text-sm italic">Loading embeddings...</div>
         ) : (
           <VectorGraph memories={graphMemories} onSelect={setSelectedMemory} />
+        )
+      )}
+
+      {/* 3D Graph view */}
+      {viewMode === "3d" && (
+        graphLoading ? (
+          <div className="text-center py-16 text-[var(--muted)] text-sm italic">Loading embeddings...</div>
+        ) : (
+          <VectorGraph3D memories={graphMemories} onSelect={setSelectedMemory} />
         )
       )}
 
@@ -849,7 +1244,7 @@ export function VectorBrowserView() {
       {viewMode === "list" && totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-4 pb-4">
           <button
-            className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-fg)] border border-[var(--accent)] cursor-pointer hover:opacity-80 disabled:opacity-40 disabled:cursor-default"
+            className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-foreground)] border border-[var(--accent)] cursor-pointer hover:opacity-80 disabled:opacity-40 disabled:cursor-default"
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
           >
@@ -859,7 +1254,7 @@ export function VectorBrowserView() {
             Page {page + 1} of {totalPages}
           </span>
           <button
-            className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-fg)] border border-[var(--accent)] cursor-pointer hover:opacity-80 disabled:opacity-40 disabled:cursor-default"
+            className="px-3 py-1.5 text-xs bg-[var(--accent)] text-[var(--accent-foreground)] border border-[var(--accent)] cursor-pointer hover:opacity-80 disabled:opacity-40 disabled:cursor-default"
             disabled={page >= totalPages - 1}
             onClick={() => setPage((p) => p + 1)}
           >

@@ -152,7 +152,8 @@ export type OnboardingStep =
   | "cloudLogin"
   | "llmProvider"
   | "inventorySetup"
-  | "connectors";
+  | "connectors"
+  | "permissions";
 
 // ── Action notice ──────────────────────────────────────────────────────
 
@@ -483,6 +484,7 @@ export interface AppActions {
   // Registry / Drop
   loadRegistryStatus: () => Promise<void>;
   registerOnChain: () => Promise<void>;
+  syncRegistryProfile: () => Promise<void>;
   loadDropStatus: () => Promise<void>;
   mintFromDrop: (shiny: boolean) => Promise<void>;
   loadWhitelistStatus: () => Promise<void>;
@@ -1890,6 +1892,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [characterDraft?.name, agentStatus?.name, loadRegistryStatus]);
 
+  const syncRegistryProfile = useCallback(async () => {
+    setRegistryRegistering(true);
+    setRegistryError(null);
+    try {
+      await client.syncRegistryProfile({ name: characterDraft?.name || agentStatus?.name });
+      await loadRegistryStatus();
+    } catch (err) {
+      setRegistryError(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setRegistryRegistering(false);
+    }
+  }, [characterDraft?.name, agentStatus?.name, loadRegistryStatus]);
+
   const loadDropStatus = useCallback(async () => {
     setDropLoading(true);
     try {
@@ -2086,6 +2101,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setOnboardingStep("connectors");
         break;
       case "connectors":
+        setOnboardingStep("permissions");
+        break;
+      case "permissions":
         await handleOnboardingFinish();
         break;
     }
@@ -2143,6 +2161,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           setOnboardingStep("inventorySetup");
         }
+        break;
+      case "permissions":
+        setOnboardingStep("connectors");
         break;
     }
   }, [onboardingStep, onboardingOptions, onboardingRunMode]);
@@ -2729,9 +2750,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const urlTab = tabFromPath(window.location.pathname);
       if (urlTab) {
         setTabRaw(urlTab);
-        if (urlTab === "plugins") {
+        if (urlTab === "plugins" || urlTab === "connectors") {
           void loadPlugins();
-          void loadSkills();
+          if (urlTab === "plugins") {
+            void loadSkills();
+          }
         }
         if (urlTab === "settings") {
           void checkExtensionStatus();
@@ -2740,14 +2763,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           void loadUpdateStatus();
           void loadPlugins();
         }
-        if (urlTab === "agent") {
+        if (urlTab === "character") {
           void loadCharacter();
-          void loadInventory();
         }
-        if (urlTab === "inventory") void loadInventory();
-        if (urlTab === "triggers") {
-          void loadTriggers();
-          void loadTriggerHealth();
+        if (urlTab === "inventory") {
+          void loadInventory();
         }
       }
     };
@@ -2772,19 +2792,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appendAutonomousEvent]);
-
-  useEffect(() => {
-    if (tab !== "triggers") return;
-    void loadTriggers();
-    void loadTriggerHealth();
-    const timer = window.setInterval(() => {
-      void loadTriggers();
-      void loadTriggerHealth();
-    }, 30_000);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [tab, loadTriggers, loadTriggerHealth]);
 
   // When agent transitions to "running", send a greeting if conversation is empty
   useEffect(() => {
@@ -2875,7 +2882,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     searchSkillsMarketplace, installSkillFromMarketplace, uninstallMarketplaceSkill, installSkillFromGithubUrl,
     loadLogs,
     loadInventory, loadBalances, loadNfts, handleWalletApiKeySave, handleExportKeys,
-    loadRegistryStatus, registerOnChain, loadDropStatus, mintFromDrop, loadWhitelistStatus,
+    loadRegistryStatus, registerOnChain, syncRegistryProfile, loadDropStatus, mintFromDrop, loadWhitelistStatus,
     loadCharacter, handleSaveCharacter, handleCharacterFieldInput,
     handleCharacterArrayInput, handleCharacterStyleInput, handleCharacterMessageExamplesInput,
     handleOnboardingNext, handleOnboardingBack,

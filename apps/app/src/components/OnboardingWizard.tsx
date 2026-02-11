@@ -7,6 +7,7 @@ import { useApp, THEMES, type OnboardingStep } from "../AppContext.js";
 import type { ProviderOption, CloudProviderOption, ModelOption, InventoryProviderOption, RpcProviderOption, OpenRouterModelOption, StylePreset } from "../api-client";
 import { getProviderLogo } from "../provider-logos.js";
 import { AvatarSelector } from "./AvatarSelector.js";
+import { PermissionsOnboardingSection } from "./PermissionsSection.js";
 
 // Platform detection for mobile — on iOS/Android only cloud mode is available
 let isMobilePlatform = false;
@@ -1219,6 +1220,13 @@ export function OnboardingWizard() {
           </div>
         );
 
+      case "permissions":
+        return (
+          <div className="max-w-[600px] mx-auto mt-10 font-body">
+            <PermissionsOnboardingSection onContinue={() => void handleOnboardingNext()} />
+          </div>
+        );
+
       default:
         return null;
     }
@@ -1262,6 +1270,8 @@ export function OnboardingWizard() {
         return true;
       case "connectors":
         return true; // fully optional — user can skip
+      case "permissions":
+        return true; // optional — user can skip and configure later
       default:
         return false;
     }

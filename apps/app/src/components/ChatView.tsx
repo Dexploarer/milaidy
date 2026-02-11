@@ -167,6 +167,15 @@ export function ChatView() {
 
   const agentName = agentStatus?.agentName ?? "Agent";
   const msgs = conversationMessages;
+  const visibleMsgs = msgs.filter(
+    (msg) =>
+      !(
+        chatSending &&
+        !chatFirstTokenReceived &&
+        msg.role === "assistant" &&
+        !msg.text.trim()
+      ),
+  );
   const agentAvatarSrc = selectedVrmIndex > 0 ? getVrmPreviewUrl(selectedVrmIndex) : null;
   const agentInitial = agentName.trim().charAt(0).toUpperCase() || "A";
 
@@ -228,14 +237,14 @@ export function ChatView() {
 
       {/* ── Messages ───────────────────────────────────────────────── */}
       <div ref={messagesRef} className="flex-1 overflow-y-auto py-2 relative" style={{ zIndex: 1 }}>
-        {msgs.length === 0 && !chatSending ? (
+        {visibleMsgs.length === 0 && !chatSending ? (
           <div className="text-center py-10 text-muted italic">
             Send a message to start chatting.
           </div>
         ) : (
           <div className="w-full px-0">
-            {msgs.map((msg, i) => {
-              const prev = i > 0 ? msgs[i - 1] : null;
+            {visibleMsgs.map((msg, i) => {
+              const prev = i > 0 ? visibleMsgs[i - 1] : null;
               const grouped = prev?.role === msg.role;
               const isUser = msg.role === "user";
 

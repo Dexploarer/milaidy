@@ -3065,6 +3065,17 @@ export class MilaidyClient {
     });
   }
 
+  async syncRegistryProfile(params?: {
+    name?: string;
+    endpoint?: string;
+    tokenURI?: string;
+  }): Promise<{ ok: boolean; txHash: string }> {
+    return this.fetch("/api/registry/sync", {
+      method: "POST",
+      body: JSON.stringify(params ?? {}),
+    });
+  }
+
   async getRegistryConfig(): Promise<RegistryConfig> {
     return this.fetch("/api/registry/config");
   }

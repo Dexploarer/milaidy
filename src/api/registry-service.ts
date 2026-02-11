@@ -22,6 +22,7 @@ const REGISTRY_ABI = [
   "function registerAgentFor(address,string,string,bytes32,string) external returns (uint256)",
   // Updates
   "function updateAgent(string,bytes32) external",
+  "function updateAgentProfile(string,string,bytes32,string) external",
   "function updateTokenURI(uint256,string) external",
   // Activation
   "function deactivateAgent() external",
@@ -230,6 +231,36 @@ export class RegistryService {
   /**
    * Check if a specific address is registered.
    */
+  /**
+   * Sync the full agent profile on-chain: name, endpoint, capabilities, and tokenURI.
+   * Called when the character is edited and user wants to push changes to chain.
+   */
+  async syncProfile(params: {
+    name: string;
+    endpoint: string;
+    capabilitiesHash: string;
+    tokenURI: string;
+  }): Promise<string> {
+    const capHash = params.capabilitiesHash || DEFAULT_CAPABILITIES_HASH;
+
+    logger.info(
+      `[registry] Syncing profile: name="${params.name}" endpoint="${params.endpoint}"`,
+    );
+
+    const tx = await this.contract.updateAgentProfile(
+      params.name,
+      params.endpoint,
+      capHash,
+      params.tokenURI,
+    );
+
+    logger.info(`[registry] Sync tx submitted: ${tx.hash}`);
+    const receipt = await tx.wait();
+
+    logger.info(`[registry] Profile synced: txHash=${receipt.hash}`);
+    return receipt.hash;
+  }
+
   async isRegistered(address: string): Promise<boolean> {
     return this.contract.isRegistered(address) as Promise<boolean>;
   }

@@ -18,6 +18,10 @@ describe("navigation", () => {
     expect(pathForTab("runtime")).toBe("/runtime");
     expect(tabFromPath("/runtime")).toBe("runtime");
     expect(titleForTab("runtime")).toBe("Runtime");
+
+    expect(pathForTab("fine-tuning")).toBe("/fine-tuning");
+    expect(tabFromPath("/fine-tuning")).toBe("fine-tuning");
+    expect(titleForTab("fine-tuning")).toBe("Fine-Tuning");
   });
 
   test("includes advanced tabs in Advanced group", () => {
@@ -25,6 +29,8 @@ describe("navigation", () => {
     expect(advanced).toBeDefined();
     expect(advanced?.tabs.includes("advanced")).toBe(true);
     expect(advanced?.tabs.includes("plugins")).toBe(true);
+    expect(advanced?.tabs.includes("skills")).toBe(true);
+    expect(advanced?.tabs.includes("fine-tuning")).toBe(true);
     expect(advanced?.tabs.includes("trajectories")).toBe(true);
     expect(advanced?.tabs.includes("runtime")).toBe(true);
     expect(advanced?.tabs.includes("database")).toBe(true);
@@ -40,9 +46,28 @@ describe("navigation", () => {
     expect(tabFromPath("/game")).toBe("apps");
   });
 
+  test("keeps /agent as a legacy redirect to character", () => {
+    expect(tabFromPath("/agent")).toBe("character");
+  });
+
+  test("routes /connectors to connectors tab", () => {
+    expect(pathForTab("connectors")).toBe("/connectors");
+    expect(tabFromPath("/connectors")).toBe("connectors");
+    expect(titleForTab("connectors")).toBe("Connectors");
+  });
+
   test("does not expose game as a top-level apps tab", () => {
     const apps = TAB_GROUPS.find((group) => group.label === "Apps");
     expect(apps).toBeDefined();
     expect(apps?.tabs).toEqual(["apps"]);
+  });
+
+  test("moves character/inventory/knowledge/connectors to top-level groups", () => {
+    const labels = TAB_GROUPS.map((group) => group.label);
+    expect(labels).toContain("Character");
+    expect(labels).toContain("Inventory");
+    expect(labels).toContain("Knowledge");
+    expect(labels).toContain("Connectors");
+    expect(labels).not.toContain("Agent");
   });
 });

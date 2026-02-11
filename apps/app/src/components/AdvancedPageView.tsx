@@ -4,6 +4,7 @@
  * Sub-tabs:
  *   - Plugins: Feature/connector plugin management
  *   - Skills: Custom agent skills
+ *   - Fine-Tuning: Dataset and model training workflows
  *   - Trajectories: LLM call viewer and analysis
  *   - Runtime: Runtime object inspection
  *   - Databases: Tables/media/vector browser
@@ -14,6 +15,7 @@ import { useState } from "react";
 import { useApp } from "../AppContext";
 import { PluginsPageView } from "./PluginsPageView";
 import { SkillsView } from "./SkillsView";
+import { FineTuningView } from "./FineTuningView";
 import { TrajectoriesView } from "./TrajectoriesView";
 import { TrajectoryDetailView } from "./TrajectoryDetailView";
 import { RuntimeView } from "./RuntimeView";
@@ -21,11 +23,19 @@ import { DatabasePageView } from "./DatabasePageView";
 import { LogsPageView } from "./LogsPageView";
 import type { Tab } from "../navigation";
 
-type SubTab = "plugins" | "skills" | "trajectories" | "runtime" | "database" | "logs";
+type SubTab =
+  | "plugins"
+  | "skills"
+  | "fine-tuning"
+  | "trajectories"
+  | "runtime"
+  | "database"
+  | "logs";
 
 const SUB_TABS: Array<{ id: SubTab; label: string; description: string }> = [
   { id: "plugins", label: "Plugins", description: "Features and connectors" },
   { id: "skills", label: "Skills", description: "Custom agent skills" },
+  { id: "fine-tuning", label: "Fine-Tuning", description: "Dataset and model training workflows" },
   { id: "trajectories", label: "Trajectories", description: "LLM call history and analysis" },
   { id: "runtime", label: "Runtime", description: "Deep runtime object introspection and load order" },
   { id: "database", label: "Databases", description: "Tables, media, and vector browser" },
@@ -36,6 +46,7 @@ function mapTabToSubTab(tab: Tab): SubTab {
   switch (tab) {
     case "plugins": return "plugins";
     case "skills": return "skills";
+    case "fine-tuning": return "fine-tuning";
     case "trajectories": return "trajectories";
     case "runtime": return "runtime";
     case "database": return "database";
@@ -58,6 +69,9 @@ export function AdvancedPageView() {
         break;
       case "skills":
         setTab("skills");
+        break;
+      case "fine-tuning":
+        setTab("fine-tuning");
         break;
       case "trajectories":
         setTab("trajectories");
@@ -82,6 +96,8 @@ export function AdvancedPageView() {
         return <PluginsPageView />;
       case "skills":
         return <SkillsView />;
+      case "fine-tuning":
+        return <FineTuningView />;
       case "trajectories":
         if (selectedTrajectoryId) {
           return (

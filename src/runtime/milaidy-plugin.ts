@@ -43,7 +43,22 @@ import {
 import { createSimpleModeProvider } from "../providers/simple-mode.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../providers/workspace.js";
 import { createWorkspaceProvider } from "../providers/workspace-provider.js";
-import { PersistentTrajectoryLoggerService } from "../services/trajectory-logger.js";
+// TrajectoryLoggerService is provided by @elizaos/plugin-trajectory-logger
+// We just need a type interface to call startTrajectory/endTrajectory
+interface TrajectoryLoggerLike {
+  isEnabled(): boolean;
+  startTrajectory(
+    stepId: string,
+    options: {
+      agentId: string;
+      roomId?: string;
+      entityId?: string;
+      source?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<string>;
+  endTrajectory(stepId: string, status?: string): Promise<void>;
+}
 import { generateCatalogPrompt } from "../shared/ui-catalog-prompt.js";
 import { createTriggerTaskAction } from "../triggers/action.js";
 import { registerTriggerTaskWorker } from "../triggers/runtime.js";
@@ -285,28 +300,6 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
     },
   };
 
-  // Create a service class wrapper for the trajectory logger that matches ServiceClass interface
-  // This is a proper Service subclass that satisfies the ServiceClass interface
-  const TrajectoryLoggerServiceClass = {
-    serviceType: "trajectory_logger" as const,
-
-    async start(runtime: IAgentRuntime): Promise<Service> {
-      const service = new PersistentTrajectoryLoggerService(
-        runtime as AgentRuntime,
-        {
-          getRuntime: () => runtime as AgentRuntime,
-          enabled: true,
-        },
-      );
-      await service.initialize();
-      return service;
-    },
-  } as unknown as {
-    serviceType: string;
-    start: (runtime: IAgentRuntime) => Promise<Service>;
-    new (runtime?: IAgentRuntime): Service;
-  };
-
   return {
     name: "milaidy",
     description:
@@ -332,7 +325,7 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
       ...mediaActions,
     ],
 
-    services: [TrajectoryLoggerServiceClass],
+    // TrajectoryLoggerService is provided by @elizaos/plugin-trajectory-logger (in CORE_PLUGINS)
 
     events: {
       // Inject Milaidy session keys and trajectory context into inbound messages
@@ -363,9 +356,10 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
           }
 
           // Create a trajectory for this message if logging is enabled
+          // TrajectoryLoggerService is provided by @elizaos/plugin-trajectory-logger
           const trajectoryLogger = runtime.getService(
             "trajectory_logger",
-          ) as PersistentTrajectoryLoggerService | null;
+          ) as TrajectoryLoggerLike | null;
 
           if (trajectoryLogger?.isEnabled()) {
             const trajectoryStepId = crypto.randomUUID();
@@ -397,9 +391,10 @@ export function createMilaidyPlugin(config?: MilaidyPluginConfig): Plugin {
           const trajectoryStepId = meta?.trajectoryStepId as string | undefined;
           if (!trajectoryStepId) return;
 
+          // TrajectoryLoggerService is provided by @elizaos/plugin-trajectory-logger
           const trajectoryLogger = runtime.getService(
             "trajectory_logger",
-          ) as PersistentTrajectoryLoggerService | null;
+          ) as TrajectoryLoggerLike | null;
 
           if (trajectoryLogger) {
             await trajectoryLogger.endTrajectory(trajectoryStepId, "completed");

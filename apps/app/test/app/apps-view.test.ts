@@ -354,6 +354,12 @@ describe("AppsView", () => {
     const root = tree!.root;
     expect(root.findAll((node) => text(node) === "Hyperscape").length).toBe(1);
     expect(root.findAll((node) => text(node) === "Babylon").length).toBe(1);
+    expect(
+      root.findAll((node) => text(node) === "Hyperscape Control Panel").length,
+    ).toBe(0);
+    expect(
+      root.findAll((node) => text(node) === "Show Hyperscape Controls").length,
+    ).toBe(1);
 
     const searchInput = root.findByType("input");
     await act(async () => {

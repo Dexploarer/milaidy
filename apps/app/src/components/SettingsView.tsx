@@ -18,6 +18,7 @@ import { ConfigPageView } from "./ConfigPageView";
 import { ConfigRenderer, defaultRegistry } from "./config-renderer";
 import { MediaSettingsSection } from "./MediaSettingsSection";
 import { VoiceConfigView } from "./VoiceConfigView";
+import { PermissionsSection } from "./PermissionsSection";
 import type { ConfigUiHint } from "../types";
 import type { JsonSchemaObject } from "./config-catalog";
 
@@ -676,7 +677,15 @@ export function SettingsView() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════
-          6. UPDATES
+          6. PERMISSIONS & CAPABILITIES
+          ═══════════════════════════════════════════════════════════════ */}
+      <div className="mt-6 p-4 border border-[var(--border)] bg-[var(--card)]">
+        <div className="font-bold text-sm mb-4">Permissions & Capabilities</div>
+        <PermissionsSection />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          7. UPDATES
           ═══════════════════════════════════════════════════════════════ */}
       <div className="mt-6 p-4 border border-[var(--border)] bg-[var(--card)]">
         <div className="flex justify-between items-center mb-3">

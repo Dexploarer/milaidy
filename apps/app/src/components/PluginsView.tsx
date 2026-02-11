@@ -1,10 +1,7 @@
 /**
- * Plugin list views — Features and Connectors.
+ * Plugins view — tag-filtered plugin management.
  *
- * FeaturesView shows "feature" category plugins (excluding always-on hidden ones).
- * ConnectorsView shows "connector" category plugins.
- *
- * Both share the same card/field rendering via the internal PluginListView component.
+ * Renders a unified plugin list with searchable/filterable cards and per-plugin settings.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -193,16 +190,6 @@ const ALWAYS_ON_PLUGIN_IDS = new Set([
   "vision",
   "computeruse",
 ]);
-
-/**
- * Toggleable capability plugins shown as quick-toggle buttons at the top
- * of the Features view. These are enabled by default but can be turned off.
- */
-const CAPABILITY_TOGGLE_IDS: { id: string; label: string }[] = [
-  { id: "browser", label: "Browser" },
-  { id: "vision", label: "Vision" },
-  { id: "computeruse", label: "Computer Use" },
-];
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
 
@@ -597,15 +584,6 @@ function PluginConfigForm({
   );
 }
 
-type Categories = "all" | "ai-provider" | "connector" | "feature";
-const CATEGORIES: Categories[] = ["all", "ai-provider", "connector", "feature"];
-const CATEGORY_LABELS: Record<string, string> = {
-  all: "All",
-  "ai-provider": "AI Provider",
-  connector: "Connector",
-  feature: "Feature",
-};
-
 /* ── Default Icons ─────────────────────────────────────────────────── */
 
 const DEFAULT_ICONS: Record<string, string> = {
@@ -707,25 +685,28 @@ const SUBGROUP_LABELS: Record<string, string> = {
   showcase: "Showcase",
 };
 
+function subgroupForPlugin(plugin: PluginInfo): string {
+  if (plugin.id === "__ui-showcase__") return "showcase";
+  if (plugin.category === "ai-provider") return "ai-provider";
+  if (plugin.category === "connector") return "connector";
+  return FEATURE_SUBGROUP[plugin.id] ?? "feature-other";
+}
+
 type StatusFilter = "all" | "enabled";
+type PluginsViewMode = "all" | "connectors";
 
 /* ── Shared PluginListView ─────────────────────────────────────────── */
 
 interface PluginListViewProps {
-  /** Which category to show (ignored when baseOnly is true). */
-  category?: "feature" | "connector";
   /** Label used in search placeholder and empty state messages. */
   label: string;
-  /** Whether to show the "Add Plugin" button. */
-  showAddPlugin?: boolean;
-  /** When true, show only the always-on/core plugins instead of filtering them out. */
-  baseOnly?: boolean;
+  /** Optional list mode for pre-filtered views like Connectors. */
+  mode?: PluginsViewMode;
 }
 
-function PluginListView({ category, label, showAddPlugin = false, baseOnly = false }: PluginListViewProps) {
+function PluginListView({ label, mode = "all" }: PluginListViewProps) {
   const {
     plugins,
-    pluginFilter,
     pluginStatusFilter,
     pluginSearch,
     pluginSettingsOpen,
@@ -769,26 +750,22 @@ function PluginListView({ category, label, showAddPlugin = false, baseOnly = fal
 
   // ── Derived data ───────────────────────────────────────────────────
 
-  /** All plugins in the target category, excluding always-on hidden plugins.
-   *  When baseOnly is true, show only the always-on/core plugins instead. */
+  /** Plugins shown in the unified view (hide always-on internals + database-only entries). */
   const categoryPlugins = useMemo(
     () =>
       plugins
         .filter((p: PluginInfo) =>
-          baseOnly
-            ? ALWAYS_ON_PLUGIN_IDS.has(p.id)
-            : p.category === category && !ALWAYS_ON_PLUGIN_IDS.has(p.id),
-        )
-        .map((p: PluginInfo) =>
-          baseOnly && p.parameters.length === 0 ? { ...p, enabled: true } : p,
+          p.category !== "database" &&
+          !ALWAYS_ON_PLUGIN_IDS.has(p.id) &&
+          (mode !== "connectors" || p.category === "connector"),
         ),
-    [plugins, category, baseOnly],
+    [plugins, mode],
   );
 
   const nonDbPlugins = useMemo(() => {
-    const real = plugins.filter((p: PluginInfo) => p.category !== "database");
+    const real = categoryPlugins;
     return [SHOWCASE_PLUGIN, ...real];
-  }, [plugins]);
+  }, [categoryPlugins]);
 
   const filtered = useMemo(() => {
     const searchLower = pluginSearch.toLowerCase();
@@ -830,18 +807,52 @@ function PluginListView({ category, label, showAddPlugin = false, baseOnly = fal
 
   const enabledCount = useMemo(() => categoryPlugins.filter((p: PluginInfo) => p.enabled).length, [categoryPlugins]);
 
-  const groupedBySubgroup = useMemo(() => {
-    const groups: Record<string, PluginInfo[]> = {};
-    for (const p of sorted) {
-      let group: string;
-      if (p.id === "__ui-showcase__") group = "showcase";
-      else if (p.category === "ai-provider") group = "ai-provider";
-      else if (p.category === "connector") group = "connector";
-      else group = FEATURE_SUBGROUP[p.id] ?? "feature-other";
-      (groups[group] ??= []).push(p);
+  const pluginsWithSubgroup = useMemo(
+    () =>
+      sorted.map((plugin) => ({
+        plugin,
+        subgroup: subgroupForPlugin(plugin),
+      })),
+    [sorted],
+  );
+
+  const [subgroupFilter, setSubgroupFilter] = useState<string>("all");
+  const showSubgroupFilters = mode !== "connectors";
+
+  const subgroupCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const { subgroup } of pluginsWithSubgroup) {
+      counts[subgroup] = (counts[subgroup] ?? 0) + 1;
     }
-    return groups;
-  }, [sorted]);
+    return counts;
+  }, [pluginsWithSubgroup]);
+
+  const subgroupTags = useMemo(() => {
+    const dynamicTags = SUBGROUP_DISPLAY_ORDER
+      .filter((sg) => (subgroupCounts[sg] ?? 0) > 0)
+      .map((sg) => ({
+        id: sg,
+        label: SUBGROUP_LABELS[sg],
+        count: subgroupCounts[sg] ?? 0,
+      }));
+    return [{ id: "all", label: "All", count: sorted.length }, ...dynamicTags];
+  }, [sorted.length, subgroupCounts]);
+
+  useEffect(() => {
+    if (!showSubgroupFilters) return;
+    if (subgroupFilter === "all") return;
+    if (!subgroupTags.some((tag) => tag.id === subgroupFilter)) {
+      setSubgroupFilter("all");
+    }
+  }, [showSubgroupFilters, subgroupFilter, subgroupTags]);
+
+  const visiblePlugins = useMemo(() => {
+    if (!showSubgroupFilters) return sorted;
+    if (subgroupFilter === "all") return sorted;
+    return pluginsWithSubgroup
+      .filter(({ subgroup }) => subgroup === subgroupFilter)
+      .map(({ plugin }) => plugin);
+  }, [showSubgroupFilters, pluginsWithSubgroup, sorted, subgroupFilter]);
 
   // ── Handlers ───────────────────────────────────────────────────────
 
@@ -1226,50 +1237,38 @@ function PluginListView({ category, label, showAddPlugin = false, baseOnly = fal
         </button>
       </div>
 
+      {/* Tag filters */}
+      {showSubgroupFilters && (
+        <div className="flex items-center gap-1.5 mb-3.5 flex-wrap">
+          {subgroupTags.map((tag) => (
+            <button
+              key={tag.id}
+              type="button"
+              className={`px-2.5 py-[3px] border text-[11px] cursor-pointer transition-colors duration-150 ${
+                subgroupFilter === tag.id
+                  ? "bg-accent text-accent-fg border-accent"
+                  : "bg-surface text-txt border-border hover:bg-bg-hover"
+              }`}
+              onClick={() => setSubgroupFilter(tag.id)}
+            >
+              {tag.label} ({tag.count})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Plugin grid */}
       <div className="overflow-y-auto">
         {sorted.length === 0 ? (
           <div className="text-center py-10 px-5 text-muted border border-dashed border-border">
             {pluginSearch ? `No ${label.toLowerCase()} match your search.` : `No ${label.toLowerCase()} available.`}
           </div>
-        ) : pluginFilter === "all" ? (
-          /* Grouped by sub-group with section headers */
-          <div className="flex flex-col gap-5">
-            {SUBGROUP_DISPLAY_ORDER.map((sg) => {
-              const sgPlugins = groupedBySubgroup[sg];
-              if (!sgPlugins?.length) return null;
-              return (
-                <div key={sg}>
-                  <div className="text-xs uppercase tracking-wider text-muted font-semibold mb-2 flex items-center gap-2">
-                    {SUBGROUP_LABELS[sg]}
-                    <span className="text-[10px] font-mono opacity-60">({sgPlugins.length})</span>
-                  </div>
-                  {renderPluginGrid(sgPlugins)}
-                </div>
-              );
-            })}
-          </div>
-        ) : pluginFilter === "feature" ? (
-          /* Feature filter: show sub-grouped */
-          <div className="flex flex-col gap-5">
-            {SUBGROUP_DISPLAY_ORDER.map((sg) => {
-              if (sg === "ai-provider" || sg === "connector") return null;
-              const sgPlugins = groupedBySubgroup[sg];
-              if (!sgPlugins?.length) return null;
-              return (
-                <div key={sg}>
-                  <div className="text-xs uppercase tracking-wider text-muted font-semibold mb-2 flex items-center gap-2">
-                    {SUBGROUP_LABELS[sg]}
-                    <span className="text-[10px] font-mono opacity-60">({sgPlugins.length})</span>
-                  </div>
-                  {renderPluginGrid(sgPlugins)}
-                </div>
-              );
-            })}
+        ) : visiblePlugins.length === 0 ? (
+          <div className="text-center py-10 px-5 text-muted border border-dashed border-border">
+            {showSubgroupFilters ? "No plugins match this tag filter." : `No ${label.toLowerCase()} match your filters.`}
           </div>
         ) : (
-          /* Single grid for ai-provider / connector filter */
-          renderPluginGrid(sorted)
+          renderPluginGrid(visiblePlugins)
         )}
       </div>
 
@@ -1480,77 +1479,14 @@ function PluginListView({ category, label, showAddPlugin = false, baseOnly = fal
   );
 }
 
-/* ── Capability toggles bar ─────────────────────────────────────────── */
-
-function CapabilityToggles() {
-  const { plugins, handlePluginToggle, loadPlugins } = useApp();
-
-  useEffect(() => {
-    void loadPlugins();
-  }, [loadPlugins]);
-
-  /** Resolve each capability to its plugin data (if found). */
-  const capabilities = useMemo(
-    () =>
-      CAPABILITY_TOGGLE_IDS.map((cap) => ({
-        ...cap,
-        plugin: plugins.find((p: PluginInfo) => p.id === cap.id) ?? null,
-      })),
-    [plugins],
-  );
-
-  return (
-    <div className="flex items-center gap-2 mb-4 p-3 border border-border bg-card">
-      <span className="text-xs font-bold text-txt mr-1">Capabilities</span>
-      {capabilities.map(({ id, label, plugin }) => {
-        const enabled = plugin?.enabled ?? false;
-        return (
-          <button
-            key={id}
-            type="button"
-            className={`inline-flex items-center gap-1.5 px-3 py-[5px] border text-[11px] font-semibold cursor-pointer transition-colors duration-150 ${
-              enabled
-                ? "bg-accent text-accent-fg border-accent"
-                : "bg-surface text-muted border-border hover:text-txt hover:bg-bg-hover"
-            }`}
-            onClick={() => {
-              if (plugin) void handlePluginToggle(id, !enabled);
-            }}
-            disabled={!plugin}
-            title={plugin ? `${enabled ? "Disable" : "Enable"} ${label}` : `${label} plugin not available`}
-          >
-            <span
-              className={`inline-block w-[7px] h-[7px] rounded-full ${
-                enabled ? "bg-white/80" : "bg-muted"
-              }`}
-            />
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ── Exported views ────────────────────────────────────────────────── */
 
-/** Features view — shows capability toggles + "feature" category plugins. */
-export function FeaturesView() {
+/** Unified plugins view — tag-filtered plugin list. */
+export function PluginsView({ mode = "all" }: { mode?: PluginsViewMode }) {
   return (
-    <div>
-      <CapabilityToggles />
-      <PluginListView category="feature" label="Features" showAddPlugin />
-    </div>
+    <PluginListView
+      label={mode === "connectors" ? "Connectors" : "Plugins"}
+      mode={mode}
+    />
   );
 }
-
-/** Connectors view — shows "connector" category plugins. */
-export function ConnectorsView() {
-  return <PluginListView category="connector" label="Connectors" />;
-}
-
-/** Base plugins view — shows always-on / core plugins with the same config UI. */
-export function BasePluginsView() {
-  return <PluginListView baseOnly label="Plugins" />;
-}
-

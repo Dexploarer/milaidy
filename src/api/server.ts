@@ -7091,6 +7091,33 @@ async function handleRequest(
     return;
   }
 
+  if (method === "POST" && pathname === "/api/registry/sync") {
+    if (!registryService) {
+      error(res, "Registry service not configured.", 503);
+      return;
+    }
+    const body = await readJsonBody<{
+      name?: string;
+      endpoint?: string;
+      tokenURI?: string;
+    }>(req, res);
+    if (!body) return;
+
+    const agentName = body.name || state.agentName || "Milaidy Agent";
+    const endpoint = body.endpoint || "";
+    const tokenURI = body.tokenURI || "";
+
+    const txHash = await registryService.syncProfile({
+      name: agentName,
+      endpoint,
+      capabilitiesHash: RegistryService.defaultCapabilitiesHash(),
+      tokenURI,
+    });
+    // Refresh status after sync
+    json(res, { ok: true, txHash });
+    return;
+  }
+
   if (method === "GET" && pathname === "/api/registry/config") {
     const registryConfig = state.config.registry;
     json(res, {

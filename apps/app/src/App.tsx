@@ -12,9 +12,12 @@ import { OnboardingWizard } from "./components/OnboardingWizard.js";
 import { ChatView } from "./components/ChatView.js";
 import { ConversationsSidebar } from "./components/ConversationsSidebar.js";
 import { AutonomousPanel } from "./components/AutonomousPanel.js";
-import { AgentView } from "./components/AgentView.js";
 import { AppsPageView } from "./components/AppsPageView.js";
 import { AdvancedPageView } from "./components/AdvancedPageView.js";
+import { CharacterView } from "./components/CharacterView.js";
+import { ConnectorsPageView } from "./components/ConnectorsPageView.js";
+import { InventoryView } from "./components/InventoryView.js";
+import { KnowledgeView } from "./components/KnowledgeView.js";
 import { SettingsView } from "./components/SettingsView.js";
 import { LoadingScreen } from "./components/LoadingScreen.js";
 
@@ -23,10 +26,14 @@ function ViewRouter() {
   switch (tab) {
     case "chat": return <ChatView />;
     case "apps": return <AppsPageView />;
-    case "agent": return <AgentView />;
+    case "character": return <CharacterView />;
+    case "inventory": return <InventoryView />;
+    case "knowledge": return <KnowledgeView />;
+    case "connectors": return <ConnectorsPageView />;
     case "advanced":
     case "plugins":
     case "skills":
+    case "fine-tuning":
     case "trajectories":
     case "runtime":
     case "database":

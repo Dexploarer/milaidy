@@ -5,10 +5,14 @@
 export type Tab =
   | "chat"
   | "apps"
-  | "agent"
+  | "character"
+  | "inventory"
+  | "knowledge"
+  | "connectors"
   | "plugins"
   | "skills"
   | "advanced"
+  | "fine-tuning"
   | "trajectories"
   | "voice"
   | "runtime"
@@ -19,29 +23,37 @@ export type Tab =
 export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] as Tab[] },
   { label: "Apps", tabs: ["apps"] as Tab[] },
-  { label: "Agent", tabs: ["agent"] as Tab[] },
+  { label: "Character", tabs: ["character"] as Tab[] },
+  { label: "Inventory", tabs: ["inventory"] as Tab[] },
+  { label: "Knowledge", tabs: ["knowledge"] as Tab[] },
+  { label: "Connectors", tabs: ["connectors"] as Tab[] },
+  { label: "Settings", tabs: ["settings"] as Tab[] },
   {
     label: "Advanced",
     tabs: [
       "advanced",
       "plugins",
       "skills",
+      "fine-tuning",
       "trajectories",
       "runtime",
       "database",
       "logs",
     ] as Tab[],
   },
-  { label: "Settings", tabs: ["settings"] as Tab[] },
 ] as const;
 
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
   apps: "/apps",
-  agent: "/agent",
+  character: "/character",
+  inventory: "/inventory",
+  knowledge: "/knowledge",
+  connectors: "/connectors",
   plugins: "/plugins",
   skills: "/skills",
   advanced: "/advanced",
+  "fine-tuning": "/fine-tuning",
   trajectories: "/trajectories",
   voice: "/voice",
   runtime: "/runtime",
@@ -53,14 +65,11 @@ const TAB_PATHS: Record<Tab, string> = {
 /** Legacy path redirects — old paths that now map to new tabs. */
 const LEGACY_PATHS: Record<string, Tab> = {
   "/game": "apps",
-  "/character": "agent",
-  "/inventory": "agent",
+  "/agent": "character",
   "/features": "plugins",
-  "/connectors": "plugins",
   "/admin": "advanced",
   "/config": "settings",
-  "/fine-tuning": "agent",
-  "/triggers": "agent",
+  "/triggers": "character",
 };
 
 const PATH_TO_TAB = new Map(
@@ -109,10 +118,14 @@ export function titleForTab(tab: Tab): string {
   switch (tab) {
     case "chat": return "Chat";
     case "apps": return "Apps";
-    case "agent": return "Agent";
+    case "character": return "Character";
+    case "inventory": return "Inventory";
+    case "knowledge": return "Knowledge";
+    case "connectors": return "Connectors";
     case "plugins": return "Plugins";
     case "skills": return "Skills";
     case "advanced": return "Advanced";
+    case "fine-tuning": return "Fine-Tuning";
     case "trajectories": return "Trajectories";
     case "voice": return "Voice";
     case "runtime": return "Runtime";

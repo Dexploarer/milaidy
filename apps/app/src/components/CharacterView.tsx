@@ -223,6 +223,7 @@ export function CharacterView() {
     mintShiny,
     loadRegistryStatus,
     registerOnChain,
+    syncRegistryProfile,
     loadDropStatus,
     mintFromDrop,
     walletConfig,
@@ -617,27 +618,45 @@ export function CharacterView() {
           </div>
         )}
 
-        {isRegistered && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-[12px]">
-              <span className="text-[var(--ok,#16a34a)] font-semibold">Registered</span>
-              <span className="text-[var(--muted)]">|</span>
-              <span>Token #{registryStatus.tokenId}</span>
-              {registryStatus.agentName && (
-                <>
-                  <span className="text-[var(--muted)]">|</span>
-                  <span>{registryStatus.agentName}</span>
-                </>
+        {isRegistered && (() => {
+          const currentName = characterDraft?.name || d.name || "";
+          const onChainName = registryStatus.agentName || "";
+          const nameOutOfSync = currentName && onChainName && currentName !== onChainName;
+          return (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-[12px]">
+                <span className="text-[var(--ok,#16a34a)] font-semibold">Registered</span>
+                <span className="text-[var(--muted)]">|</span>
+                <span>Token #{registryStatus.tokenId}</span>
+                <span className="text-[var(--muted)]">|</span>
+                <span>{onChainName}</span>
+              </div>
+              {nameOutOfSync && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[var(--warn,#f59e0b)]">
+                    On-chain name "{onChainName}" differs from "{currentName}"
+                  </span>
+                  <button
+                    className="text-[10px] px-2 py-0.5 border border-[var(--accent)] text-[var(--accent)] bg-transparent cursor-pointer hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] transition-colors"
+                    disabled={registryRegistering}
+                    onClick={() => void syncRegistryProfile()}
+                  >
+                    {registryRegistering ? "syncing..." : "sync to chain"}
+                  </button>
+                </div>
               )}
+              {registryError && (
+                <span className="text-xs text-[var(--danger,#e74c3c)]">{registryError}</span>
+              )}
+              <a
+                href={`https://etherscan.io/token/${registryStatus.walletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] underline text-[var(--accent)]"
+              >view on etherscan</a>
             </div>
-            <a
-              href={`https://etherscan.io/token/${registryStatus.walletAddress}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11px] underline text-[var(--accent)]"
-            >view on etherscan</a>
-          </div>
-        )}
+          );
+        })()}
 
         {hasWallet && userMinted && !isRegistered && (
           <div className="text-[12px] text-[var(--ok,#16a34a)]">
