@@ -1913,11 +1913,25 @@ export async function startEliza(
   // (e.g. Claude Max / Codex Max) without putting API keys in Milaidy config.
   if (isPiAiEnabledFromEnv()) {
     try {
+      const modelCfg = (config.models ?? {}) as unknown as Record<
+        string,
+        unknown
+      >;
+      const piAiSmall =
+        typeof modelCfg.piAiSmall === "string" ? modelCfg.piAiSmall : undefined;
+      const piAiLarge =
+        typeof modelCfg.piAiLarge === "string" ? modelCfg.piAiLarge : undefined;
+
       const reg = await registerPiAiRuntime(runtime, {
-        // Prefer Milaidy's primary model spec when set; otherwise pi settings.json decides.
+        // Prefer pi-ai specific small/large overrides when set.
+        // Fall back to Milaidy's primary model spec; otherwise pi settings.json decides.
+        smallModelSpec: piAiSmall,
+        largeModelSpec: piAiLarge,
         modelSpec: primaryModel,
       });
-      logger.info(`[milaidy] pi-ai enabled (model: ${reg.modelSpec})`);
+      logger.info(
+        `[milaidy] pi-ai enabled (large: ${reg.modelSpec}${piAiSmall ? ", small override set" : ""})`,
+      );
     } catch (err) {
       logger.warn(
         `[milaidy] pi-ai enabled but failed to register model handler: ${formatError(err)}`,
@@ -2139,11 +2153,26 @@ export async function startEliza(
           // Re-register pi-ai model handler on hot reload if enabled.
           if (isPiAiEnabledFromEnv()) {
             try {
+              const modelCfg = (freshConfig.models ?? {}) as unknown as Record<
+                string,
+                unknown
+              >;
+              const piAiSmall =
+                typeof modelCfg.piAiSmall === "string"
+                  ? modelCfg.piAiSmall
+                  : undefined;
+              const piAiLarge =
+                typeof modelCfg.piAiLarge === "string"
+                  ? modelCfg.piAiLarge
+                  : undefined;
+
               const reg = await registerPiAiRuntime(newRuntime, {
+                smallModelSpec: piAiSmall,
+                largeModelSpec: piAiLarge,
                 modelSpec: freshPrimaryModel,
               });
               logger.info(
-                `[milaidy] Hot-reload: pi-ai enabled (model: ${reg.modelSpec})`,
+                `[milaidy] Hot-reload: pi-ai enabled (large: ${reg.modelSpec}${piAiSmall ? ", small override set" : ""})`,
               );
             } catch (err) {
               logger.warn(

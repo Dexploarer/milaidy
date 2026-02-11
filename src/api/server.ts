@@ -4827,6 +4827,56 @@ async function handleRequest(
 
     safeMerge(state.config as Record<string, unknown>, filtered);
 
+    // If the client updated env vars, synchronise them into process.env so
+    // subsequent hot-restarts see the latest values (loadMilaidyConfig()
+    // only fills missing env vars and does not override existing ones).
+    if (
+      filtered.env &&
+      typeof filtered.env === "object" &&
+      !Array.isArray(filtered.env)
+    ) {
+      const envPatch = filtered.env as Record<string, unknown>;
+
+      // 1) env.vars.* (preferred)
+      const vars = envPatch.vars;
+      if (vars && typeof vars === "object" && !Array.isArray(vars)) {
+        for (const [k, v] of Object.entries(vars as Record<string, unknown>)) {
+          if (BLOCKED_KEYS.has(k)) continue;
+          const str = typeof v === "string" ? v : "";
+          if (str.trim()) {
+            process.env[k] = str;
+          } else {
+            delete process.env[k];
+          }
+        }
+      }
+
+      // 2) Direct env.* string keys (legacy)
+      for (const [k, v] of Object.entries(envPatch)) {
+        if (k === "vars" || k === "shellEnv") continue;
+        if (BLOCKED_KEYS.has(k)) continue;
+        if (typeof v !== "string") continue;
+        if (v.trim()) process.env[k] = v;
+        else delete process.env[k];
+      }
+
+      // Keep config clean: drop empty env.vars entries so we don't persist
+      // null/empty-string tombstones forever.
+      const cfgEnv = (state.config as Record<string, unknown>).env;
+      if (cfgEnv && typeof cfgEnv === "object" && !Array.isArray(cfgEnv)) {
+        const cfgVars = (cfgEnv as Record<string, unknown>).vars;
+        if (cfgVars && typeof cfgVars === "object" && !Array.isArray(cfgVars)) {
+          for (const [k, v] of Object.entries(
+            cfgVars as Record<string, unknown>,
+          )) {
+            if (typeof v !== "string" || !v.trim()) {
+              delete (cfgVars as Record<string, unknown>)[k];
+            }
+          }
+        }
+      }
+    }
+
     try {
       saveMilaidyConfig(state.config);
     } catch (err) {
