@@ -143,4 +143,42 @@ describe("database API security hardening", () => {
     );
     expect(saveMilaidyConfigMock).not.toHaveBeenCalled();
   });
+
+  it("pins connectionString host override params to the validated address", async () => {
+    const req = createMockRequest("PUT", "/api/database/config", {
+      provider: "postgres",
+      postgres: {
+        connectionString:
+          "postgresql://postgres:password@1.1.1.1:5432/postgres?host=8.8.8.8,8.8.4.4&hostaddr=8.8.4.4",
+      },
+    });
+    const { res, getStatus, getJson } = createMockResponse();
+
+    const handled = await handleDatabaseRoute(
+      req,
+      res,
+      null,
+      "/api/database/config",
+    );
+
+    expect(handled).toBe(true);
+    expect(getStatus()).toBe(200);
+    expect(getJson()).toMatchObject({ saved: true });
+    expect(saveMilaidyConfigMock).toHaveBeenCalledTimes(1);
+
+    const savedConfig = saveMilaidyConfigMock.mock.calls[0]?.[0] as {
+      database?: {
+        postgres?: {
+          connectionString?: string;
+        };
+      };
+    };
+    const savedConnectionString =
+      savedConfig.database?.postgres?.connectionString ?? "";
+    const parsed = new URL(savedConnectionString);
+
+    expect(parsed.hostname).toBe("8.8.8.8");
+    expect(parsed.searchParams.get("host")).toBe("8.8.8.8");
+    expect(parsed.searchParams.get("hostaddr")).toBe("8.8.8.8");
+  });
 });

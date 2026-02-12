@@ -173,6 +173,10 @@ function withPinnedHost(
     try {
       const parsed = new URL(next.connectionString);
       parsed.hostname = normalizedPinned;
+      // Preserve DNS pinning even when libpq-style query params are present.
+      // `host` / `hostaddr` can override URI hostname; force both to pinned IP.
+      parsed.searchParams.set("host", normalizedPinned);
+      parsed.searchParams.set("hostaddr", normalizedPinned);
       next.connectionString = parsed.toString();
     } catch {
       // Validation has already parsed this once, but if URL rewriting fails,
