@@ -1507,6 +1507,18 @@ function applyCors(
   return true;
 }
 
+function applySecurityHeaders(res: http.ServerResponse): void {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "default-src 'none'");
+  res.setHeader(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains",
+  );
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+}
+
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 const PAIRING_WINDOW_MS = 10 * 60 * 1000;
 const PAIRING_MAX_ATTEMPTS = 5;
@@ -1611,6 +1623,8 @@ async function handleRequest(
   state: ServerState,
   ctx?: RequestContext,
 ): Promise<void> {
+  applySecurityHeaders(res);
+
   const method = req.method ?? "GET";
   const url = new URL(
     req.url ?? "/",
