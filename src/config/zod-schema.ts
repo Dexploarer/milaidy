@@ -25,6 +25,7 @@ import {
   SignalConfigSchema,
   SlackConfigSchema,
   TelegramConfigSchema,
+  TwitterConfigSchema,
   WhatsAppConfigSchema,
 } from "./zod-schema.providers-core.js";
 import {
@@ -134,6 +135,7 @@ const ConnectorsSchema = z
     whatsapp: WhatsAppConfigSchema.optional(),
     telegram: TelegramConfigSchema.optional(),
     discord: DiscordConfigSchema.optional(),
+    twitter: TwitterConfigSchema.optional(),
     googlechat: GoogleChatConfigSchema.optional(),
     slack: SlackConfigSchema.optional(),
     signal: SignalConfigSchema.optional(),

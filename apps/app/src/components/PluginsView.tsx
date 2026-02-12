@@ -591,7 +591,7 @@ const DEFAULT_ICONS: Record<string, string> = {
   anthropic: "🧠", "google-genai": "✦", groq: "⚡", "local-ai": "🖥️",
   ollama: "🦙", openai: "◐", openrouter: "🔀", "vercel-ai-gateway": "▲", xai: "𝕏",
   // Connectors — chat & social
-  discord: "💬", telegram: "✈️", slack: "💼", whatsapp: "📱",
+  discord: "💬", telegram: "✈️", slack: "💼", twitter: "🐦", whatsapp: "📱",
   signal: "🔒", imessage: "💭", bluebubbles: "🫧", bluesky: "🦋",
   farcaster: "🟣", instagram: "📸", nostr: "🔑", twitch: "🎮",
   matrix: "🔗", mattermost: "💠", msteams: "🟦", "google-chat": "💚",

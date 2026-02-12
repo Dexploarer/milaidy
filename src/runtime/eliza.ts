@@ -173,6 +173,7 @@ const CHANNEL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   discord: "@elizaos/plugin-discord",
   telegram: "@milaidy/plugin-telegram-enhanced",
   slack: "@elizaos/plugin-slack",
+  twitter: "@elizaos/plugin-twitter",
   whatsapp: "@elizaos/plugin-whatsapp",
   signal: "@elizaos/plugin-signal",
   imessage: "@elizaos/plugin-imessage",
@@ -254,7 +255,13 @@ export function collectPluginNames(config: MilaidyConfig): Set<string> {
   // If there's an explicit allow list, respect it and skip auto-detection —
   // but always include essential plugins that the runtime depends on.
   if (hasExplicitAllowList) {
-    const names = new Set<string>(allowList);
+    const names = new Set<string>();
+    // Convert short names to full package names using plugin maps
+    for (const item of allowList) {
+      const pluginName =
+        CHANNEL_PLUGIN_MAP[item] ?? OPTIONAL_PLUGIN_MAP[item] ?? item;
+      names.add(pluginName);
+    }
     // Core plugins are always loaded regardless of allow list.
     for (const core of CORE_PLUGINS) {
       names.add(core);

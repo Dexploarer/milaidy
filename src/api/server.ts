@@ -1095,6 +1095,7 @@ function categorizePlugin(
     "telegram",
     "discord",
     "slack",
+    "twitter",
     "whatsapp",
     "signal",
     "imessage",

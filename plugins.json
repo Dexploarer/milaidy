@@ -1,7 +1,7 @@
 {
   "$schema": "plugin-index-v1",
   "generatedAt": "2026-02-09T20:23:38.561Z",
-  "count": 96,
+  "count": 97,
   "plugins": [
     {
       "id": "acp",
@@ -7813,6 +7813,194 @@
           "label": "Auto-Discover Channels",
           "group": "Behavior",
           "width": "half"
+        }
+      }
+    },
+    {
+      "id": "twitter",
+      "dirName": "plugin-twitter",
+      "name": "Twitter",
+      "npmName": "@elizaos/plugin-twitter",
+      "description": "Twitter/X social media connector with posting, mentions, and DMs",
+      "category": "connector",
+      "envKey": "TWITTER_API_KEY",
+      "configKeys": [
+        "TWITTER_API_KEY",
+        "TWITTER_API_SECRET_KEY",
+        "TWITTER_ACCESS_TOKEN",
+        "TWITTER_ACCESS_TOKEN_SECRET",
+        "TWITTER_DRY_RUN",
+        "TWITTER_POST_ENABLE",
+        "TWITTER_POST_IMMEDIATELY",
+        "TWITTER_POST_INTERVAL_MIN",
+        "TWITTER_POST_INTERVAL_MAX",
+        "TWITTER_AUTO_RESPOND_MENTIONS",
+        "TWITTER_POLL_INTERVAL",
+        "TWITTER_SEARCH_ENABLE",
+        "TWITTER_ENABLE_TIMELINE",
+        "TWITTER_ENABLE_DISCOVERY"
+      ],
+      "version": "1.2.22",
+      "pluginParameters": {
+        "TWITTER_API_KEY": {
+          "type": "string",
+          "description": "Twitter API Key (Consumer Key)",
+          "required": true,
+          "sensitive": true
+        },
+        "TWITTER_API_SECRET_KEY": {
+          "type": "string",
+          "description": "Twitter API Secret Key (Consumer Secret)",
+          "required": true,
+          "sensitive": true
+        },
+        "TWITTER_ACCESS_TOKEN": {
+          "type": "string",
+          "description": "Twitter Access Token",
+          "required": true,
+          "sensitive": true
+        },
+        "TWITTER_ACCESS_TOKEN_SECRET": {
+          "type": "string",
+          "description": "Twitter Access Token Secret",
+          "required": true,
+          "sensitive": true
+        },
+        "TWITTER_DRY_RUN": {
+          "type": "boolean",
+          "description": "Dry-run mode (no real actions)",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_POST_ENABLE": {
+          "type": "boolean",
+          "description": "Enable automatic posting",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_POST_IMMEDIATELY": {
+          "type": "boolean",
+          "description": "Post immediately on start",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_POST_INTERVAL_MIN": {
+          "type": "number",
+          "description": "Minimum minutes between posts",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_POST_INTERVAL_MAX": {
+          "type": "number",
+          "description": "Maximum minutes between posts",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_AUTO_RESPOND_MENTIONS": {
+          "type": "boolean",
+          "description": "Automatically respond to mentions",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_POLL_INTERVAL": {
+          "type": "number",
+          "description": "Check interval in seconds",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_SEARCH_ENABLE": {
+          "type": "boolean",
+          "description": "Enable keyword search monitoring",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_ENABLE_TIMELINE": {
+          "type": "boolean",
+          "description": "Enable home timeline reading",
+          "required": false,
+          "sensitive": false
+        },
+        "TWITTER_ENABLE_DISCOVERY": {
+          "type": "boolean",
+          "description": "Enable discovery service",
+          "required": false,
+          "sensitive": false
+        }
+      },
+      "configUiHints": {
+        "TWITTER_API_KEY": {
+          "label": "API Key",
+          "group": "Authentication",
+          "width": "half",
+          "sensitive": true
+        },
+        "TWITTER_API_SECRET_KEY": {
+          "label": "API Secret",
+          "group": "Authentication",
+          "width": "half",
+          "sensitive": true
+        },
+        "TWITTER_ACCESS_TOKEN": {
+          "label": "Access Token",
+          "group": "Authentication",
+          "width": "half",
+          "sensitive": true
+        },
+        "TWITTER_ACCESS_TOKEN_SECRET": {
+          "label": "Access Token Secret",
+          "group": "Authentication",
+          "width": "half",
+          "sensitive": true
+        },
+        "TWITTER_DRY_RUN": {
+          "label": "Dry Run Mode",
+          "group": "Behavior",
+          "width": "third"
+        },
+        "TWITTER_POST_ENABLE": {
+          "label": "Enable Posting",
+          "group": "Posting",
+          "width": "third"
+        },
+        "TWITTER_POST_IMMEDIATELY": {
+          "label": "Post Immediately",
+          "group": "Posting",
+          "width": "third"
+        },
+        "TWITTER_POST_INTERVAL_MIN": {
+          "label": "Min Interval (minutes)",
+          "group": "Posting",
+          "width": "half"
+        },
+        "TWITTER_POST_INTERVAL_MAX": {
+          "label": "Max Interval (minutes)",
+          "group": "Posting",
+          "width": "half"
+        },
+        "TWITTER_AUTO_RESPOND_MENTIONS": {
+          "label": "Auto-Respond to Mentions",
+          "group": "Interactions",
+          "width": "half"
+        },
+        "TWITTER_POLL_INTERVAL": {
+          "label": "Poll Interval (seconds)",
+          "group": "Interactions",
+          "width": "half"
+        },
+        "TWITTER_SEARCH_ENABLE": {
+          "label": "Enable Search",
+          "group": "Advanced",
+          "width": "third"
+        },
+        "TWITTER_ENABLE_TIMELINE": {
+          "label": "Enable Timeline",
+          "group": "Advanced",
+          "width": "third"
+        },
+        "TWITTER_ENABLE_DISCOVERY": {
+          "label": "Enable Discovery",
+          "group": "Advanced",
+          "width": "third"
         }
       }
     },
