@@ -344,148 +344,195 @@ async function extractAgentData(
 
   logger.info(`[agent-export] Extracting data for agent ${agentId}`);
 
-  // 1. Agent record
-  const agent = await db.getAgent(agentId);
+  // Parallelize initial independent fetches
+  const [
+    agent,
+    allWorlds,
+    participantRoomIds,
+    relationships,
+    allTasks,
+    logs,
+    agentMemoriesNested,
+  ] = await Promise.all([
+    // 1. Agent record
+    db.getAgent(agentId),
+    // 2. Worlds
+    db.getAllWorlds(),
+    // Room participation
+    db.getRoomsForParticipant(agentId),
+    // 7. Relationships
+    db.getRelationships({ entityId: agentId }),
+    // 8. Tasks
+    db.getTasks({}),
+    // 9. Logs (optional)
+    options.includeLogs
+      ? db.getLogs({ count: Number.MAX_SAFE_INTEGER })
+      : Promise.resolve([]),
+    // 6. Memories (Agent-scoped)
+    Promise.all(
+      MEMORY_TABLES.map((tableName) =>
+        db.getMemories({
+          agentId,
+          tableName,
+          count: Number.MAX_SAFE_INTEGER,
+        }),
+      ),
+    ),
+  ]);
+
   if (!agent) {
     throw new AgentExportError(`Agent ${agentId} not found in database.`);
   }
 
-  // 2. Worlds owned by this agent
-  const allWorlds = await db.getAllWorlds();
   const agentWorlds = allWorlds.filter((w) => w.agentId === agentId);
   logger.info(`[agent-export] Found ${agentWorlds.length} worlds`);
 
-  // 3. Rooms — gather from worlds and from participant list
-  const roomMap = new Map<string, Room>();
+  // Parallelize world-dependent fetches
+  const [worldRoomsNested, participantRooms, worldMemoriesNested] =
+    await Promise.all([
+      // Rooms by world
+      Promise.all(
+        agentWorlds.map((world) =>
+          world.id ? db.getRoomsByWorld(world.id) : Promise.resolve([]),
+        ),
+      ),
+      // Participant rooms
+      participantRoomIds.length > 0
+        ? db.getRoomsByIds(participantRoomIds)
+        : Promise.resolve([]),
+      // Memories by world
+      Promise.all(
+        agentWorlds.flatMap((world) => {
+          const worldId = world.id;
+          if (!worldId) return [];
+          return MEMORY_TABLES.map((tableName) =>
+            db.getMemoriesByWorldId({
+              worldId,
+              count: Number.MAX_SAFE_INTEGER,
+              tableName,
+            }),
+          );
+        }),
+      ),
+    ]);
 
-  for (const world of agentWorlds) {
-    if (!world.id) continue;
-    const worldRooms = await db.getRoomsByWorld(world.id);
-    for (const room of worldRooms) {
+  // Aggregate Rooms
+  const roomMap = new Map<string, Room>();
+  for (const rooms of worldRoomsNested) {
+    for (const room of rooms) {
       if (room.id) roomMap.set(room.id, room);
     }
   }
-
-  // Also get rooms the agent participates in directly
-  const participantRoomIds = await db.getRoomsForParticipant(agentId);
-  if (participantRoomIds.length > 0) {
-    const participantRooms = await db.getRoomsByIds(participantRoomIds);
-    if (participantRooms) {
-      for (const room of participantRooms) {
-        if (room.id) roomMap.set(room.id, room);
-      }
+  if (participantRooms) {
+    for (const room of participantRooms) {
+      if (room.id) roomMap.set(room.id, room);
     }
   }
 
   const rooms = Array.from(roomMap.values());
   logger.info(`[agent-export] Found ${rooms.length} rooms`);
 
-  // 4. Entities and participants for each room
+  // Parallelize room-dependent fetches (Entities & Participants)
+  const roomDependentPromises = rooms.map(async (room) => {
+    const roomId = room.id;
+    if (!roomId) return { entities: [], participants: [] };
+
+    const [roomEntities, participantIds] = await Promise.all([
+      db.getEntitiesForRoom(roomId, true),
+      db.getParticipantsForRoom(roomId),
+    ]);
+
+    const participantRecords = await Promise.all(
+      participantIds.map(async (entityId) => {
+        const userState = await db.getParticipantUserState(roomId, entityId);
+        return {
+          entityId,
+          roomId,
+          userState,
+        };
+      }),
+    );
+
+    return { entities: roomEntities, participants: participantRecords };
+  });
+
+  const roomResults = await Promise.all(roomDependentPromises);
+
+  // Aggregate Entities & Participants
   const entityMap = new Map<string, Entity>();
-  const participantRecords: Array<{
+  const allParticipantRecords: Array<{
     entityId: string;
     roomId: string;
     userState: string | null;
   }> = [];
 
-  for (const room of rooms) {
-    if (!room.id) continue;
-
-    const roomEntities = await db.getEntitiesForRoom(room.id, true);
-    for (const entity of roomEntities) {
+  for (const res of roomResults) {
+    for (const entity of res.entities) {
       if (entity.id) entityMap.set(entity.id, entity);
     }
-
-    const participantIds = await db.getParticipantsForRoom(room.id);
-    for (const entityId of participantIds) {
-      const userState = await db.getParticipantUserState(room.id, entityId);
-      participantRecords.push({
-        entityId,
-        roomId: room.id,
-        userState,
-      });
-    }
+    allParticipantRecords.push(...res.participants);
   }
 
   const entities = Array.from(entityMap.values());
   logger.info(
-    `[agent-export] Found ${entities.length} entities, ${participantRecords.length} participant records`,
+    `[agent-export] Found ${entities.length} entities, ${allParticipantRecords.length} participant records`,
   );
 
-  // 5. Components for all entities (deduplicated by ID)
-  const componentIds = new Set<string>();
-  const allComponents: Component[] = [];
-  const addComponent = (c: Component) => {
-    if (c.id && !componentIds.has(c.id)) {
-      componentIds.add(c.id);
-      allComponents.push(c);
-    }
-  };
+  // Parallelize Component fetching
+  const componentPromises: Promise<Component[]>[] = [];
   for (const entity of entities) {
     if (!entity.id) continue;
-    for (const c of await db.getComponents(entity.id)) addComponent(c);
+    // Entity components
+    componentPromises.push(db.getComponents(entity.id));
+    // World components for this entity
     for (const world of agentWorlds) {
       if (!world.id) continue;
-      for (const c of await db.getComponents(entity.id, world.id))
-        addComponent(c);
+      componentPromises.push(db.getComponents(entity.id, world.id));
+    }
+  }
+
+  const componentResults = await Promise.all(componentPromises);
+
+  // Aggregate Components
+  const componentIds = new Set<string>();
+  const allComponents: Component[] = [];
+
+  for (const comps of componentResults) {
+    for (const c of comps) {
+      if (c.id && !componentIds.has(c.id)) {
+        componentIds.add(c.id);
+        allComponents.push(c);
+      }
     }
   }
   logger.info(`[agent-export] Found ${allComponents.length} components`);
 
-  // 6. Memories — query all known table names
+  // Aggregate Memories
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
-  for (const tableName of MEMORY_TABLES) {
-    const memories = await db.getMemories({
-      agentId,
-      tableName,
-      count: Number.MAX_SAFE_INTEGER,
-    });
-    for (const mem of memories) {
-      if (mem.id && !memoryIdSet.has(mem.id)) {
-        memoryIdSet.add(mem.id);
-        // Strip embeddings to reduce file size — they can be regenerated
-        allMemories.push({ ...mem, embedding: undefined });
-      }
+  const addMemory = (mem: Memory) => {
+    if (mem.id && !memoryIdSet.has(mem.id)) {
+      memoryIdSet.add(mem.id);
+      // Strip embeddings to reduce file size — they can be regenerated
+      allMemories.push({ ...mem, embedding: undefined });
     }
-  }
+  };
 
-  // Also try querying memories by world
-  for (const world of agentWorlds) {
-    if (!world.id) continue;
-    for (const tableName of MEMORY_TABLES) {
-      const worldMemories = await db.getMemoriesByWorldId({
-        worldId: world.id,
-        count: Number.MAX_SAFE_INTEGER,
-        tableName,
-      });
-      for (const mem of worldMemories) {
-        if (mem.id && !memoryIdSet.has(mem.id)) {
-          memoryIdSet.add(mem.id);
-          allMemories.push({ ...mem, embedding: undefined });
-        }
-      }
-    }
+  for (const mems of agentMemoriesNested) {
+    for (const mem of mems) addMemory(mem);
+  }
+  for (const mems of worldMemoriesNested) {
+    for (const mem of mems) addMemory(mem);
   }
 
   logger.info(`[agent-export] Found ${allMemories.length} memories`);
-
-  // 7. Relationships
-  const relationships = await db.getRelationships({ entityId: agentId });
   logger.info(`[agent-export] Found ${relationships.length} relationships`);
 
-  // 8. Tasks
-  // The Task proto type does not declare agentId, but the DB schema stores
-  // agent_id. Filter using a dynamic property access to handle both shapes.
-  const allTasks = await db.getTasks({});
+  // Filter Tasks
   const agentTasks = allTasks.filter((t) => taskAgentId(t) === agentId);
   logger.info(`[agent-export] Found ${agentTasks.length} tasks`);
-
-  // 9. Logs (optional)
-  let logs: Log[] = [];
   if (options.includeLogs) {
-    logs = await db.getLogs({ count: Number.MAX_SAFE_INTEGER });
     logger.info(`[agent-export] Found ${logs.length} logs`);
   }
 
@@ -498,7 +545,7 @@ async function extractAgentData(
     memories: allMemories,
     components: allComponents,
     rooms,
-    participants: participantRecords,
+    participants: allParticipantRecords,
     relationships,
     worlds: agentWorlds,
     tasks: agentTasks,
