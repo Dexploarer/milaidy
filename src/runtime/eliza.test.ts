@@ -90,7 +90,7 @@ describe("collectPluginNames", () => {
       const plugins = collectPluginNames({} as MilaidyConfig);
 
       // local-embedding provides the TEXT_EMBEDDING delegate which remote
-      // providers do NOT supply, so it must always stay loaded (see #10).
+      // providers do NOT supply, so it must always stay loaded to support memory/knowledge (see #10).
       expect(plugins.has("@elizaos/plugin-local-embedding")).toBe(true);
     });
 

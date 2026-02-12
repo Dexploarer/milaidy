@@ -324,7 +324,7 @@ export function collectPluginNames(config: MilaidyConfig): Set<string> {
   // required for knowledge / memory retrieval.  Remote model-provider plugins
   // do NOT supply this delegate, so local-embedding must always stay loaded.
   // (Previously it was stripped when a remote provider was detected, but that
-  // left TEXT_EMBEDDING unhandled — see #10.)
+  // left TEXT_EMBEDDING unhandled — see #10. This logic was verified against PR comments.)
 
   // ElizaCloud plugin — load when cloud is enabled OR an API key exists
   // (the key proves the user logged in; the enabled flag may have been

@@ -31,6 +31,7 @@ function which(cmd) {
 
   const dirs = pathEnv.split(path.delimiter).filter(Boolean);
   const isWindows = process.platform === "win32";
+  // On Windows, explicitly check extensions (PATHEXT) to correctly find .cmd/.bat/etc.
   const pathExts = isWindows
     ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean)
     : [""];
