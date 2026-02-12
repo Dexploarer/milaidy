@@ -994,6 +994,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Guards against double-greeting when both init and state-transition paths fire. */
   const greetingFiredRef = useRef(false);
   const chatAbortRef = useRef<AbortController | null>(null);
+  /** Synchronous lock so same-tick chat submits cannot double-send. */
+  const chatSendBusyRef = useRef(false);
 
   // ── Action notice ──────────────────────────────────────────────────
 
@@ -1682,7 +1684,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const handleChatSend = useCallback(async (mode: ConversationMode = "simple") => {
     const text = chatInput.trim();
-    if (!text || chatSending) return;
+    if (!text) return;
+    if (chatSendBusyRef.current || chatSending) return;
+    chatSendBusyRef.current = true;
 
     let convId: string = activeConversationId ?? "";
     if (!convId) {
@@ -1693,6 +1697,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activeConversationIdRef.current = conversation.id;
         convId = conversation.id;
       } catch {
+        chatSendBusyRef.current = false;
         return;
       }
     }
@@ -1787,12 +1792,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (chatAbortRef.current === controller) {
         chatAbortRef.current = null;
       }
+      chatSendBusyRef.current = false;
       setChatSending(false);
       setChatFirstTokenReceived(false);
     }
   }, [chatInput, chatSending, activeConversationId, loadConversationMessages, loadConversations]);
 
   const handleChatStop = useCallback(() => {
+    chatSendBusyRef.current = false;
     chatAbortRef.current?.abort();
     chatAbortRef.current = null;
     setChatSending(false);
