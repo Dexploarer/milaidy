@@ -165,6 +165,29 @@ function http$(
   });
 }
 
+async function reserveFreePort(): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    const server = http.createServer();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("Failed to reserve free port"));
+        return;
+      }
+      const { port } = address;
+      server.close((closeErr) => {
+        if (closeErr) {
+          reject(closeErr);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
 interface AutonomyServiceLike {
   setLoopInterval(ms: number): void;
 }
@@ -413,6 +436,7 @@ describe("CLI Entry Point (npx milaidy equivalent)", () => {
       env.XDG_DATA_HOME = path.join(subHome, ".local/share");
       env.XDG_STATE_HOME = path.join(subHome, ".local/state");
       env.XDG_CACHE_HOME = path.join(subHome, ".cache");
+      env.MILAIDY_PORT = String(await reserveFreePort());
       delete env.VITEST;
 
       const result = await runSubprocess(
