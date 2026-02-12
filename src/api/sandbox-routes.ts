@@ -16,6 +16,7 @@ interface SandboxRouteState {
 const MAX_COMPUTER_INPUT_LENGTH = 4096;
 const MAX_KEYPRESS_LENGTH = 128;
 const SAFE_KEYPRESS_PATTERN = /^[A-Za-z0-9+_.,: -]+$/;
+const ALLOWED_AUDIO_FORMATS = new Set(["wav", "mp3", "ogg", "flac", "m4a"]);
 
 // ── Route handler ────────────────────────────────────────────────────────────
 
@@ -255,16 +256,34 @@ export async function handleSandboxRoute(
       sendJson(res, 400, { error: "Missing request body" });
       return true;
     }
+
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(body) as { data: string; format?: string };
-      if (!parsed.data) {
-        sendJson(res, 400, { error: "Missing 'data' field (base64 audio)" });
-        return true;
-      }
-      await playAudio(
-        Buffer.from(parsed.data, "base64"),
-        parsed.format ?? "wav",
-      );
+      parsed = JSON.parse(body);
+    } catch {
+      sendJson(res, 400, { error: "Invalid JSON body" });
+      return true;
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      sendJson(res, 400, { error: "Body must be a JSON object" });
+      return true;
+    }
+
+    const payload = parsed as { data?: unknown; format?: unknown };
+    if (typeof payload.data !== "string" || !payload.data.trim()) {
+      sendJson(res, 400, { error: "Missing 'data' field (base64 audio)" });
+      return true;
+    }
+
+    const formatResult = resolveAudioFormat(payload.format);
+    if (formatResult.error) {
+      sendJson(res, 400, { error: formatResult.error });
+      return true;
+    }
+
+    try {
+      await playAudio(Buffer.from(payload.data, "base64"), formatResult.format);
       sendJson(res, 200, { success: true });
     } catch (err) {
       sendJson(res, 500, {
@@ -617,6 +636,34 @@ function resolveKeypressPayload(input: unknown): {
   return { keys };
 }
 
+function resolveAudioFormat(input: unknown): {
+  format: string;
+  error?: string;
+} {
+  if (input === undefined || input === null) return { format: "wav" };
+  if (typeof input !== "string") {
+    return { format: "wav", error: "format must be a string" };
+  }
+
+  const normalized = input.trim().toLowerCase();
+  if (!normalized) return { format: "wav" };
+  if (!/^[a-z0-9]+$/.test(normalized)) {
+    return {
+      format: "wav",
+      error:
+        "format contains unsupported characters; use one of: wav, mp3, ogg, flac, m4a",
+    };
+  }
+  if (!ALLOWED_AUDIO_FORMATS.has(normalized)) {
+    return {
+      format: "wav",
+      error: "format must be one of: wav, mp3, ogg, flac, m4a",
+    };
+  }
+
+  return { format: normalized };
+}
+
 function runCommand(command: string, args: string[], timeout: number): void {
   execFileSync(command, args, {
     timeout,
@@ -862,33 +909,26 @@ async function playAudio(data: Buffer, format: string): Promise<void> {
 
   try {
     if (os === "darwin") {
-      execSync(`afplay ${tmpFile}`, {
-        timeout: 60000,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      runCommand("afplay", [tmpFile], 60000);
     } else if (os === "linux") {
       if (commandExists("aplay")) {
-        execSync(`aplay ${tmpFile}`, {
-          timeout: 60000,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
+        runCommand("aplay", [tmpFile], 60000);
       } else if (commandExists("paplay")) {
-        execSync(`paplay ${tmpFile}`, {
-          timeout: 60000,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
+        runCommand("paplay", [tmpFile], 60000);
       } else if (commandExists("ffplay")) {
-        execSync(`ffplay -autoexit -nodisp ${tmpFile} 2>/dev/null`, {
-          timeout: 60000,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
+        runCommand("ffplay", ["-autoexit", "-nodisp", tmpFile], 60000);
       } else {
         throw new Error("No audio playback tool available.");
       }
     } else if (os === "win32") {
-      execSync(
-        `powershell -Command "(New-Object Media.SoundPlayer '${tmpFile.replace(/\//g, "\\")}').PlaySync()"`,
-        { timeout: 60000, stdio: ["ignore", "pipe", "pipe"] },
+      const escapedPath = tmpFile.replace(/\//g, "\\").replace(/'/g, "''");
+      runCommand(
+        "powershell",
+        [
+          "-Command",
+          `(New-Object Media.SoundPlayer '${escapedPath}').PlaySync()`,
+        ],
+        60000,
       );
     }
   } finally {

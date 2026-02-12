@@ -351,6 +351,36 @@ describe("handleSandboxRoute", () => {
       });
       expect(res._status).toBe(400);
     });
+
+    it("POST /api/sandbox/audio/play should reject invalid format characters", async () => {
+      const req = createMockReq(
+        "POST",
+        JSON.stringify({
+          data: Buffer.from("abc").toString("base64"),
+          format: "wav;$(touch /tmp/pwned)",
+        }),
+      );
+      const res = createMockRes();
+      await handleSandboxRoute(req, res, "/api/sandbox/audio/play", "POST", {
+        sandboxManager: mgr,
+      });
+      expect(res._status).toBe(400);
+    });
+
+    it("POST /api/sandbox/audio/play should reject unsupported formats", async () => {
+      const req = createMockReq(
+        "POST",
+        JSON.stringify({
+          data: Buffer.from("abc").toString("base64"),
+          format: "exe",
+        }),
+      );
+      const res = createMockRes();
+      await handleSandboxRoute(req, res, "/api/sandbox/audio/play", "POST", {
+        sandboxManager: mgr,
+      });
+      expect(res._status).toBe(400);
+    });
   });
 
   describe("Computer use bridge", () => {
