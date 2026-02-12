@@ -239,6 +239,7 @@ function parseConversationMessageEvent(
   const role = value.role;
   const text = value.text;
   const timestamp = value.timestamp;
+  const source = value.source;
   if (
     typeof id !== "string" ||
     (role !== "user" && role !== "assistant") ||
@@ -247,7 +248,11 @@ function parseConversationMessageEvent(
   ) {
     return null;
   }
-  return { id, role, text, timestamp };
+  const parsed: ConversationMessage = { id, role, text, timestamp };
+  if (typeof source === "string" && source.length > 0) {
+    parsed.source = source;
+  }
+  return parsed;
 }
 
 function parseProactiveMessageEvent(
@@ -429,7 +434,8 @@ export interface AppState {
   // Workbench
   workbenchLoading: boolean;
   workbench: WorkbenchOverview | null;
-  workbenchGoalsAvailable: boolean;
+  workbenchTasksAvailable: boolean;
+  workbenchTriggersAvailable: boolean;
   workbenchTodosAvailable: boolean;
 
   // Agent export/import
@@ -822,7 +828,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // --- Workbench ---
   const [workbenchLoading, setWorkbenchLoading] = useState(false);
   const [workbench, setWorkbench] = useState<WorkbenchOverview | null>(null);
-  const [workbenchGoalsAvailable, setWorkbenchGoalsAvailable] = useState(false);
+  const [workbenchTasksAvailable, setWorkbenchTasksAvailable] = useState(false);
+  const [workbenchTriggersAvailable, setWorkbenchTriggersAvailable] = useState(false);
   const [workbenchTodosAvailable, setWorkbenchTodosAvailable] = useState(false);
 
   // --- Agent export/import ---
@@ -1293,11 +1300,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const result = await client.getWorkbenchOverview();
       setWorkbench(result);
-      setWorkbenchGoalsAvailable(result.goalsAvailable ?? false);
+      setWorkbenchTasksAvailable(result.tasksAvailable ?? false);
+      setWorkbenchTriggersAvailable(result.triggersAvailable ?? false);
       setWorkbenchTodosAvailable(result.todosAvailable ?? false);
     } catch {
       setWorkbench(null);
-      setWorkbenchGoalsAvailable(false);
+      setWorkbenchTasksAvailable(false);
+      setWorkbenchTriggersAvailable(false);
       setWorkbenchTodosAvailable(false);
     } finally {
       setWorkbenchLoading(false);
@@ -1495,12 +1504,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setConversations((prev) => [conversation, ...prev]);
         setActiveConversationId(conversation.id);
         activeConversationIdRef.current = conversation.id;
-        client.sendWsMessage({ type: "active-conversation", conversationId: conversation.id });
         convId = conversation.id;
       } catch {
         return;
       }
     }
+
+    // Keep server-side active conversation in sync for proactive routing.
+    client.sendWsMessage({ type: "active-conversation", conversationId: convId });
 
     const now = Date.now();
     const userMsgId = `temp-${now}`;
@@ -1560,6 +1571,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const { conversation } = await client.createConversation();
           setConversations((prev) => [conversation, ...prev]);
           setActiveConversationId(conversation.id);
+          activeConversationIdRef.current = conversation.id;
+          client.sendWsMessage({ type: "active-conversation", conversationId: conversation.id });
 
           const retryData = await client.sendConversationMessage(
             conversation.id,
@@ -2652,10 +2665,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let unbindProactiveMessages: (() => void) | null = null;
 
     const initApp = async () => {
-      const MAX_RETRIES = 15;
-      const BASE_DELAY_MS = 1000;
-      const MAX_DELAY_MS = 5000;
+      const MAX_RETRIES = 20;
+      const BASE_DELAY_MS = 250;
+      const MAX_DELAY_MS = 1000;
       let serverReady = false;
+      let onboardingNeedsOptions = false;
+      let requiresAuth = false;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -2664,14 +2679,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setAuthRequired(true);
             setPairingEnabled(auth.pairingEnabled);
             setPairingExpiresAt(auth.expiresAt);
+            requiresAuth = true;
             serverReady = true;
             break;
           }
           const { complete } = await client.getOnboardingStatus();
           setOnboardingComplete(complete);
           if (!complete) {
-            const options = await client.getOnboardingOptions();
-            setOnboardingOptions(options);
+            onboardingNeedsOptions = true;
           }
           serverReady = true;
           break;
@@ -2687,7 +2702,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setOnboardingLoading(false);
 
-      if (authRequired) return;
+      if (requiresAuth) return;
+
+      // Fetch onboarding options in the background so we can render quickly.
+      if (onboardingNeedsOptions) {
+        void (async () => {
+          try {
+            const options = await client.getOnboardingOptions();
+            setOnboardingOptions(options);
+          } catch {
+            /* ignore */
+          }
+        })();
+      }
 
       // Load conversations — if none exist, create one and request a greeting
       let greetConvId: string | null = null;
@@ -2715,6 +2742,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const { conversation } = await client.createConversation();
             setConversations([conversation]);
             setActiveConversationId(conversation.id);
+            activeConversationIdRef.current = conversation.id;
+            client.sendWsMessage({ type: "active-conversation", conversationId: conversation.id });
             setConversationMessages([]);
             greetConvId = conversation.id;
           } catch {
@@ -2967,7 +2996,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     catalogSkills, catalogTotal, catalogPage, catalogTotalPages, catalogSort,
     catalogSearch, catalogLoading, catalogError, catalogDetailSkill,
     catalogInstalling, catalogUninstalling,
-    workbenchLoading, workbench, workbenchGoalsAvailable, workbenchTodosAvailable,
+    workbenchLoading, workbench, workbenchTasksAvailable, workbenchTriggersAvailable, workbenchTodosAvailable,
     exportBusy, exportPassword, exportIncludeLogs, exportError, exportSuccess,
     importBusy, importPassword, importFile, importError, importSuccess,
     onboardingStep, onboardingOptions, onboardingName, onboardingStyle, onboardingTheme,

@@ -3724,7 +3724,13 @@ function patchMessageServiceForAutonomy(state: ServerState): void {
       // Forward to user's active conversation (fire-and-forget)
       const rawSource = message.content?.source;
       const source = typeof rawSource === "string" ? rawSource : "autonomy";
-      void routeAutonomyToUser(state, result.responseMessages, source);
+      void routeAutonomyToUser(state, result.responseMessages, source).catch(
+        (err) => {
+          logger.warn(
+            `[autonomy-route] Failed to route proactive output: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        },
+      );
     }
 
     return result;
@@ -10462,11 +10468,6 @@ export async function startApiServer(opts?: {
   const plugins = discoverPluginsFromManifest();
   const workspaceDir =
     config.agents?.defaults?.workspace ?? resolveDefaultAgentWorkspaceDir();
-  const skills = await discoverSkills(
-    workspaceDir,
-    config,
-    opts?.runtime ?? null,
-  );
 
   const hasRuntime = opts?.runtime != null;
   const initialAgentState = hasRuntime
@@ -10487,7 +10488,8 @@ export async function startApiServer(opts?: {
     startedAt:
       hasRuntime || initialAgentState === "starting" ? Date.now() : undefined,
     plugins,
-    skills,
+    // Filled asynchronously after server start to keep startup latency low.
+    skills: [],
     logBuffer: [],
     eventBuffer: [],
     nextEventId: 1,
@@ -10519,14 +10521,6 @@ export async function startApiServer(opts?: {
       saveMilaidyConfig(nextConfig);
     },
   });
-  try {
-    await trainingService.initialize();
-    state.trainingService = trainingService;
-  } catch (err) {
-    logger.error(
-      `[milaidy-api] Training service init failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
   const configuredAdminEntityId = config.agents?.defaults?.adminEntityId;
   if (configuredAdminEntityId && isUuidLike(configuredAdminEntityId)) {
     state.adminEntityId = configuredAdminEntityId;
@@ -10591,85 +10585,9 @@ export async function startApiServer(opts?: {
     );
   }
 
-  // ── Cloud Manager initialisation ──────────────────────────────────────
-  if (config.cloud?.enabled && config.cloud?.apiKey) {
-    const mgr = new CloudManager(config.cloud, {
-      onStatusChange: (s) => {
-        addLog("info", `Cloud connection status: ${s}`, "cloud", [
-          "server",
-          "cloud",
-        ]);
-      },
-    });
-    try {
-      await mgr.init();
-      state.cloudManager = mgr;
-      addLog(
-        "info",
-        "Cloud manager initialised (Eliza Cloud enabled)",
-        "cloud",
-        ["server", "cloud"],
-      );
-    } catch (initErr) {
-      addLog(
-        "warn",
-        `Cloud manager init failed: ${initErr instanceof Error ? initErr.message : String(initErr)}`,
-        "cloud",
-        ["server", "cloud"],
-      );
-    }
-  }
-
-  // ── ERC-8004 Registry & Drop service initialisation ────────────────────
-  initializeOGCodeInState();
-
-  let registryService: RegistryService | null = null;
-  let dropService: DropService | null = null;
-
-  // Get EVM private key from runtime secrets (preferred) or config.env (fallback)
-  const runtime = opts?.runtime ?? null;
-  const evmKey =
-    (runtime?.getSetting?.("EVM_PRIVATE_KEY") as string | undefined) ??
-    (config.env as Record<string, string> | undefined)?.EVM_PRIVATE_KEY;
-  const registryConfig = config.registry;
-  if (evmKey && registryConfig?.registryAddress && registryConfig?.mainnetRpc) {
-    try {
-      const txService = new TxService(registryConfig.mainnetRpc, evmKey);
-      registryService = new RegistryService(
-        txService,
-        registryConfig.registryAddress,
-      );
-
-      if (registryConfig.collectionAddress) {
-        const dropEnabled = config.features?.dropEnabled === true;
-        dropService = new DropService(
-          txService,
-          registryConfig.collectionAddress,
-          dropEnabled,
-        );
-      }
-
-      addLog(
-        "info",
-        `ERC-8004 registry service initialised (${registryConfig.registryAddress})`,
-        "system",
-        ["system"],
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      addLog("warn", `ERC-8004 registry service disabled: ${msg}`, "system", [
-        "system",
-      ]);
-      logger.warn({ err }, "Failed to initialize ERC-8004 registry service");
-    }
-  }
-
-  state.registryService = registryService;
-  state.dropService = dropService;
-
   addLog(
     "info",
-    `Discovered ${plugins.length} plugins, ${skills.length} skills`,
+    `Discovered ${plugins.length} plugins, loading skills in background`,
     "system",
     ["system", "plugins"],
   );
@@ -10869,6 +10787,128 @@ export async function startApiServer(opts?: {
         payload: event,
       });
     });
+  };
+
+  // ── Deferred startup work (non-blocking) ────────────────────────────────
+  // Keep API startup fast: listen first, then warm optional subsystems.
+  const startDeferredStartupWork = () => {
+    void (async () => {
+      try {
+        const discoveredSkills = await discoverSkills(
+          workspaceDir,
+          state.config,
+          state.runtime,
+        );
+        state.skills = discoveredSkills;
+        addLog(
+          "info",
+          `Discovered ${discoveredSkills.length} skills`,
+          "system",
+          ["system", "plugins"],
+        );
+      } catch (err) {
+        logger.warn(
+          `[milaidy-api] Skill discovery failed during startup: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    })();
+
+    void (async () => {
+      try {
+        await trainingService.initialize();
+        state.trainingService = trainingService;
+        bindTrainingStream();
+        addLog(
+          "info",
+          "Training service initialised",
+          "system",
+          ["system", "training"],
+        );
+      } catch (err) {
+        logger.error(
+          `[milaidy-api] Training service init failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    })();
+
+    void (async () => {
+      if (!state.config.cloud?.enabled || !state.config.cloud.apiKey) return;
+      const mgr = new CloudManager(state.config.cloud, {
+        onStatusChange: (s) => {
+          addLog("info", `Cloud connection status: ${s}`, "cloud", [
+            "server",
+            "cloud",
+          ]);
+        },
+      });
+
+      try {
+        await mgr.init();
+        state.cloudManager = mgr;
+        addLog(
+          "info",
+          "Cloud manager initialised (Eliza Cloud enabled)",
+          "cloud",
+          ["server", "cloud"],
+        );
+      } catch (err) {
+        addLog(
+          "warn",
+          `Cloud manager init failed: ${err instanceof Error ? err.message : String(err)}`,
+          "cloud",
+          ["server", "cloud"],
+        );
+      }
+    })();
+
+    void (async () => {
+      initializeOGCodeInState();
+
+      // Get EVM private key from runtime secrets (preferred) or config.env (fallback)
+      const runtime = state.runtime;
+      const evmKey =
+        (runtime?.getSetting?.("EVM_PRIVATE_KEY") as string | undefined) ??
+        (state.config.env as Record<string, string> | undefined)
+          ?.EVM_PRIVATE_KEY;
+      const registryConfig = state.config.registry;
+      if (
+        !evmKey ||
+        !registryConfig?.registryAddress ||
+        !registryConfig.mainnetRpc
+      ) {
+        return;
+      }
+
+      try {
+        const txService = new TxService(registryConfig.mainnetRpc, evmKey);
+        state.registryService = new RegistryService(
+          txService,
+          registryConfig.registryAddress,
+        );
+
+        if (registryConfig.collectionAddress) {
+          const dropEnabled = state.config.features?.dropEnabled === true;
+          state.dropService = new DropService(
+            txService,
+            registryConfig.collectionAddress,
+            dropEnabled,
+          );
+        }
+
+        addLog(
+          "info",
+          `ERC-8004 registry service initialised (${registryConfig.registryAddress})`,
+          "system",
+          ["system"],
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        addLog("warn", `ERC-8004 registry service disabled: ${msg}`, "system", [
+          "system",
+        ]);
+        logger.warn({ err }, "Failed to initialize ERC-8004 registry service");
+      }
+    })();
   };
 
   // ── WebSocket Server ─────────────────────────────────────────────────────
@@ -11124,6 +11164,7 @@ export async function startApiServer(opts?: {
       logger.info(
         `[milaidy-api] Listening on http://${displayHost}:${actualPort}`,
       );
+      startDeferredStartupWork();
       resolve({
         port: actualPort,
         close: () =>

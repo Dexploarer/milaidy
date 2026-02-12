@@ -154,25 +154,46 @@ if (electronIsDev) {
   // The UI's api-client reads window.__MILAIDY_API_BASE__ to know where to connect.
   const agentManager = getAgentManager();
   agentManager.setMainWindow(mainWindow);
-  agentManager.start().then((status) => {
-    if (status.port && !mainWindow.isDestroyed()) {
-      const apiToken = process.env.MILAIDY_API_TOKEN;
-      const tokenSnippet = apiToken ? `window.__MILAIDY_API_TOKEN__ = ${JSON.stringify(apiToken)}` : "";
-      const baseSnippet = `window.__MILAIDY_API_BASE__ = "http://localhost:${status.port}"`;
-      const inject = `${baseSnippet};${tokenSnippet}`;
-      mainWindow.webContents.on('did-finish-load', () => {
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.executeJavaScript(inject);
-          flushPendingSharePayloads();
-        }
-      });
-      // Also inject immediately if page is already loaded
-      mainWindow.webContents.executeJavaScript(inject)
-        .then(() => {
-          flushPendingSharePayloads();
-        }).catch(() => { /* page not ready yet, did-finish-load will handle it */ });
+  let injectedPort: number | null = null;
+  const injectApiEndpoint = (port: number | null): void => {
+    if (!port || port === injectedPort || mainWindow.isDestroyed()) return;
+    injectedPort = port;
+    const apiToken = process.env.MILAIDY_API_TOKEN;
+    const tokenSnippet = apiToken ? `window.__MILAIDY_API_TOKEN__ = ${JSON.stringify(apiToken)};` : "";
+    const baseSnippet = `window.__MILAIDY_API_BASE__ = "http://localhost:${port}";`;
+    const inject = `${baseSnippet}${tokenSnippet}`;
+
+    // Inject now if possible (no-op if the page isn't ready yet).
+    void mainWindow.webContents.executeJavaScript(inject)
+      .then(() => {
+        flushPendingSharePayloads();
+      })
+      .catch(() => { /* did-finish-load hook below handles first successful injection */ });
+  };
+
+  // Always inject on renderer reload/navigation once we know the port.
+  mainWindow.webContents.on('did-finish-load', () => {
+    injectApiEndpoint(agentManager.getPort());
+    flushPendingSharePayloads();
+  });
+
+  // Start in background and inject API base as soon as the port is available,
+  // without waiting for the full runtime/plugin initialization path.
+  const startPromise = agentManager.start();
+  void (async () => {
+    const startedAt = Date.now();
+    const timeoutMs = 30_000;
+    while (Date.now() - startedAt < timeoutMs) {
+      const port = agentManager.getPort();
+      if (port) {
+        injectApiEndpoint(port);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
-  }).catch((err) => {
+  })();
+
+  startPromise.catch((err) => {
     console.error('[Milaidy] Agent startup failed:', err);
   });
 
