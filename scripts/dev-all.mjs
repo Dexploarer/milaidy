@@ -25,6 +25,9 @@ const repoRoot = path.resolve(here, "..");
 // serve as both the JS runtime and the package-script runner.
 // ---------------------------------------------------------------------------
 
+/**
+ * Cross-platform which command (Windows-safe).
+ */
 function which(cmd) {
   const pathEnv = process.env.PATH ?? "";
   if (!pathEnv) return null;
