@@ -726,6 +726,8 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
   const [addDirLoading, setAddDirLoading] = useState(false);
   const [installingPlugins, setInstallingPlugins] = useState<Set<string>>(new Set());
   const [installProgress, setInstallProgress] = useState<Map<string, { phase: string; message: string }>>(new Map());
+  const [togglingPlugins, setTogglingPlugins] = useState<Set<string>>(new Set());
+  const hasPluginToggleInFlight = togglingPlugins.size > 0;
 
   // ── Drag-to-reorder state ────────────────────────────────────────
   const [pluginOrder, setPluginOrder] = useState<string[]>(() => {
@@ -955,6 +957,29 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
     }
   };
 
+  const handleTogglePlugin = useCallback(
+    async (pluginId: string, enabled: boolean) => {
+      let shouldStart = false;
+      setTogglingPlugins((prev) => {
+        if (prev.has(pluginId) || prev.size > 0) return prev;
+        shouldStart = true;
+        return new Set(prev).add(pluginId);
+      });
+      if (!shouldStart) return;
+
+      try {
+        await handlePluginToggle(pluginId, enabled);
+      } finally {
+        setTogglingPlugins((prev) => {
+          const next = new Set(prev);
+          next.delete(pluginId);
+          return next;
+        });
+      }
+    },
+    [handlePluginToggle],
+  );
+
   // ── Add from directory ──────────────────────────────────────────────
 
   const handleAddFromDirectory = async () => {
@@ -1060,6 +1085,8 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
           ? "border-l-[3px] border-l-warn"
           : "border-l-[3px] border-l-accent"
         : "";
+    const isToggleBusy = togglingPlugins.has(p.id);
+    const toggleDisabled = isToggleBusy || (hasPluginToggleInFlight && !isToggleBusy);
 
     const isDragging = draggingId === p.id;
     const isDragOver = dragOverId === p.id && draggingId !== p.id;
@@ -1103,17 +1130,22 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
             <button
               type="button"
               data-plugin-toggle={p.id}
-              className={`text-[10px] font-bold tracking-wider px-2.5 py-[2px] border cursor-pointer transition-colors duration-150 shrink-0 ${
+              className={`text-[10px] font-bold tracking-wider px-2.5 py-[2px] border transition-colors duration-150 shrink-0 ${
                 p.enabled
                   ? "bg-accent text-accent-fg border-accent"
                   : "bg-transparent text-muted border-border hover:text-txt"
+              } ${
+                toggleDisabled
+                  ? "opacity-60 cursor-not-allowed"
+                  : "cursor-pointer"
               }`}
               onClick={(e) => {
                 e.stopPropagation();
-                handlePluginToggle(p.id, !p.enabled);
+                void handleTogglePlugin(p.id, !p.enabled);
               }}
+              disabled={toggleDisabled}
             >
-              {p.enabled ? "ON" : "OFF"}
+              {isToggleBusy ? "APPLYING" : p.enabled ? "ON" : "OFF"}
             </button>
           )}
         </div>
@@ -1136,6 +1168,11 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
               title={p.loadError || "Plugin is enabled but not loaded in the runtime"}
             >
               {p.loadError ? "load failed" : "not installed"}
+            </span>
+          )}
+          {isToggleBusy && (
+            <span className="text-[10px] px-1.5 py-px border border-accent bg-accent-subtle text-accent lowercase tracking-wide whitespace-nowrap">
+              restarting...
             </span>
           )}
         </div>
@@ -1307,6 +1344,12 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
           + Add Plugin
         </button>
       </div>
+
+      {hasPluginToggleInFlight && (
+        <div className="mb-3 px-3 py-2 border border-accent bg-accent-subtle text-[11px] text-accent">
+          Applying plugin change and waiting for agent restart...
+        </div>
+      )}
 
       {/* Tag filters */}
       {showSubgroupFilters && (

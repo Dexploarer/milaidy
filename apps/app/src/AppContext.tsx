@@ -1879,20 +1879,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const handlePluginToggle = useCallback(
     async (pluginId: string, enabled: boolean) => {
       const plugin = plugins.find((p: PluginInfo) => p.id === pluginId);
+      const pluginName = plugin?.name ?? pluginId;
       if (enabled && plugin?.validationErrors && plugin.validationErrors.length > 0) {
         setPluginSettingsOpen((prev) => new Set([...prev, pluginId]));
+        setActionNotice(
+          `${pluginName} has required settings. Configure them after enabling.`,
+          "info",
+          3400,
+        );
       }
       try {
-        await client.updatePlugin(pluginId, { enabled });
-        // Optimistic update for immediate feedback
-        setPlugins((prev: PluginInfo[]) =>
-          prev.map((p: PluginInfo) => (p.id === pluginId ? { ...p, enabled } : p)),
+        setActionNotice(
+          `${enabled ? "Enabling" : "Disabling"} ${pluginName}. Restarting agent...`,
+          "info",
+          4200,
         );
+        await client.updatePlugin(pluginId, { enabled });
         // The server schedules a restart after toggle — wait for it then refresh
         await client.restartAndWait();
         await loadPlugins();
-      } catch {
-        /* ignore */
+        setActionNotice(
+          `${pluginName} ${enabled ? "enabled" : "disabled"}.`,
+          "success",
+          2800,
+        );
+      } catch (err) {
+        await loadPlugins().catch(() => {
+          /* ignore */
+        });
+        setActionNotice(
+          `Failed to ${enabled ? "enable" : "disable"} ${pluginName}: ${
+            err instanceof Error ? err.message : "unknown error"
+          }`,
+          "error",
+          4200,
+        );
       }
     },
     [plugins, loadPlugins, setActionNotice],
@@ -1911,15 +1932,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         // Restart agent if AI provider (API keys need restart to take effect)
         if (isAiProvider) {
-          await client.restartAgent();
+          setActionNotice(
+            "Saving provider settings. Restarting agent to apply changes...",
+            "info",
+            4200,
+          );
+          await client.restartAndWait();
         }
 
         await loadPlugins();
         setActionNotice(
           isAiProvider
-            ? "Plugin settings saved and agent restarted."
+            ? "Provider settings saved and agent restarted."
             : "Plugin settings saved.",
-          "success"
+          "success",
         );
         setPluginSaveSuccess((prev) => new Set([...prev, pluginId]));
         setTimeout(() => {
