@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +20,30 @@ try {
 } catch {
   // @playwright/test not available — playwright tests will be skipped
 }
+
+function which(cmd) {
+  const pathEnv = process.env.PATH ?? "";
+  if (!pathEnv) return null;
+
+  const dirs = pathEnv.split(path.delimiter).filter(Boolean);
+  const isWindows = process.platform === "win32";
+  const pathExts = isWindows
+    ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean)
+    : [""];
+
+  for (const dir of dirs) {
+    for (const ext of pathExts) {
+      const candidate = path.join(dir, cmd + ext);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+const bunxPath = which("bunx");
+const hasBunx = !!bunxPath;
+// If bun is installed but bunx is not in PATH (e.g. docker shim), fall back to npx
+const defaultCmd = hasBunx ? "bunx" : "npx";
 
 /**
  * Each entry describes a test suite to run in parallel.
@@ -108,7 +133,7 @@ const runOnce = (entry, extraArgs = []) =>
       (acc, flag) => (acc.includes(flag) ? acc : `${acc} ${flag}`.trim()),
       nodeOptions,
     );
-    const cmd = entry.cmd ?? "bunx";
+    const cmd = entry.cmd ?? defaultCmd;
     const child = spawn(cmd, args, {
       stdio: "inherit",
       ...(entry.cwd ? { cwd: entry.cwd } : {}),
