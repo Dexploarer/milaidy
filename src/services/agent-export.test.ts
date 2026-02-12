@@ -763,9 +763,9 @@ describe("agent-export", () => {
       targetDb.agents.set(AGENT_ID, makeAgent());
       const targetRuntime = createMockRuntime(targetDb);
 
-      await expect(importAgent(targetRuntime, fileBuffer, "abc")).rejects.toThrow(
-        /at least 4/i,
-      );
+      await expect(
+        importAgent(targetRuntime, fileBuffer, "abc"),
+      ).rejects.toThrow(/at least 4/i);
     });
   });
 

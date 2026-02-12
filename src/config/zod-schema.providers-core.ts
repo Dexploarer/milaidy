@@ -1035,7 +1035,10 @@ export const TwitterConfigSchema = z
     searchEnable: z.boolean().optional().default(false),
     autoRespondMentions: z.boolean().optional().default(true),
     enableActionProcessing: z.boolean().optional().default(true),
-    timelineAlgorithm: z.enum(["weighted", "latest"]).optional().default("weighted"),
+    timelineAlgorithm: z
+      .enum(["weighted", "latest"])
+      .optional()
+      .default("weighted"),
 
     // DM settings
     dmPolicy: DmPolicySchema.optional().default("pairing"),
