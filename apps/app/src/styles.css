@@ -141,6 +141,9 @@
 .wallet-wrapper:hover::after { display: block; }
 .wallet-wrapper:hover .wallet-tooltip { display: block !important; }
 
+/* ── Wallet tooltip focus accessibility ────────────────────────────── */
+.wallet-wrapper:focus-within .wallet-tooltip { display: block !important; }
+
 /* ── Button base classes ───────────────────────────────────────────── */
 
 .btn {
