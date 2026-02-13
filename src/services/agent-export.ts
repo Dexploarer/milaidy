@@ -510,6 +510,17 @@ async function extractAgentData(
 // ID remapping for import
 // ---------------------------------------------------------------------------
 
+async function batchProcess<T>(
+  items: T[],
+  batchSize: number,
+  processFn: (item: T) => Promise<void>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(processFn));
+  }
+}
+
 function createIdRemapper(
   fixed?: Map<string, string>,
 ): (oldId: string) => string {
@@ -557,7 +568,7 @@ async function restoreAgentData(
 
   // 2. Create worlds
   let worldsImported = 0;
-  for (const world of payload.worlds) {
+  await batchProcess(payload.worlds, 50, async (world) => {
     const newWorld: World = {
       ...world,
       id: remap(world.id ?? "") as UUID,
@@ -565,7 +576,7 @@ async function restoreAgentData(
     };
     await db.createWorld(newWorld);
     worldsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${worldsImported} worlds`);
 
   // 3. Create rooms
@@ -607,7 +618,7 @@ async function restoreAgentData(
 
   // 5. Add participants to rooms
   let participantsImported = 0;
-  for (const p of payload.participants) {
+  await batchProcess(payload.participants, 50, async (p) => {
     const newEntityId = remap(p.entityId) as UUID;
     const newRoomId = remap(p.roomId) as UUID;
     await db.addParticipantsRoom([newEntityId], newRoomId);
@@ -615,12 +626,12 @@ async function restoreAgentData(
       await db.setParticipantUserState(newRoomId, newEntityId, p.userState);
     }
     participantsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${participantsImported} participants`);
 
   // 6. Create components
   let componentsImported = 0;
-  for (const comp of payload.components) {
+  await batchProcess(payload.components, 50, async (comp) => {
     const newComp: Component = {
       ...comp,
       id: remap(comp.id ?? "") as UUID,
@@ -634,12 +645,12 @@ async function restoreAgentData(
     };
     await db.createComponent(newComp);
     componentsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${componentsImported} components`);
 
   // 7. Create memories
   let memoriesImported = 0;
-  for (const mem of payload.memories) {
+  await batchProcess(payload.memories, 50, async (mem) => {
     const tableName = resolveMemoryTableName(mem);
     const newMem: Memory = {
       ...mem,
@@ -653,12 +664,12 @@ async function restoreAgentData(
     };
     await db.createMemory(newMem, tableName);
     memoriesImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${memoriesImported} memories`);
 
   // 8. Create relationships
   let relationshipsImported = 0;
-  for (const rel of payload.relationships) {
+  await batchProcess(payload.relationships, 50, async (rel) => {
     await db.createRelationship({
       sourceEntityId: remap(rel.sourceEntityId ?? "") as UUID,
       targetEntityId: remap(rel.targetEntityId ?? "") as UUID,
@@ -666,7 +677,7 @@ async function restoreAgentData(
       metadata: rel.metadata,
     });
     relationshipsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${relationshipsImported} relationships`);
 
   // 9. Create tasks
@@ -674,7 +685,7 @@ async function restoreAgentData(
   // We spread the original task and add agentId as a dynamic property
   // that the database adapter will persist.
   let tasksImported = 0;
-  for (const task of payload.tasks) {
+  await batchProcess(payload.tasks, 50, async (task) => {
     const newTask = {
       ...task,
       id: remap(task.id ?? "") as UUID,
@@ -685,12 +696,12 @@ async function restoreAgentData(
     } as Task;
     await db.createTask(newTask);
     tasksImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${tasksImported} tasks`);
 
   // 10. Create logs
   let logsImported = 0;
-  for (const logEntry of payload.logs) {
+  await batchProcess(payload.logs, 50, async (logEntry) => {
     await db.log({
       body: logEntry.body,
       entityId: logEntry.entityId
@@ -702,7 +713,7 @@ async function restoreAgentData(
       type: logEntry.type ?? "action",
     });
     logsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${logsImported} logs`);
 
   return {
