@@ -14,7 +14,20 @@ vi.mock("node:child_process", () => ({
 }));
 
 import { execFileSync } from "node:child_process";
-import { DockerEngine } from "./sandbox-engine.js";
+import { AppleContainerEngine, DockerEngine } from "./sandbox-engine.js";
+
+function mockError(
+  message: string,
+  opts?: { stderr?: string; status?: number },
+): Error & { stderr?: string; status?: number } {
+  const error = new Error(message) as Error & {
+    stderr?: string;
+    status?: number;
+  };
+  error.stderr = opts?.stderr;
+  error.status = opts?.status;
+  return error;
+}
 
 describe("sandbox-engine command safety", () => {
   beforeEach(() => {
@@ -71,5 +84,52 @@ describe("sandbox-engine command safety", () => {
     expect(call[1]).toContain("repo/image; touch /tmp/injected");
     expect((call[1] as string[]).join(" ")).toContain("repo/image; touch /tmp/injected");
     expect((call[1] as string[]).join(" ")).not.toContain(" && ");
+  });
+
+  it("falls back from unsupported --version probe to help check for Apple Container", () => {
+    const unsupported = mockError("container: unknown option --version", {
+      stderr: "unknown option --version",
+      status: 1,
+    });
+
+    vi.mocked(execFileSync)
+      .mockImplementationOnce(() => {
+        throw unsupported;
+      })
+      .mockReturnValueOnce("Apple Container Toolkit");
+
+    const engine = new AppleContainerEngine();
+    const available = engine.isAvailable();
+
+    expect(available).toBe(true);
+    expect(vi.mocked(execFileSync)).toHaveBeenNthCalledWith(
+      1,
+      "container",
+      ["--version"],
+      expect.objectContaining({ stdio: "ignore", timeout: 5000 }),
+    );
+    expect(vi.mocked(execFileSync)).toHaveBeenNthCalledWith(
+      2,
+      "container",
+      ["help"],
+      expect.objectContaining({ stdio: "ignore", timeout: 5000 }),
+    );
+  });
+
+  it("runs Apple Container image checks with argument array", () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("not found");
+    });
+
+    const engine = new AppleContainerEngine();
+    const maliciousImage = "node:latest; touch /tmp/injected";
+    const exists = engine.imageExists(maliciousImage);
+
+    expect(exists).toBe(false);
+    expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
+      "container",
+      ["image", "inspect", maliciousImage],
+      expect.objectContaining({ stdio: "ignore", timeout: 10000 }),
+    );
   });
 });

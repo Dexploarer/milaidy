@@ -100,6 +100,37 @@ function checkHealthWithBinary(binary: string, id: string): Promise<boolean> {
   }
 }
 
+function getChildProcessErrorText(error: unknown): string {
+  const execError = error as {
+    message?: string;
+    stderr?: string | Buffer;
+    stdout?: string | Buffer;
+  };
+
+  const parts = [execError.message, execError.stderr, execError.stdout]
+    .map((value) => {
+      if (value === undefined || value === null) return "";
+      if (typeof value === "string") return value;
+      if (typeof value === "object" && "toString" in value) return value.toString();
+      return "";
+    })
+    .filter(Boolean)
+    .join(" ");
+
+  return parts.toLowerCase();
+}
+
+function isContainerVersionUnsupported(error: unknown): boolean {
+  const errorText = getChildProcessErrorText(error);
+  return (
+    errorText.includes("unknown option")
+    || errorText.includes("unrecognized option")
+    || errorText.includes("invalid option")
+    || errorText.includes("unknown flag")
+    || errorText.includes("no such option")
+  );
+}
+
 async function runExecInContainer(
   opts: ExecCommandResult,
 ): Promise<ContainerExecResult> {
@@ -341,8 +372,16 @@ export class AppleContainerEngine implements ISandboxEngine {
     try {
       execFileSync("container", ["--version"], { stdio: "ignore", timeout: 5000 });
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (!isContainerVersionUnsupported(error)) {
+        return false;
+      }
+      try {
+        execFileSync("container", ["help"], { stdio: "ignore", timeout: 5000 });
+        return true;
+      } catch {
+        return false;
+      }
     }
   }
 
