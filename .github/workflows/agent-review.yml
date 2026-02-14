@@ -80,7 +80,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-opus-4-6
+          claude_args: '--model claude-opus-4-6'
           prompt: |
             Reference the following project scope document when making review decisions:
             ${{ steps.scope.outputs.scope }}
@@ -194,7 +194,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-opus-4-6
+          claude_args: '--model claude-opus-4-6'
           prompt: |
             You are the issue triager for the Milaidy project. This is an agents-only codebase where humans serve as QA testers.
 
