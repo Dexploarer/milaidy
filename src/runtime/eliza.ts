@@ -27,7 +27,6 @@ import {
   ModelType,
   mergeCharacterDefaults,
   type Plugin,
-  type SandboxFetchAuditEvent,
   stringToUuid,
   type UUID,
 } from "@elizaos/core";
@@ -92,6 +91,20 @@ interface ResolvedPlugin {
   /** The Plugin instance extracted from the module. */
   plugin: Plugin;
 }
+
+/**
+ * Temporary local compatibility shim for `@elizaos/core` not exporting
+ * `SandboxFetchAuditEvent` on the current dependency line in this repo.
+ * It preserves the runtime shape used by `sandboxAuditHandler`:
+ * - `direction` and `url` are required
+ * - `tokenIds` tracks tokens associated with the audit payload
+ * TODO(elizaos): replace/remove when upstream re-exports this type.
+ */
+type SandboxFetchAuditEvent = {
+  direction: "inbound" | "outbound";
+  url: string;
+  tokenIds: string[];
+};
 
 /** Shape we expect from a dynamically-imported plugin package. */
 interface PluginModuleShape {
