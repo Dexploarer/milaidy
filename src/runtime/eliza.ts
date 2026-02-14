@@ -66,7 +66,10 @@ import {
 } from "../services/sandbox-manager.js";
 import { diagnoseNoAIProvider } from "../services/version-compat.js";
 import { CORE_PLUGINS, OPTIONAL_CORE_PLUGINS } from "./core-plugins.js";
-import { MilaidyEmbeddingManager } from "./embedding-manager.js";
+import {
+  MilaidyEmbeddingManager,
+  type EmbeddingManagerConfig,
+} from "./embedding-manager.js";
 import {
   detectEmbeddingPreset,
   detectEmbeddingTier,
@@ -98,6 +101,111 @@ interface PluginModuleShape {
   default?: Plugin;
   plugin?: Plugin;
   [key: string]: Plugin | undefined;
+}
+
+interface MilaidyEmbeddingRuntimeConfig {
+  /** Resolved config passed into MilaidyEmbeddingManager. */
+  managerConfig: EmbeddingManagerConfig;
+  /** Whether to override TEXT_EMBEDDING with Milaidy's optimized handler. */
+  registerTextEmbeddingHandler: boolean;
+  /** Model name used in startup logging after fallback defaults. */
+  modelForLog: string;
+  /** Dimensions used in startup logging after fallback defaults. */
+  dimensionsForLog: number;
+  /** GPU layer setting used in startup logging after fallback defaults. */
+  gpuLayersForLog: string | number;
+}
+
+function parseEmbeddingDimensionFromEnv(raw?: string): number | undefined {
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function inferEmbeddingRepoFromModelFile(
+  filename?: string,
+): string | undefined {
+  if (!filename) return undefined;
+  const lower = filename.toLowerCase();
+
+  if (lower.includes("nomic-embed-text-v1.5")) {
+    return "nomic-ai/nomic-embed-text-v1.5-GGUF";
+  }
+
+  if (lower.includes("bge-small-en-v1.5")) {
+    return "ChristianAzinn/bge-small-en-v1.5-gguf";
+  }
+
+  return undefined;
+}
+
+function resolveEmbeddingRuntimeConfig(
+  config: MilaidyConfig,
+  hasLocalEmbeddingPlugin: boolean,
+): MilaidyEmbeddingRuntimeConfig {
+  const detectedPreset = detectEmbeddingPreset();
+
+  const explicitModel = config.embedding?.model?.trim();
+  const explicitModelRepo = config.embedding?.modelRepo?.trim();
+  const explicitDimensions = config.embedding?.dimensions;
+  const explicitGpuLayers = config.embedding?.gpuLayers;
+  const explicitIdleTimeoutMinutes = config.embedding?.idleTimeoutMinutes;
+
+  const legacyModel =
+    process.env.LOCAL_EMBEDDING_MODEL?.trim() ||
+    process.env.LOCAL_EMBEDDING_MODEL_GGUF?.trim();
+  const legacyModelRepo = process.env.LOCAL_EMBEDDING_MODEL_REPO?.trim();
+  const legacyDimensions = parseEmbeddingDimensionFromEnv(
+    process.env.LOCAL_EMBEDDING_DIMENSIONS?.trim(),
+  );
+
+  if (
+    process.env.LOCAL_EMBEDDING_DIMENSIONS?.trim() &&
+    legacyDimensions === undefined
+  ) {
+    logger.warn(
+      "[milaidy] Invalid LOCAL_EMBEDDING_DIMENSIONS value; expected a positive integer. Falling back to preset/default dimensions.",
+    );
+  }
+
+  const hasExplicitEmbeddingConfig = Boolean(
+    explicitModel ||
+      explicitModelRepo ||
+      explicitDimensions ||
+      explicitGpuLayers ||
+      explicitIdleTimeoutMinutes,
+  );
+  const hasLegacyEmbeddingConfig = Boolean(
+    legacyModel ||
+      legacyModelRepo ||
+      process.env.LOCAL_EMBEDDING_DIMENSIONS?.trim(),
+  );
+
+  const managerConfig: EmbeddingManagerConfig = {
+    model: explicitModel ?? legacyModel,
+    modelRepo:
+      explicitModelRepo ??
+      legacyModelRepo ??
+      inferEmbeddingRepoFromModelFile(explicitModel) ??
+      inferEmbeddingRepoFromModelFile(legacyModel),
+    dimensions: explicitDimensions ?? legacyDimensions,
+    gpuLayers: explicitGpuLayers,
+    idleTimeoutMs: (explicitIdleTimeoutMinutes ?? 30) * 60 * 1000,
+    modelsDir: process.env.MODELS_DIR?.trim(),
+  };
+
+  const registerTextEmbeddingHandler =
+    hasExplicitEmbeddingConfig ||
+    hasLegacyEmbeddingConfig ||
+    !hasLocalEmbeddingPlugin;
+
+  return {
+    managerConfig,
+    registerTextEmbeddingHandler,
+    modelForLog: managerConfig.model ?? detectedPreset.model,
+    dimensionsForLog: managerConfig.dimensions ?? detectedPreset.dimensions,
+    gpuLayersForLog: managerConfig.gpuLayers ?? detectedPreset.gpuLayers,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -253,25 +361,6 @@ const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   computeruse: "@elizaos/plugin-computeruse",
   x402: "@elizaos/plugin-x402",
 };
-
-/** Plugins that commonly hang the startup sequence in mixed user environments. */
-const STARTUP_SAFE_MODE_SKIP_PLUGINS: ReadonlySet<string> = new Set([
-  "@elizaos/plugin-agent-orchestrator",
-  "@elizaos/plugin-agent-skills",
-  "@elizaos/plugin-plugin-manager",
-  "@elizaos/plugin-trajectory-logger",
-  "@elizaos/plugin-todo",
-]);
-
-/**
- * App packages and plugin bundles are also skipped during safe startup.
- * They frequently add long-running init paths that block core service startup.
- */
-function shouldSkipPluginInSafeMode(pluginName: string): boolean {
-  if (STARTUP_SAFE_MODE_SKIP_PLUGINS.has(pluginName)) return true;
-  return pluginName.startsWith("@elizaos/app-") ||
-    pluginName.startsWith("@milaidy/app-");
-}
 
 function looksLikePlugin(value: unknown): value is Plugin {
   if (!value || typeof value !== "object") return false;
@@ -629,16 +718,9 @@ export function ensureBrowserServerLink(): boolean {
  * Each plugin is loaded inside an error boundary so a single failing plugin
  * cannot crash the entire agent startup.
  */
-interface ResolvePluginOptions {
-  quiet?: boolean;
-  safeMode?: boolean;
-  skipInstalledPlugins?: boolean;
-  skipDropInPlugins?: boolean;
-}
-
 async function resolvePlugins(
   config: MilaidyConfig,
-  opts?: ResolvePluginOptions,
+  opts?: { quiet?: boolean },
 ): Promise<ResolvedPlugin[]> {
   const plugins: ResolvedPlugin[] = [];
   const failedPlugins: Array<{ name: string; error: string }> = [];
@@ -649,28 +731,19 @@ async function resolvePlugins(
   } satisfies ApplyPluginAutoEnableParams);
 
   const pluginsToLoad = collectPluginNames(config);
-  if (opts?.safeMode) {
-    for (const pluginName of [...pluginsToLoad]) {
-      if (shouldSkipPluginInSafeMode(pluginName)) {
-        pluginsToLoad.delete(pluginName);
-      }
-    }
-  }
   const corePluginSet = new Set<string>(CORE_PLUGINS);
 
   // Build a mutable map of install records so we can merge drop-in discoveries
   const installRecords: Record<string, PluginInstallRecord> = {
-    ...(opts?.skipInstalledPlugins ? {} : config.plugins?.installs ?? {}),
+    ...(config.plugins?.installs ?? {}),
   };
 
   // ── Auto-discover drop-in custom plugins ────────────────────────────────
   // Scan well-known dir + any extra dirs from plugins.load.paths (first wins).
-  const scanDirs = opts?.skipDropInPlugins
-    ? []
-    : [
-        path.join(resolveStateDir(), CUSTOM_PLUGINS_DIRNAME),
-        ...(config.plugins?.load?.paths ?? []).map(resolveUserPath),
-      ];
+  const scanDirs = [
+    path.join(resolveStateDir(), CUSTOM_PLUGINS_DIRNAME),
+    ...(config.plugins?.load?.paths ?? []).map(resolveUserPath),
+  ];
   const dropInRecords: Record<string, PluginInstallRecord> = {};
   for (const dir of scanDirs) {
     for (const [name, record] of Object.entries(await scanDropInPlugins(dir))) {
@@ -1836,19 +1909,6 @@ export async function bootElizaRuntime(
 export async function startEliza(
   opts?: StartElizaOptions,
 ): Promise<AgentRuntime | undefined> {
-  return startElizaInternal(opts, {
-    safeMode: false,
-    skipOnboarding: false,
-  });
-}
-
-async function startElizaInternal(
-  opts: StartElizaOptions | undefined,
-  options: {
-    safeMode: boolean;
-    skipOnboarding: boolean;
-  },
-): Promise<AgentRuntime | undefined> {
   // Start buffering logs early so startup messages appear in the UI log viewer
   const { captureEarlyLogs } = await import("../api/early-logs");
   captureEarlyLogs();
@@ -1872,7 +1932,7 @@ async function startElizaInternal(
   //     In headless mode (GUI) the onboarding is handled by the web UI,
   //     so we skip the interactive CLI prompt and let the runtime start
   //     with defaults.  The GUI will restart the agent after onboarding.
-  if (!opts?.headless && !options.skipOnboarding) {
+  if (!opts?.headless) {
     config = await runFirstTimeSetup(config);
   }
 
@@ -1966,9 +2026,6 @@ async function startElizaInternal(
   const preOnboarding = opts?.headless && !config.agents;
   const resolvedPlugins = await resolvePlugins(config, {
     quiet: preOnboarding,
-    safeMode: options.safeMode,
-    skipInstalledPlugins: options.safeMode,
-    skipDropInPlugins: options.safeMode,
   });
 
   if (resolvedPlugins.length === 0) {
@@ -2279,46 +2336,53 @@ async function startElizaInternal(
     );
   }
 
-  // 7e. Register Milaidy's optimized TEXT_EMBEDDING handler at priority 100
-  //     (supersedes the upstream plugin-local-embedding's priority 10).
-  //     The upstream plugin still provides TEXT_TOKENIZER_ENCODE/DECODE;
-  //     we only replace its embedding with Metal GPU + idle unloading.
-  //     Uses `let` so hot-reload can swap to a fresh manager instance.
-  const defaultEmbeddingPreset = detectEmbeddingPreset();
-  let embeddingManager = new MilaidyEmbeddingManager({
-    model: config.embedding?.model,
-    modelRepo: config.embedding?.modelRepo,
-    dimensions: config.embedding?.dimensions,
-    gpuLayers: config.embedding?.gpuLayers,
-    idleTimeoutMs: (config.embedding?.idleTimeoutMinutes ?? 30) * 60 * 1000,
-  });
-  const embeddingDimensions =
-    config.embedding?.dimensions ?? defaultEmbeddingPreset.dimensions;
-  const embeddingModel =
-    config.embedding?.model ?? defaultEmbeddingPreset.model;
-  const embeddingGpuLayers =
-    config.embedding?.gpuLayers ?? defaultEmbeddingPreset.gpuLayers;
-  runtime.registerModel(
-    ModelType.TEXT_EMBEDDING,
-    async (_runtime, params) => {
-      const text =
-        typeof params === "string"
-          ? params
-          : params && typeof params === "object" && "text" in params
-            ? (params as { text: string }).text
-            : null;
-      if (!text) return new Array(embeddingDimensions).fill(0);
-      return embeddingManager.generateEmbedding(text);
-    },
-    "milaidy",
-    100,
-  );
-  logger.info(
-    "[milaidy] Embedding handler registered (priority 100, " +
-      `model=${embeddingModel}, ` +
-      `dims=${embeddingDimensions}, ` +
-      `gpu=${embeddingGpuLayers})`,
-  );
+  // 7e. Decide whether Milaidy should register its own TEXT_EMBEDDING handler
+  //     at priority 100 or defer to @elizaos/plugin-local-embedding when it is
+  //     present. This avoids "Failed to load model" failures when local plugin
+  //     env config is the intended source of truth.
+  const {
+    managerConfig: resolvedEmbeddingManagerConfig,
+    registerTextEmbeddingHandler,
+    modelForLog: resolvedEmbeddingModel,
+    dimensionsForLog: resolvedEmbeddingDimensions,
+    gpuLayersForLog: resolvedEmbeddingGpuLayers,
+  } = resolveEmbeddingRuntimeConfig(config, Boolean(localEmbeddingPlugin));
+  let embeddingManager: MilaidyEmbeddingManager | null = null;
+  if (registerTextEmbeddingHandler) {
+    // Uses `let` so hot-reload can swap to a fresh manager instance.
+    embeddingManager = new MilaidyEmbeddingManager(resolvedEmbeddingManagerConfig);
+    runtime.registerModel(
+      ModelType.TEXT_EMBEDDING,
+      async (_runtime, params) => {
+        const text =
+          typeof params === "string"
+            ? params
+            : params && typeof params === "object" && "text" in params
+              ? (params as { text: string }).text
+              : null;
+        if (!text) return new Array(resolvedEmbeddingDimensions).fill(0);
+        return embeddingManager?.generateEmbedding(text) ?? [];
+      },
+      "milaidy",
+      100,
+    );
+    logger.info(
+      "[milaidy] Embedding handler registered (priority 100, " +
+        `model=${resolvedEmbeddingModel}, ` +
+        `dims=${resolvedEmbeddingDimensions}, ` +
+        `gpu=${resolvedEmbeddingGpuLayers})`,
+    );
+  } else {
+    logger.info(
+      "[milaidy] Delegating TEXT_EMBEDDING to plugin-local-embedding",
+    );
+  }
+
+  // Avoid a blocking first embedding inference during runtime.initialize().
+  // Core uses EMBEDDING_DIMENSION when present and skips `useModel(TEXT_EMBEDDING, null)`.
+  if (resolvedEmbeddingDimensions > 0) {
+    runtime.setSetting("EMBEDDING_DIMENSION", resolvedEmbeddingDimensions);
+  }
 
   const initializeRuntimeServices = async (): Promise<void> => {
     // 8. Initialize the runtime (registers remaining plugins, starts services)
@@ -2401,27 +2465,7 @@ async function startElizaInternal(
     }
   };
 
-  try {
-    await initializeRuntimeServices();
-  } catch (err) {
-    if (options.safeMode) {
-      throw err;
-    }
-    logger.warn(
-      `[milaidy] Runtime initialization failed in full mode: ${formatError(err)}`,
-    );
-    try {
-      await runtime.stop();
-    } catch (stopErr) {
-      logger.warn(
-        `[milaidy] Could not stop partially initialized runtime: ${formatError(stopErr)}`,
-      );
-    }
-    logger.warn(
-      "[milaidy] Retrying startup in safe mode (core startup plugins disabled)",
-    );
-    return startElizaInternal(opts, { safeMode: true, skipOnboarding: true });
-  }
+  await initializeRuntimeServices();
 
   // 9. Graceful shutdown handler
   //
@@ -2452,7 +2496,7 @@ async function startElizaInternal(
         logger.warn(`[milaidy] Sandbox shutdown error: ${formatError(err)}`);
       }
       try {
-        await embeddingManager.dispose();
+        await (embeddingManager?.dispose());
       } catch (err) {
         logger.warn(
           `[milaidy] Error disposing embedding manager: ${formatError(err)}`,
@@ -2513,12 +2557,14 @@ async function startElizaInternal(
         logger.info("[milaidy] Hot-reload: Restarting runtime...");
         try {
           // Stop the old runtime to release resources (DB connections, timers, etc.)
-          try {
-            await embeddingManager.dispose();
-          } catch (disposeErr) {
-            logger.warn(
-              `[milaidy] Hot-reload: embedding manager dispose failed: ${formatError(disposeErr)}`,
-            );
+          if (embeddingManager) {
+            try {
+              await embeddingManager.dispose();
+            } catch (disposeErr) {
+              logger.warn(
+                `[milaidy] Hot-reload: embedding manager dispose failed: ${formatError(disposeErr)}`,
+              );
+            }
           }
           try {
             await runtime.stop();
@@ -2650,37 +2696,50 @@ async function startElizaInternal(
           }
 
           // Re-create embedding manager with fresh config and register
-          // at priority 100 (same as initial startup).
-          const freshDefaultEmbeddingPreset = detectEmbeddingPreset();
-          const freshEmbeddingManager = new MilaidyEmbeddingManager({
-            model: freshConfig.embedding?.model,
-            modelRepo: freshConfig.embedding?.modelRepo,
-            dimensions: freshConfig.embedding?.dimensions,
-            gpuLayers: freshConfig.embedding?.gpuLayers,
-            idleTimeoutMs:
-              (freshConfig.embedding?.idleTimeoutMinutes ?? 30) * 60 * 1000,
-          });
-          const freshEmbeddingDims =
-            freshConfig.embedding?.dimensions ??
-            freshDefaultEmbeddingPreset.dimensions;
-          newRuntime.registerModel(
-            ModelType.TEXT_EMBEDDING,
-            async (_rt, params) => {
-              const text =
-                typeof params === "string"
-                  ? params
-                  : params && typeof params === "object" && "text" in params
-                    ? (params as { text: string }).text
-                    : null;
-              if (!text) return new Array(freshEmbeddingDims).fill(0);
-              return freshEmbeddingManager.generateEmbedding(text);
-            },
-            "milaidy",
-            100,
+          // at priority 100 when Milaidy is configured to own TEXT_EMBEDDING.
+          const {
+            managerConfig: freshResolvedEmbeddingManagerConfig,
+            registerTextEmbeddingHandler: freshRegisterTextEmbeddingHandler,
+            dimensionsForLog: freshResolvedEmbeddingDimensions,
+          } = resolveEmbeddingRuntimeConfig(
+            freshConfig,
+            Boolean(freshLocalEmbeddingPlugin),
           );
-          // Swap the outer reference so shutdown/next-reload disposes
-          // the correct instance.
-          embeddingManager = freshEmbeddingManager;
+          if (freshRegisterTextEmbeddingHandler) {
+            const freshEmbeddingManager = new MilaidyEmbeddingManager(
+              freshResolvedEmbeddingManagerConfig,
+            );
+            newRuntime.registerModel(
+              ModelType.TEXT_EMBEDDING,
+              async (_rt, params) => {
+                const text =
+                  typeof params === "string"
+                    ? params
+                    : params && typeof params === "object" && "text" in params
+                      ? (params as { text: string }).text
+                      : null;
+                if (!text) return new Array(freshResolvedEmbeddingDimensions).fill(0);
+                return freshEmbeddingManager.generateEmbedding(text);
+              },
+              "milaidy",
+              100,
+            );
+            // Swap the outer reference so shutdown/next-reload disposes
+            // the correct instance.
+            embeddingManager = freshEmbeddingManager;
+          } else {
+            embeddingManager = null;
+            logger.info(
+              "[milaidy] Hot-reload: delegating TEXT_EMBEDDING to plugin-local-embedding",
+            );
+          }
+
+          if (freshResolvedEmbeddingDimensions > 0) {
+            newRuntime.setSetting(
+              "EMBEDDING_DIMENSION",
+              freshResolvedEmbeddingDimensions,
+            );
+          }
 
           await newRuntime.initialize();
           ensureTrajectoryLoggerEnabled(

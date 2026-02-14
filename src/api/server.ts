@@ -9731,14 +9731,10 @@ async function handleRequest(
 
     const runtime = state.runtime;
     const charName = runtime?.character.name ?? state.agentName ?? "Milaidy";
-    const FALLBACK_MSG = `Hey! I'm ${charName}. What's on your mind?`;
 
     // Collect post examples from the character
     const postExamples = runtime?.character.postExamples ?? [];
-    const greeting =
-      postExamples.length > 0
-        ? postExamples[Math.floor(Math.random() * postExamples.length)]
-        : FALLBACK_MSG;
+    const greeting = postExamples[Math.floor(Math.random() * postExamples.length)];
 
     // Store the greeting as an agent message so it persists on refresh
     if (runtime && state.agentState === "running") {
