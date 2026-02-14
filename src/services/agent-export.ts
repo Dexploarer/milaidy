@@ -436,12 +436,17 @@ async function extractAgentData(
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
-  for (const tableName of MEMORY_TABLES) {
-    const memories = await db.getMemories({
+  // Fetch agent memories for all tables in parallel
+  const agentMemoryPromises = MEMORY_TABLES.map((tableName) =>
+    db.getMemories({
       agentId,
       tableName,
       count: Number.MAX_SAFE_INTEGER,
-    });
+    }),
+  );
+
+  const agentMemoryResults = await Promise.all(agentMemoryPromises);
+  for (const memories of agentMemoryResults) {
     for (const mem of memories) {
       if (mem.id && !memoryIdSet.has(mem.id)) {
         memoryIdSet.add(mem.id);
@@ -451,16 +456,22 @@ async function extractAgentData(
     }
   }
 
-  // Also try querying memories by world
+  // Also try querying memories by world (parallelized per table)
   for (const world of agentWorlds) {
     if (!world.id) continue;
-    for (const tableName of MEMORY_TABLES) {
-      const worldMemories = await db.getMemoriesByWorldId({
-        worldId: world.id,
+    const worldId = world.id;
+
+    const worldMemoryPromises = MEMORY_TABLES.map((tableName) =>
+      db.getMemoriesByWorldId({
+        worldId,
         count: Number.MAX_SAFE_INTEGER,
         tableName,
-      });
-      for (const mem of worldMemories) {
+      }),
+    );
+
+    const worldMemoryResults = await Promise.all(worldMemoryPromises);
+    for (const memories of worldMemoryResults) {
+      for (const mem of memories) {
         if (mem.id && !memoryIdSet.has(mem.id)) {
           memoryIdSet.add(mem.id);
           allMemories.push({ ...mem, embedding: undefined });
