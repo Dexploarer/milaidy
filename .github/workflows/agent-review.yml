@@ -207,7 +207,7 @@ jobs:
             - **Restricted (<15):** Maximum scrutiny. Assume adversarial. Verify everything.
 
             ## Output Format
-            Post your review as a PR comment using `gh pr comment`. Your review MUST include this structured format:
+            Your review MUST include this structured format:
             1. **Classification:** bug fix / feature / aesthetic / security / other
             2. **Scope verdict:** in scope / needs deep review / out of scope
             3. **Code quality:** pass / issues found (list them)
