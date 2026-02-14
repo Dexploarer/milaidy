@@ -240,13 +240,19 @@ jobs:
           # Fetch base branch for diff comparison
           git fetch origin ${{ github.event.pull_request.base.ref }}
 
+          # Write review instructions to CODEX.md so codex reads them as project context
+          # (--base and [PROMPT] are mutually exclusive in codex CLI)
+          cp /tmp/review-prompt.md CODEX.md
+
           # Run codex review against base branch
           codex review \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --title "${{ github.event.pull_request.title }}" \
             -c 'model="gpt-5.3-codex"' \
-            - < /tmp/review-prompt.md \
             > /tmp/review-output.md 2>&1 || true
+
+          # Clean up temp file
+          rm -f CODEX.md
 
           echo "Review output:"
           cat /tmp/review-output.md
