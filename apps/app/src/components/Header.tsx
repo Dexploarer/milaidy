@@ -40,21 +40,21 @@ export function Header() {
         <div className="flex items-center gap-1.5">
           <span className={`inline-flex items-center h-7 px-2.5 border font-mono text-xs leading-none ${stateColor}`} data-testid="status-pill">{state}</span>
           {state === "not_started" || state === "stopped" ? (
-            <button onClick={handleStart} title="Start agent" className={iconBtn}>▶️</button>
+            <button onClick={handleStart} title="Start agent" aria-label="Start agent" className={iconBtn}>▶️</button>
           ) : state === "restarting" ? (
             <span className="inline-flex items-center justify-center w-7 h-7 text-sm leading-none opacity-60">🔄</span>
           ) : state === "paused" ? (
-            <button onClick={handlePauseResume} title="Resume agent" className={iconBtn}>▶️</button>
+            <button onClick={handlePauseResume} title="Resume agent" aria-label="Resume agent" className={iconBtn}>▶️</button>
           ) : (
-            <button onClick={handleStop} title="Stop agent" className={iconBtn}>⏹️</button>
+            <button onClick={handleStop} title="Stop agent" aria-label="Stop agent" className={iconBtn}>⏹️</button>
           )}
           <button onClick={handleRestart} disabled={state === "restarting" || state === "not_started"} title="Restart agent"
             className="inline-flex items-center h-7 px-3 border border-border bg-bg text-xs font-mono cursor-pointer hover:border-accent hover:text-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Restart</button>
         </div>
-        <button onClick={openCommandPalette} className="inline-flex items-center h-7 px-3 border border-border bg-bg text-xs font-mono cursor-pointer hover:border-accent hover:text-accent transition-colors">Cmd+K</button>
+        <button onClick={openCommandPalette} aria-label="Open Command Palette" className="inline-flex items-center h-7 px-3 border border-border bg-bg text-xs font-mono cursor-pointer hover:border-accent hover:text-accent transition-colors">Cmd+K</button>
         {(evmShort || solShort) && (
           <div className="wallet-wrapper relative inline-flex">
-            <button onClick={() => setTab("inventory")} className="inline-flex items-center justify-center w-7 h-7 border border-border bg-bg cursor-pointer hover:border-accent hover:text-accent transition-colors">
+            <button onClick={() => setTab("inventory")} aria-label="Wallet inventory" className="inline-flex items-center justify-center w-7 h-7 border border-border bg-bg cursor-pointer hover:border-accent hover:text-accent transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
             </button>
             <div className="wallet-tooltip hidden absolute top-full right-0 mt-2 p-3 border border-border bg-bg z-50 min-w-[280px] shadow-lg">
@@ -62,7 +62,7 @@ export function Header() {
                 <div className="flex items-center gap-2 text-xs py-1">
                   <span className="font-bold font-mono min-w-[30px]">EVM</span>
                   <code className="font-mono flex-1 truncate">{evmShort}</code>
-                  <button onClick={(e) => { e.stopPropagation(); copyToClipboard(walletAddresses!.evmAddress!); }}
+                  <button onClick={(e) => { e.stopPropagation(); copyToClipboard(walletAddresses!.evmAddress!); }} aria-label="Copy EVM address"
                     className="px-1.5 py-0.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent">copy</button>
                 </div>
               )}
@@ -70,7 +70,7 @@ export function Header() {
                 <div className="flex items-center gap-2 text-xs py-1 border-t border-border">
                   <span className="font-bold font-mono min-w-[30px]">SOL</span>
                   <code className="font-mono flex-1 truncate">{solShort}</code>
-                  <button onClick={(e) => { e.stopPropagation(); copyToClipboard(walletAddresses!.solanaAddress!); }}
+                  <button onClick={(e) => { e.stopPropagation(); copyToClipboard(walletAddresses!.solanaAddress!); }} aria-label="Copy Solana address"
                     className="px-1.5 py-0.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent">copy</button>
                 </div>
               )}

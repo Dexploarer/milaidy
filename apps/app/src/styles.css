@@ -138,8 +138,11 @@
   height: 8px;
 }
 
-.wallet-wrapper:hover::after { display: block; }
-.wallet-wrapper:hover .wallet-tooltip { display: block !important; }
+.wallet-wrapper:hover::after,
+.wallet-wrapper:focus-within::after { display: block; }
+
+.wallet-wrapper:hover .wallet-tooltip,
+.wallet-wrapper:focus-within .wallet-tooltip { display: block !important; }
 
 /* ── Button base classes ───────────────────────────────────────────── */
 
