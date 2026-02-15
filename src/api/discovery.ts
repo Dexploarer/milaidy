@@ -3,7 +3,10 @@ import path from "node:path";
 import type { AgentRuntime } from "@elizaos/core";
 import { logger } from "@elizaos/core";
 import type { MilaidyConfig } from "../config/config.js";
-import { type PluginParamInfo, validatePluginConfig } from "./plugin-validation.js";
+import {
+  type PluginParamInfo,
+  validatePluginConfig,
+} from "./plugin-validation.js";
 import type {
   PluginEntry,
   PluginIndex,

@@ -4,10 +4,6 @@ import { saveMilaidyConfig } from "../../config/config.js";
 import type { ServerState } from "../types.js";
 import { error, json, readJsonBody } from "../utils.js";
 import {
-  type WalletBalancesResponse,
-  type WalletChain,
-  type WalletConfigStatus,
-  type WalletNftsResponse,
   fetchEvmBalances,
   fetchEvmNfts,
   fetchSolanaBalances,
@@ -16,6 +12,10 @@ import {
   getWalletAddresses,
   importWallet,
   validatePrivateKey,
+  type WalletBalancesResponse,
+  type WalletChain,
+  type WalletConfigStatus,
+  type WalletNftsResponse,
 } from "../wallet.js";
 
 export async function handleWalletRoutes(

@@ -6,7 +6,7 @@ export async function handleDatabaseRoutes(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   pathname: string,
-  method: string,
+  _method: string,
   state: ServerState,
 ): Promise<boolean> {
   if (pathname.startsWith("/api/database/")) {

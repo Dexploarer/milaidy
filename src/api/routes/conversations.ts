@@ -3,18 +3,13 @@ import type http from "node:http";
 import {
   ChannelType,
   type Content,
-  type UUID,
   createMessageMemory,
   logger,
   stringToUuid,
+  type UUID,
 } from "@elizaos/core";
 import type { ConversationMeta, ServerState } from "../types.js";
-import {
-  decodePathComponent,
-  error,
-  json,
-  readJsonBody,
-} from "../utils.js";
+import { decodePathComponent, error, json, readJsonBody } from "../utils.js";
 
 // Helper: ensure a persistent chat user exists.
 const ensureChatUser = async (state: ServerState): Promise<UUID> => {

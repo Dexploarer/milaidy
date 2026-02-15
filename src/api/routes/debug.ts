@@ -12,13 +12,7 @@ import {
   resolveChannel,
 } from "../../services/update-checker.js";
 import type { ServerState } from "../types.js";
-import {
-  error,
-  json,
-  readJsonBody,
-  redactConfigSecrets,
-  redactDeep,
-} from "../utils.js";
+import { error, json, readJsonBody, redactConfigSecrets } from "../utils.js";
 
 export async function handleDebugRoutes(
   req: http.IncomingMessage,

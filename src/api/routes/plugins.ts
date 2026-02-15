@@ -1,17 +1,14 @@
 import type http from "node:http";
 import { logger } from "@elizaos/core";
+import type { MilaidyConfig } from "../../config/config.js";
 import { loadMilaidyConfig, saveMilaidyConfig } from "../../config/config.js";
 import { discoverInstalledPlugins, maskValue } from "../discovery.js";
 import {
   type PluginParamInfo,
   validatePluginConfig,
 } from "../plugin-validation.js";
-import type {
-  PluginEntry,
-  RequestContext,
-  ServerState,
-} from "../types.js";
-import { decodePathComponent, error, json, readJsonBody } from "../utils.js";
+import type { PluginEntry, RequestContext, ServerState } from "../types.js";
+import { error, json, readJsonBody } from "../utils.js";
 
 export async function handlePluginRoutes(
   req: http.IncomingMessage,
@@ -24,7 +21,7 @@ export async function handlePluginRoutes(
   // ── GET /api/plugins ────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/plugins") {
     // Re-read config from disk so we pick up plugins installed since server start.
-    let freshConfig;
+    let freshConfig: MilaidyConfig | undefined;
     try {
       freshConfig = loadMilaidyConfig();
     } catch {
@@ -257,7 +254,9 @@ export async function handlePluginRoutes(
       return true;
     }
 
-    const { installPlugin } = await import("../../services/plugin-installer.js");
+    const { installPlugin } = await import(
+      "../../services/plugin-installer.js"
+    );
 
     try {
       const result = await installPlugin(pluginName, (progress) => {

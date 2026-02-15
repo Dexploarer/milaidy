@@ -1,6 +1,9 @@
 import type { AgentRuntime, UUID } from "@elizaos/core";
 import type { CloudManager } from "../cloud/cloud-manager.js";
 import type { MilaidyConfig } from "../config/config.js";
+
+export type { MilaidyConfig };
+
 import type { AppManager } from "../services/app-manager.js";
 
 /** Subset of the core AutonomyService interface we use for lifecycle control. */

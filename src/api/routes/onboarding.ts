@@ -1,11 +1,8 @@
 import type http from "node:http";
 import { logger } from "@elizaos/core";
-import {
-  configFileExists,
-  saveMilaidyConfig,
-} from "../../config/config.js";
-import { resolveDefaultAgentWorkspaceDir } from "../../providers/workspace.js";
+import { configFileExists, saveMilaidyConfig } from "../../config/config.js";
 import { STYLE_PRESETS } from "../../onboarding-presets.js";
+import { resolveDefaultAgentWorkspaceDir } from "../../providers/workspace.js";
 import { pickRandomNames } from "../../runtime/onboarding-names.js";
 import type { ServerState } from "../types.js";
 import { error, json, readJsonBody } from "../utils.js";
