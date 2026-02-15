@@ -237,7 +237,7 @@ jobs:
 
             // Match Decision in any format: **Decision:**, ### N. Decision:, 6. **Decision:**, etc.
             const decisionPattern = /(?:^|\n)\s*(?:#{1,4}\s+)?(?:\d+\.\s*)?(?:\*{0,2})Decision:(?:\*{0,2})\s*(APPROVE|REQUEST CHANGES|CLOSE)\b/i;
-            const structuredPattern = /(?:#{1,4}\s+)?(?:\d+\.\s*)?(?:\*{0,2})(?:Classification|Scope verdict|Code quality)(?:\*{0,2}):/i;
+            const structuredPattern = /(?:#{1,4}\s+)?(?:\d+\.\s*)?(?:\*{0,2})(?:Classification|Scope verdict|Code quality)(?:\*{0,2}):?/i;
             const maxAttempts = 3; // Comment posted by previous step, should be immediate
             const pollIntervalMs = 5_000;
 
