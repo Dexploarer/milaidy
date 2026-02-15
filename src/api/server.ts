@@ -1481,6 +1481,14 @@ function resolveCorsOrigin(origin?: string): string | null {
   return null;
 }
 
+function applySecurityHeaders(res: http.ServerResponse): void {
+  res.setHeader("Content-Security-Policy", "default-src 'none'");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+}
+
 function applyCors(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -1598,6 +1606,7 @@ async function handleRequest(
   state: ServerState,
   ctx?: RequestContext,
 ): Promise<void> {
+  applySecurityHeaders(res);
   const method = req.method ?? "GET";
   const url = new URL(
     req.url ?? "/",
