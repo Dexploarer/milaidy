@@ -6454,11 +6454,11 @@ export async function startApiServer(opts?: {
     }
   });
 
-  const { wss, broadcastStatus, close: closeWs } = setupWebSocket(
-    server,
-    state,
-    addLog,
-  );
+  const {
+    wss,
+    broadcastStatus,
+    close: closeWs,
+  } = setupWebSocket(server, state, addLog);
 
   // Restore conversations from DB at initial boot (if runtime was passed in)
   if (opts?.runtime) {
