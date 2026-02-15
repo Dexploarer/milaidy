@@ -128,6 +128,16 @@ interface ServerState {
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
+
+  // -------------------------------------------------------------------------
+  // Caching
+  // -------------------------------------------------------------------------
+  /** Last modification time of the config file, used for cache invalidation. */
+  lastConfigMtime: number;
+  /** Hash/string of the last known plugins.installs config to avoid redundant discovery. */
+  lastInstallsConfig: string;
+  /** Cached result of discoverInstalledPlugins. */
+  installedPluginsCache: PluginEntry[];
 }
 
 interface ShareIngestItem {
@@ -2787,18 +2797,44 @@ async function handleRequest(
 
   // ── GET /api/plugins ────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/plugins") {
-    // Re-read config from disk so we pick up plugins installed since server start.
-    let freshConfig: MilaidyConfig;
+    // Check modification time to avoid parsing config on every request
+    let freshConfig = state.config;
+    let configChanged = false;
+
     try {
-      freshConfig = loadMilaidyConfig();
+      const configPath = resolveConfigPath();
+      const stats = fs.statSync(configPath);
+      // If file modified since last check, reload it
+      if (stats.mtimeMs > state.lastConfigMtime) {
+        state.lastConfigMtime = stats.mtimeMs;
+        freshConfig = loadMilaidyConfig();
+        state.config = freshConfig; // Sync in-memory state with disk
+        configChanged = true;
+      }
     } catch {
-      freshConfig = state.config;
+      // Config file missing or unreadable — stick with in-memory state
     }
 
-    // Merge user-installed plugins into the list (they don't exist in plugins.json)
-    const bundledIds = new Set(state.plugins.map((p) => p.id));
-    const installedEntries = discoverInstalledPlugins(freshConfig, bundledIds);
-    const allPlugins: PluginEntry[] = [...state.plugins, ...installedEntries];
+    // Only re-scan installed plugins if the installs config section changed
+    // (or if we haven't scanned yet)
+    const currentInstalls = JSON.stringify(freshConfig.plugins?.installs ?? {});
+    if (
+      configChanged ||
+      currentInstalls !== state.lastInstallsConfig ||
+      state.installedPluginsCache.length === 0
+    ) {
+      const bundledIds = new Set(state.plugins.map((p) => p.id));
+      state.installedPluginsCache = discoverInstalledPlugins(
+        freshConfig,
+        bundledIds,
+      );
+      state.lastInstallsConfig = currentInstalls;
+    }
+
+    const allPlugins: PluginEntry[] = [
+      ...state.plugins,
+      ...state.installedPluginsCache,
+    ];
 
     // Update enabled status from runtime (if available)
     if (state.runtime) {
@@ -6006,6 +6042,9 @@ export async function startApiServer(opts?: {
     cloudManager: null,
     appManager: new AppManager(),
     shareIngestQueue: [],
+    lastConfigMtime: 0,
+    lastInstallsConfig: "",
+    installedPluginsCache: [],
   };
 
   // Wire the app manager to the runtime if already running
