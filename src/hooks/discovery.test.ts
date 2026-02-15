@@ -1,7 +1,15 @@
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { discoverHooks } from "./discovery";
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 
 // Mock logger
 vi.mock("@elizaos/core", () => ({
@@ -21,9 +29,9 @@ describe("Hooks Discovery", () => {
   });
 
   beforeEach(async () => {
-     // Clean up inside temp dir
-     await rm(TEMP_DIR, { recursive: true, force: true });
-     await mkdir(TEMP_DIR, { recursive: true });
+    // Clean up inside temp dir
+    await rm(TEMP_DIR, { recursive: true, force: true });
+    await mkdir(TEMP_DIR, { recursive: true });
   });
 
   it("should return empty array for empty directory", async () => {
@@ -42,7 +50,10 @@ description: A valid hook
 ---
 `,
     );
-    await writeFile(join(hookDir, "handler.ts"), `export default async () => {}`);
+    await writeFile(
+      join(hookDir, "handler.ts"),
+      `export default async () => {}`,
+    );
 
     const hooks = await discoverHooks({ extraDirs: [TEMP_DIR] });
     expect(hooks).toHaveLength(1);
@@ -53,7 +64,10 @@ description: A valid hook
   it("should ignore hooks without HOOK.md", async () => {
     const hookDir = join(TEMP_DIR, "no-hook-md");
     await mkdir(hookDir);
-    await writeFile(join(hookDir, "handler.ts"), `export default async () => {}`);
+    await writeFile(
+      join(hookDir, "handler.ts"),
+      `export default async () => {}`,
+    );
 
     const hooks = await discoverHooks({ extraDirs: [TEMP_DIR] });
     expect(hooks).toHaveLength(0);
@@ -78,30 +92,36 @@ description: Hook with no handler
   it("should ignore hooks with invalid frontmatter", async () => {
     const hookDir = join(TEMP_DIR, "invalid-fm");
     await mkdir(hookDir);
+    await writeFile(join(hookDir, "HOOK.md"), `INVALID FRONTMATTER`);
     await writeFile(
-      join(hookDir, "HOOK.md"),
-      `INVALID FRONTMATTER`,
+      join(hookDir, "handler.ts"),
+      `export default async () => {}`,
     );
-    await writeFile(join(hookDir, "handler.ts"), `export default async () => {}`);
 
     const hooks = await discoverHooks({ extraDirs: [TEMP_DIR] });
     expect(hooks).toHaveLength(0);
   });
 
   it("should handle mixed valid and invalid hooks", async () => {
-      // Valid hook
-      const validDir = join(TEMP_DIR, "valid");
-      await mkdir(validDir);
-      await writeFile(join(validDir, "HOOK.md"), "---\nname: valid\ndescription: valid\n---\n");
-      await writeFile(join(validDir, "handler.ts"), "");
+    // Valid hook
+    const validDir = join(TEMP_DIR, "valid");
+    await mkdir(validDir);
+    await writeFile(
+      join(validDir, "HOOK.md"),
+      "---\nname: valid\ndescription: valid\n---\n",
+    );
+    await writeFile(join(validDir, "handler.ts"), "");
 
-      // Invalid hook (no handler)
-      const invalidDir = join(TEMP_DIR, "invalid");
-      await mkdir(invalidDir);
-      await writeFile(join(invalidDir, "HOOK.md"), "---\nname: invalid\ndescription: invalid\n---\n");
+    // Invalid hook (no handler)
+    const invalidDir = join(TEMP_DIR, "invalid");
+    await mkdir(invalidDir);
+    await writeFile(
+      join(invalidDir, "HOOK.md"),
+      "---\nname: invalid\ndescription: invalid\n---\n",
+    );
 
-      const hooks = await discoverHooks({ extraDirs: [TEMP_DIR] });
-      expect(hooks).toHaveLength(1);
-      expect(hooks[0].hook.name).toBe("valid");
+    const hooks = await discoverHooks({ extraDirs: [TEMP_DIR] });
+    expect(hooks).toHaveLength(1);
+    expect(hooks[0].hook.name).toBe("valid");
   });
 });
