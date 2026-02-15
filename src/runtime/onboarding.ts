@@ -1,13 +1,10 @@
 import process from "node:process";
 import * as clack from "@clack/prompts";
 import { cloudLogin } from "../cloud/auth.js";
-import {
-  type MilaidyConfig,
-  saveMilaidyConfig,
-} from "../config/config.js";
+import { type MilaidyConfig, saveMilaidyConfig } from "../config/config.js";
 import type { AgentConfig } from "../config/types.agents.js";
-import { pickRandomNames } from "./onboarding-names.js";
 import { STYLE_PRESETS } from "../onboarding-presets.js";
+import { pickRandomNames } from "./onboarding-names.js";
 
 /** Extract a human-readable error message from an unknown thrown value. */
 function formatError(err: unknown): string {

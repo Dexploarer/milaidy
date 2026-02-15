@@ -31,10 +31,7 @@ import {
   debugLogResolvedContext,
   validateRuntimeContext,
 } from "../api/plugin-validation.js";
-import {
-  loadMilaidyConfig,
-  type MilaidyConfig,
-} from "../config/config.js";
+import { loadMilaidyConfig, type MilaidyConfig } from "../config/config.js";
 import { resolveStateDir, resolveUserPath } from "../config/paths.js";
 import {
   type ApplyPluginAutoEnableParams,
