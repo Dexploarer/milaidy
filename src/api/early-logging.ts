@@ -79,7 +79,7 @@ export function captureEarlyLogs(): void {
  */
 export function flushEarlyLogs(
   targetBuffer: LogEntry[],
-  onFlush: (count: number) => void
+  onFlush: (count: number) => void,
 ): void {
   if (earlyLogBuffer && earlyLogBuffer.length > 0) {
     const count = earlyLogBuffer.length;

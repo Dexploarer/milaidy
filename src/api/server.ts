@@ -186,7 +186,6 @@ interface SkillEntry {
   scanStatus?: "clean" | "warning" | "critical" | "blocked" | null;
 }
 
-
 // ---------------------------------------------------------------------------
 // Package root resolution (for reading bundled plugins.json)
 // ---------------------------------------------------------------------------
@@ -5922,7 +5921,6 @@ async function handleRequest(
   error(res, "Not found", 404);
 }
 
-
 // ---------------------------------------------------------------------------
 // Server start
 // ---------------------------------------------------------------------------
@@ -6031,12 +6029,9 @@ export async function startApiServer(opts?: {
     if (state.logBuffer.length > 1000) {
       state.logBuffer.splice(0, state.logBuffer.length - 1000);
     }
-    addLog(
-      "info",
-      `Flushed ${count} early startup log entries`,
+    addLog("info", `Flushed ${count} early startup log entries`, "system", [
       "system",
-      ["system"],
-    );
+    ]);
   });
 
   // ── Cloud Manager initialisation ──────────────────────────────────────
