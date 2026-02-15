@@ -407,12 +407,18 @@ async function extractAgentData(
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
-  for (const tableName of MEMORY_TABLES) {
-    const memories = await db.getMemories({
-      agentId,
-      tableName,
-      count: Number.MAX_SAFE_INTEGER,
-    });
+  // Optimization: Fetch memories from all tables concurrently to reduce I/O wait time
+  const memoryResults = await Promise.all(
+    MEMORY_TABLES.map((tableName) =>
+      db.getMemories({
+        agentId,
+        tableName,
+        count: Number.MAX_SAFE_INTEGER,
+      }),
+    ),
+  );
+
+  for (const memories of memoryResults) {
     for (const mem of memories) {
       if (mem.id && !memoryIdSet.has(mem.id)) {
         memoryIdSet.add(mem.id);
@@ -424,13 +430,20 @@ async function extractAgentData(
 
   // Also try querying memories by world
   for (const world of agentWorlds) {
-    if (!world.id) continue;
-    for (const tableName of MEMORY_TABLES) {
-      const worldMemories = await db.getMemoriesByWorldId({
-        worldId: world.id,
-        count: Number.MAX_SAFE_INTEGER,
-        tableName,
-      });
+    const worldId = world.id;
+    if (!worldId) continue;
+    // Optimization: Fetch world memories concurrently
+    const worldMemoryResults = await Promise.all(
+      MEMORY_TABLES.map((tableName) =>
+        db.getMemoriesByWorldId({
+          worldId,
+          count: Number.MAX_SAFE_INTEGER,
+          tableName,
+        }),
+      ),
+    );
+
+    for (const worldMemories of worldMemoryResults) {
       for (const mem of worldMemories) {
         if (mem.id && !memoryIdSet.has(mem.id)) {
           memoryIdSet.add(mem.id);
@@ -863,15 +876,18 @@ export async function estimateExportSize(
   const db = runtime.adapter;
   const agentId = runtime.agentId;
 
-  let memoriesCount = 0;
-  for (const tableName of MEMORY_TABLES) {
-    const mems = await db.getMemories({
-      agentId,
-      tableName,
-      count: Number.MAX_SAFE_INTEGER,
-    });
-    memoriesCount += mems.length;
-  }
+  // Optimization: Fetch counts concurrently
+  const memoriesCounts = await Promise.all(
+    MEMORY_TABLES.map(async (tableName) => {
+      const mems = await db.getMemories({
+        agentId,
+        tableName,
+        count: Number.MAX_SAFE_INTEGER,
+      });
+      return mems.length;
+    }),
+  );
+  const memoriesCount = memoriesCounts.reduce((sum, count) => sum + count, 0);
 
   const allWorlds = await db.getAllWorlds();
   const agentWorlds = allWorlds.filter((w) => w.agentId === agentId);
