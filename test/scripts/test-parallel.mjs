@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -94,6 +94,16 @@ const WARNING_SUPPRESSION_FLAGS = [
   "--disable-warning=DEP0060",
 ];
 
+// Check if Bun is available
+const hasBun = (() => {
+  try {
+    execSync("bun --version", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
 const runOnce = (entry, extraArgs = []) =>
   new Promise((resolve) => {
     const vitestExtras = entry.vitest
@@ -108,8 +118,20 @@ const runOnce = (entry, extraArgs = []) =>
       (acc, flag) => (acc.includes(flag) ? acc : `${acc} ${flag}`.trim()),
       nodeOptions,
     );
-    const cmd = entry.cmd ?? "bunx";
-    const child = spawn(cmd, args, {
+
+    let spawnCmd = entry.cmd;
+    const spawnArgs = [...entry.args, ...vitestExtras, ...extraArgs];
+
+    if (!spawnCmd) {
+      if (hasBun) {
+        spawnCmd = "bun";
+        spawnArgs.unshift("x");
+      } else {
+        spawnCmd = "npx";
+      }
+    }
+
+    const child = spawn(spawnCmd, spawnArgs, {
       stdio: "inherit",
       ...(entry.cwd ? { cwd: entry.cwd } : {}),
       env: {
