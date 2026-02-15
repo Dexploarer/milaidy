@@ -4039,12 +4039,30 @@ function patchMessageServiceForAutonomy(state: ServerState): void {
   };
 }
 
+function applySecurityHeaders(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): void {
+  // Common security headers for all responses
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+
+  // Strict CSP for API routes (JSON responses), looser or none for UI
+  if (req.url && req.url.startsWith("/api/")) {
+    res.setHeader("Content-Security-Policy", "default-src 'none'");
+  }
+}
+
 async function handleRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   state: ServerState,
   ctx?: RequestContext,
 ): Promise<void> {
+  applySecurityHeaders(req, res);
+
   const method = req.method ?? "GET";
   let url: URL;
   try {
