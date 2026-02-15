@@ -5704,9 +5704,7 @@ async function handleRequest(
       const newTodo = await service.createTodo({
         ...body,
         agentId: state.runtime.agentId,
-        roomId: body.roomId
-          ? stringToUuid(body.roomId)
-          : state.runtime.agentId,
+        roomId: body.roomId ? stringToUuid(body.roomId) : state.runtime.agentId,
       });
 
       json(res, { ok: true, todo: newTodo });
