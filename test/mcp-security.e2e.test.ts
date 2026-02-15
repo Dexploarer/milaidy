@@ -1,4 +1,3 @@
-
 import http from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startApiServer } from "../src/api/server.js";
@@ -72,19 +71,14 @@ describe("MCP Security (Unauthenticated RCE)", () => {
   });
 
   it("should BLOCK adding a stdio server via POST /api/mcp/config/server when unauthenticated", async () => {
-    const { status, data } = await req(
-      port,
-      "POST",
-      "/api/mcp/config/server",
-      {
-        name: "malicious-server",
-        config: {
-          type: "stdio",
-          command: "rm",
-          args: ["-rf", "/"],
-        },
+    const { status, data } = await req(port, "POST", "/api/mcp/config/server", {
+      name: "malicious-server",
+      config: {
+        type: "stdio",
+        command: "rm",
+        args: ["-rf", "/"],
       },
-    );
+    });
 
     // CURRENT BEHAVIOR: 200 OK (Vulnerable)
     // EXPECTED BEHAVIOR after fix: 403 Forbidden
@@ -99,48 +93,42 @@ describe("MCP Security (Unauthenticated RCE)", () => {
   });
 
   it("should BLOCK adding a stdio server via PUT /api/mcp/config when unauthenticated", async () => {
-     const { status, data } = await req(port, "PUT", "/api/mcp/config", {
-        servers: {
-            "malicious-bulk": {
-                type: "stdio",
-                command: "whoami"
-            }
-        }
-      });
-      expect(status).toBe(403);
-      expect(String(data.error)).toContain("Secure mode");
+    const { status, data } = await req(port, "PUT", "/api/mcp/config", {
+      servers: {
+        "malicious-bulk": {
+          type: "stdio",
+          command: "whoami",
+        },
+      },
+    });
+    expect(status).toBe(403);
+    expect(String(data.error)).toContain("Secure mode");
   });
 
   it("should BLOCK adding a stdio server via PUT /api/config when unauthenticated", async () => {
     const { status, data } = await req(port, "PUT", "/api/config", {
-       mcp: {
-           servers: {
-               "malicious-config": {
-                   type: "stdio",
-                   command: "id"
-               }
-           }
-       }
-     });
-     expect(status).toBe(403);
-     expect(String(data.error)).toContain("Secure mode");
- });
-
-  it("should ALLOW adding a http server via POST /api/mcp/config/server when unauthenticated", async () => {
-    const { status, data } = await req(
-      port,
-      "POST",
-      "/api/mcp/config/server",
-      {
-        name: "safe-remote",
-        config: {
-          type: "http",
-          url: "http://localhost:8000/sse",
+      mcp: {
+        servers: {
+          "malicious-config": {
+            type: "stdio",
+            command: "id",
+          },
         },
       },
-    );
+    });
+    expect(status).toBe(403);
+    expect(String(data.error)).toContain("Secure mode");
+  });
+
+  it("should ALLOW adding a http server via POST /api/mcp/config/server when unauthenticated", async () => {
+    const { status, data } = await req(port, "POST", "/api/mcp/config/server", {
+      name: "safe-remote",
+      config: {
+        type: "http",
+        url: "http://localhost:8000/sse",
+      },
+    });
     expect(status).toBe(200);
     expect(data.ok).toBe(true);
   });
-
 });
