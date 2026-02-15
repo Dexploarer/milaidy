@@ -318,7 +318,9 @@ export function ChatView() {
       <div className="flex justify-end gap-1.5 pb-1.5 relative" style={{ zIndex: 1 }}>
         {/* Show / hide avatar */}
         <button
-          className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card ${
+          type="button"
+          aria-label={avatarVisible ? "Hide avatar" : "Show avatar"}
+          className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
             avatarVisible
               ? "border-accent text-accent"
               : "border-border text-muted hover:border-accent hover:text-accent"
@@ -335,7 +337,9 @@ export function ChatView() {
 
         {/* Mute / unmute agent voice */}
         <button
-          className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card ${
+          type="button"
+          aria-label={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
+          className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
             agentVoiceMuted
               ? "border-border text-muted hover:border-accent hover:text-accent"
               : "border-accent text-accent"
@@ -367,7 +371,9 @@ export function ChatView() {
         {/* Mic button — user voice input */}
         {voice.supported && (
           <button
-            className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded cursor-pointer transition-all self-end ${
+            type="button"
+            aria-label={voice.isListening ? "Stop listening" : "Start voice input"}
+            className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded cursor-pointer transition-all self-end focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
               voice.isListening
                 ? "bg-accent border-accent text-accent-fg shadow-[0_0_10px_rgba(124,58,237,0.4)] animate-pulse"
                 : "border-border bg-card text-muted hover:border-accent hover:text-accent"
@@ -401,7 +407,8 @@ export function ChatView() {
         ) : (
           <textarea
             ref={textareaRef}
-            className="flex-1 px-3 py-2 border border-border bg-card text-txt text-sm font-body leading-relaxed resize-none overflow-y-hidden min-h-[38px] max-h-[200px] focus:border-accent focus:outline-none"
+            aria-label="Chat message"
+            className="flex-1 px-3 py-2 border border-border bg-card text-txt text-sm font-body leading-relaxed resize-none overflow-y-hidden min-h-[38px] max-h-[200px] focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             rows={1}
             placeholder={voice.isListening ? "Listening..." : "Type a message..."}
             value={chatInput}
@@ -414,7 +421,8 @@ export function ChatView() {
         {/* Send (or Stop if agent is speaking) */}
         {voice.isSpeaking ? (
           <button
-            className="h-[38px] px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 self-end"
+            type="button"
+            className="h-[38px] px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 self-end focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             onClick={voice.stopSpeaking}
             title="Stop speaking"
           >
@@ -422,7 +430,8 @@ export function ChatView() {
           </button>
         ) : (
           <button
-            className="h-[38px] px-6 py-2 border border-accent bg-accent text-accent-fg text-sm cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed self-end"
+            type="button"
+            className="h-[38px] px-6 py-2 border border-accent bg-accent text-accent-fg text-sm cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed self-end focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             onClick={handleChatSend}
             disabled={chatSending}
           >
