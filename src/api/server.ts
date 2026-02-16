@@ -3016,6 +3016,25 @@ function resolveCorsOrigin(origin?: string): string | null {
   return null;
 }
 
+function applySecurityHeaders(
+  res: http.ServerResponse,
+  pathname: string,
+): void {
+  // Global security headers
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+
+  // Strict CSP for API routes to prevent XSS/injection
+  if (pathname.startsWith("/api/")) {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; frame-ancestors 'none'; sandbox",
+    );
+  }
+}
+
 function applyCors(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -4054,6 +4073,9 @@ async function handleRequest(
     return;
   }
   const pathname = url.pathname;
+
+  applySecurityHeaders(res, pathname);
+
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
   const registryService = state.registryService;
   const dropService = state.dropService;
