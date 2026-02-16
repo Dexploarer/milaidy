@@ -232,7 +232,10 @@ export function LogsView() {
           </div>
         ) : (
           filteredLogs.map((entry: LogEntry, idx: number) => (
-            <LogEntryRow key={idx} entry={entry} />
+            <LogEntryRow
+              key={`${entry.timestamp}-${entry.level}-${entry.source}-${entry.message}-${idx}`}
+              entry={entry}
+            />
           ))
         )}
       </div>
