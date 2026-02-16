@@ -551,7 +551,9 @@ describe("handleCloudRoute", () => {
 
   it("connects and returns proxy metadata for a valid cloud agent id", async () => {
     const validAgentId = "123e4567-e89b-12d3-a456-426614174000";
-    const connectMock = vi.fn().mockResolvedValue({ agentName: "Connected Agent" });
+    const connectMock = vi
+      .fn()
+      .mockResolvedValue({ agentName: "Connected Agent" });
     const statusMock = vi.fn(() => "connected");
     const disconnectMock = vi.fn();
     const state = {
@@ -1171,7 +1173,10 @@ describe("handleCloudRoute timeout behavior", () => {
 
     expect(handled).toBe(true);
     expect(res.statusCode).toBe(200);
-    expect(getJson()).toEqual({ status: "authenticated", keyPrefix: undefined });
+    expect(getJson()).toEqual({
+      status: "authenticated",
+      keyPrefix: undefined,
+    });
     expect(initMock).not.toHaveBeenCalled();
   });
 
@@ -1377,7 +1382,10 @@ describe("handleCloudRoute timeout behavior", () => {
       enabled: true,
       apiKey: "ak-missing-config",
     });
-    expect(getJson()).toEqual({ status: "authenticated", keyPrefix: undefined });
+    expect(getJson()).toEqual({
+      status: "authenticated",
+      keyPrefix: undefined,
+    });
     expect(initMock).toHaveBeenCalledTimes(1);
   });
 
@@ -1457,7 +1465,10 @@ describe("handleCloudRoute timeout behavior", () => {
 
     expect(handled).toBe(true);
     expect(res.statusCode).toBe(200);
-    expect(getJson()).toEqual({ status: "authenticated", keyPrefix: undefined });
+    expect(getJson()).toEqual({
+      status: "authenticated",
+      keyPrefix: undefined,
+    });
     expect(updateAgentMock).toHaveBeenCalledTimes(1);
     expect(initMock).toHaveBeenCalledTimes(1);
   });
