@@ -124,6 +124,8 @@ interface ServerState {
   appManager: AppManager;
   /** In-memory queue for share ingest items. */
   shareIngestQueue: ShareIngestItem[];
+  /** Rate limiter map: IP -> { count, resetAt } */
+  rateLimitMap: Map<string, { count: number; resetAt: number }>;
   /** Transient OAuth flow state for subscription auth. */
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
@@ -1599,6 +1601,36 @@ function applySecurityHeaders(res: http.ServerResponse): void {
   res.setHeader("Referrer-Policy", "no-referrer");
 }
 
+// ---------------------------------------------------------------------------
+// Rate Limiter
+// ---------------------------------------------------------------------------
+
+// 600 requests per minute per IP (10/sec)
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 600;
+
+function isRateLimited(req: http.IncomingMessage, state: ServerState): boolean {
+  // Check X-Forwarded-For first for proxy support, fallback to remoteAddress
+  const forwarded = req.headers["x-forwarded-for"];
+  const ip =
+    (Array.isArray(forwarded)
+      ? forwarded[0]
+      : typeof forwarded === "string"
+        ? forwarded.split(",")[0]
+        : req.socket.remoteAddress) || "unknown";
+
+  const now = Date.now();
+  let record = state.rateLimitMap.get(ip);
+
+  if (!record || now > record.resetAt) {
+    record = { count: 0, resetAt: now + RATE_LIMIT_WINDOW };
+    state.rateLimitMap.set(ip, record);
+  }
+
+  record.count++;
+  return record.count > RATE_LIMIT_MAX;
+}
+
 async function handleRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -1614,6 +1646,11 @@ async function handleRequest(
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
 
   applySecurityHeaders(res);
+
+  if (isRateLimited(req, state)) {
+    error(res, "Too many requests", 429);
+    return;
+  }
 
   if (!applyCors(req, res)) {
     json(res, { error: "Origin not allowed" }, 403);
@@ -6015,7 +6052,21 @@ export async function startApiServer(opts?: {
     cloudManager: null,
     appManager: new AppManager(),
     shareIngestQueue: [],
+    rateLimitMap: new Map(),
   };
+
+  // Cleanup rate limiter map every 5 minutes to prevent memory leaks
+  const rateLimitInterval = setInterval(
+    () => {
+      const now = Date.now();
+      for (const [ip, record] of state.rateLimitMap.entries()) {
+        if (now > record.resetAt) {
+          state.rateLimitMap.delete(ip);
+        }
+      }
+    },
+    5 * 60 * 1000,
+  );
 
   // Wire the app manager to the runtime if already running
   if (state.runtime) {
@@ -6426,6 +6477,7 @@ export async function startApiServer(opts?: {
         close: () =>
           new Promise<void>((r) => {
             clearInterval(statusInterval);
+            clearInterval(rateLimitInterval);
             wss.close();
             server.close(() => r());
           }),
