@@ -37,9 +37,46 @@ function setupExecFileHandler(
 }
 
 beforeEach(() => {
-  vi.resetModules();
+  vi.resetAllMocks();
   execFileMock.mockReset();
 });
+
+function createRegistryPluginInfo(
+  overrides: Partial<RegistryPluginInfo> = {},
+): RegistryPluginInfo {
+  const base: RegistryPluginInfo = {
+    name: "@elizaos/plugin-test",
+    gitRepo: "elizaos-plugins/plugin-test",
+    gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+    git: {
+      v0Branch: null,
+      v1Branch: null,
+      v2Branch: "main",
+    },
+    npm: {
+      package: "@elizaos/plugin-test",
+    },
+    supports: { v0: false, v1: false, v2: true },
+    description: "Test plugin",
+    homepage: null,
+    topics: [],
+    stars: 0,
+    language: "TypeScript",
+  };
+
+  return {
+    ...base,
+    ...overrides,
+    git: {
+      ...base.git,
+      ...(overrides.git || {}),
+    },
+    npm: {
+      ...base.npm,
+      ...(overrides.npm || {}),
+    },
+  };
+}
 
 describe("plugin-installer input validators", () => {
   it("validates package names", async () => {
@@ -94,23 +131,7 @@ describe("resolveGitBranch", () => {
 
     const { resolveGitBranch } = await import("../plugin-installer");
 
-    const pluginInfo = {
-      name: "@elizaos/plugin-test",
-      gitRepo: "elizaos-plugins/plugin-test",
-      gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
-      git: {
-        v0Branch: null,
-        v1Branch: null,
-        v2Branch: "main",
-      },
-      npm: { package: "@elizaos/plugin-test" },
-      supports: { v0: false, v1: false, v2: true },
-      description: "Test plugin",
-      homepage: null,
-      topics: [],
-      stars: 0,
-      language: "TypeScript",
-    } as RegistryPluginInfo;
+    const pluginInfo = createRegistryPluginInfo();
 
     const branch = await resolveGitBranch(pluginInfo);
     expect(branch).toBe("main");
@@ -127,23 +148,13 @@ describe("resolveGitBranch", () => {
 
     const { resolveGitBranch } = await import("../plugin-installer");
 
-    const pluginInfo = {
-      name: "@elizaos/plugin-test",
-      gitRepo: "elizaos-plugins/plugin-test",
-      gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+    const pluginInfo = createRegistryPluginInfo({
       git: {
         v0Branch: null,
         v1Branch: null,
         v2Branch: "dev",
       },
-      npm: { package: "@elizaos/plugin-test" },
-      supports: { v0: false, v1: false, v2: true },
-      description: "Test plugin",
-      homepage: null,
-      topics: [],
-      stars: 0,
-      language: "TypeScript",
-    } as RegistryPluginInfo;
+    });
 
     const branch = await resolveGitBranch(pluginInfo);
     expect(branch).toBe("main");
@@ -164,23 +175,13 @@ describe("resolveGitBranch", () => {
 
     const { resolveGitBranch } = await import("../plugin-installer");
 
-    const pluginInfo = {
-      name: "@elizaos/plugin-test",
-      gitRepo: "elizaos-plugins/plugin-test",
-      gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+    const pluginInfo = createRegistryPluginInfo({
       git: {
         v0Branch: null,
         v1Branch: null,
         v2Branch: "dev",
       },
-      npm: { package: "@elizaos/plugin-test" },
-      supports: { v0: false, v1: false, v2: true },
-      description: "Test plugin",
-      homepage: null,
-      topics: [],
-      stars: 0,
-      language: "TypeScript",
-    } as RegistryPluginInfo;
+    });
 
     const branch = await resolveGitBranch(pluginInfo);
     expect(branch).toBe("dev");

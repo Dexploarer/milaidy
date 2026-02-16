@@ -4,6 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const DEFAULT_PLUGIN_ID = "@elizaos/plugin-test";
+const DEFAULT_PLUGIN_DIR_NAME = "_elizaos_plugin-test";
+const DEFAULT_PLUGIN_PACKAGE = DEFAULT_PLUGIN_ID;
+const DEFAULT_PLUGIN_GIT_REPO = "elizaos-plugins/plugin-test";
+const DEFAULT_PLUGIN_GIT_URL =
+  "https://github.com/elizaos-plugins/plugin-test.git";
+const DEFAULT_PLUGIN_VERSION = "2.0.0";
+
 let mockedStateDir = "";
 
 vi.mock("node:child_process", () => ({
@@ -48,14 +56,14 @@ async function loadPluginEject() {
 
 function pluginInfo(overrides: Record<string, unknown> = {}) {
   return {
-    name: "@elizaos/plugin-test",
-    gitRepo: "elizaos-plugins/plugin-test",
-    gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+    name: DEFAULT_PLUGIN_ID,
+    gitRepo: DEFAULT_PLUGIN_GIT_REPO,
+    gitUrl: DEFAULT_PLUGIN_GIT_URL,
     npm: {
-      package: "@elizaos/plugin-test",
+      package: DEFAULT_PLUGIN_PACKAGE,
       v0Version: null,
       v1Version: null,
-      v2Version: "2.0.0",
+      v2Version: DEFAULT_PLUGIN_VERSION,
     },
     ...overrides,
   };
@@ -89,6 +97,25 @@ function setExecFileHandler(
 
     return {} as never;
   }) as never);
+}
+
+function getDefaultEjectedPluginDir() {
+  return path.join(tmpDir, "plugins", "ejected", DEFAULT_PLUGIN_DIR_NAME);
+}
+
+async function writeClonedPluginDir(
+  targetDir: string,
+  packageJson?: Record<string, unknown>,
+) {
+  await fs.mkdir(targetDir, { recursive: true });
+  if (!packageJson) {
+    return;
+  }
+
+  await fs.writeFile(
+    path.join(targetDir, "package.json"),
+    JSON.stringify(packageJson),
+  );
 }
 
 async function writeEjectedPlugin(
@@ -128,11 +155,11 @@ async function writeEjectedPlugin(
       upstreamPath,
       JSON.stringify({
         $schema: "wrong-schema",
-        gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+        gitUrl: DEFAULT_PLUGIN_GIT_URL,
         branch: "main",
         commitHash: "abc123",
-        npmPackage: "@elizaos/plugin-test",
-        npmVersion: "2.0.0",
+        npmPackage: DEFAULT_PLUGIN_ID,
+        npmVersion: DEFAULT_PLUGIN_VERSION,
       }),
       "utf-8",
     );
@@ -145,12 +172,12 @@ async function writeEjectedPlugin(
       {
         $schema: "milaidy-upstream-v1",
         source: "github:elizaos-plugins/plugin-test",
-        gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+        gitUrl: DEFAULT_PLUGIN_GIT_URL,
         branch: "main",
         commitHash: "abc123",
         ejectedAt: "2026-02-01T00:00:00.000Z",
-        npmPackage: "@elizaos/plugin-test",
-        npmVersion: "2.0.0",
+        npmPackage: DEFAULT_PLUGIN_ID,
+        npmVersion: DEFAULT_PLUGIN_VERSION,
         lastSyncAt: null,
         localCommits: 0,
         ...upstream,
@@ -166,7 +193,6 @@ async function writeEjectedPlugin(
 let tmpDir = "";
 
 beforeEach(async () => {
-  vi.resetModules();
   vi.clearAllMocks();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-eject-test-"));
   mockedStateDir = tmpDir;
@@ -202,7 +228,10 @@ describe("plugin-eject", () => {
           await fs.mkdir(targetDir, { recursive: true });
           await fs.writeFile(
             path.join(targetDir, "package.json"),
-            JSON.stringify({ name: "@elizaos/plugin-test", version: "2.0.0" }),
+            JSON.stringify({
+              name: DEFAULT_PLUGIN_ID,
+              version: DEFAULT_PLUGIN_VERSION,
+            }),
           );
           return;
         }
@@ -212,12 +241,13 @@ describe("plugin-eject", () => {
       });
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(true);
-      expect(result.pluginName).toBe("@elizaos/plugin-test");
+      expect(result.pluginName).toBe(DEFAULT_PLUGIN_ID);
       expect(result.upstreamCommit).toBe("abc123");
-      await expect(fs.access(result.ejectedPath)).resolves.toBeUndefined();
+      const ejectedStats = await fs.stat(result.ejectedPath);
+      expect(ejectedStats.isDirectory()).toBe(true);
 
       const upstreamRaw = await fs.readFile(
         path.join(result.ejectedPath, ".upstream.json"),
@@ -225,9 +255,7 @@ describe("plugin-eject", () => {
       );
       const upstream = JSON.parse(upstreamRaw) as Record<string, unknown>;
       expect(upstream.$schema).toBe("milaidy-upstream-v1");
-      expect(upstream.gitUrl).toBe(
-        "https://github.com/elizaos-plugins/plugin-test.git",
-      );
+      expect(upstream.gitUrl).toBe(DEFAULT_PLUGIN_GIT_URL);
       expect(upstream.branch).toBe("main");
       expect(upstream.commitHash).toBe("abc123");
     });
@@ -240,12 +268,12 @@ describe("plugin-eject", () => {
         tmpDir,
         "plugins",
         "ejected",
-        "_elizaos_plugin-test",
+        DEFAULT_PLUGIN_DIR_NAME,
       );
       await fs.mkdir(existing, { recursive: true });
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("already ejected");
@@ -283,7 +311,7 @@ describe("plugin-eject", () => {
       vi.mocked(installer.sanitisePackageName).mockReturnValueOnce("../escape");
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Refusing to write outside");
@@ -354,20 +382,14 @@ describe("plugin-eject", () => {
       const { getPluginInfo } = await import("./registry-client");
       vi.mocked(getPluginInfo).mockResolvedValue(pluginInfo() as never);
 
-      const targetDir = path.join(
-        tmpDir,
-        "plugins",
-        "ejected",
-        "_elizaos_plugin-test",
-      );
+      const targetDir = getDefaultEjectedPluginDir();
 
       setExecFileHandler(async (file, args) => {
         if (file === "git" && args[0] === "clone") {
-          await fs.mkdir(targetDir, { recursive: true });
-          await fs.writeFile(
-            path.join(targetDir, "package.json"),
-            JSON.stringify({ name: "@elizaos/plugin-test", version: "1.0.0" }),
-          );
+          await writeClonedPluginDir(targetDir, {
+            name: DEFAULT_PLUGIN_ID,
+            version: "1.0.0",
+          });
           return;
         }
         if (file === "npm" && args.join(" ") === "install") {
@@ -379,7 +401,7 @@ describe("plugin-eject", () => {
       });
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("install failed");
@@ -393,7 +415,7 @@ describe("plugin-eject", () => {
       );
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Invalid package name");
@@ -408,7 +430,7 @@ describe("plugin-eject", () => {
       );
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Invalid git URL");
@@ -421,7 +443,7 @@ describe("plugin-eject", () => {
       vi.mocked(installer.resolveGitBranch).mockResolvedValue("bad branch");
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Invalid git branch");
@@ -440,7 +462,7 @@ describe("plugin-eject", () => {
       );
 
       const { ejectPlugin } = await loadPluginEject();
-      await expect(ejectPlugin("@elizaos/plugin-test")).rejects.toThrow(
+      await expect(ejectPlugin(DEFAULT_PLUGIN_ID)).rejects.toThrow(
         "permission denied",
       );
     });
@@ -451,15 +473,10 @@ describe("plugin-eject", () => {
       vi.mocked(getPluginInfo).mockResolvedValue(pluginInfo() as never);
       vi.mocked(installer.detectPackageManager).mockResolvedValue("bun");
 
-      const targetDir = path.join(
-        tmpDir,
-        "plugins",
-        "ejected",
-        "_elizaos_plugin-test",
-      );
+      const targetDir = getDefaultEjectedPluginDir();
       setExecFileHandler(async (file, args) => {
         if (file === "git" && args[0] === "clone") {
-          await fs.mkdir(targetDir, { recursive: true });
+          await writeClonedPluginDir(targetDir);
           return;
         }
         if (file === "bun" && args[0] === "install") {
@@ -474,10 +491,10 @@ describe("plugin-eject", () => {
       });
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(true);
-      expect(result.pluginName).toBe("@elizaos/plugin-test");
+      expect(result.pluginName).toBe(DEFAULT_PLUGIN_ID);
       expect(execFile).toHaveBeenCalledWith(
         "bun",
         ["install"],
@@ -498,23 +515,13 @@ describe("plugin-eject", () => {
       vi.mocked(getPluginInfo).mockResolvedValue(pluginInfo() as never);
       vi.mocked(installer.detectPackageManager).mockResolvedValue("npm");
 
-      const targetDir = path.join(
-        tmpDir,
-        "plugins",
-        "ejected",
-        "_elizaos_plugin-test",
-      );
+      const targetDir = getDefaultEjectedPluginDir();
       setExecFileHandler(async (file, args) => {
         if (file === "git" && args[0] === "clone") {
-          await fs.mkdir(targetDir, { recursive: true });
-          await fs.writeFile(
-            path.join(targetDir, "package.json"),
-            JSON.stringify(
-              { name: "@elizaos/plugin-test", scripts: { build: "echo" } },
-              null,
-              2,
-            ),
-          );
+          await writeClonedPluginDir(targetDir, {
+            name: DEFAULT_PLUGIN_ID,
+            scripts: { build: "echo" },
+          });
           return;
         }
         if (file === "npm" && args.join(" ") === "install") return;
@@ -527,7 +534,7 @@ describe("plugin-eject", () => {
       });
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(true);
       expect(execFile).toHaveBeenCalledWith(
@@ -544,19 +551,13 @@ describe("plugin-eject", () => {
       vi.mocked(getPluginInfo).mockResolvedValue(pluginInfo() as never);
       vi.mocked(installer.detectPackageManager).mockResolvedValue("npm");
 
-      const targetDir = path.join(
-        tmpDir,
-        "plugins",
-        "ejected",
-        "_elizaos_plugin-test",
-      );
+      const targetDir = getDefaultEjectedPluginDir();
       setExecFileHandler(async (file, args) => {
         if (file === "git" && args[0] === "clone") {
-          await fs.mkdir(targetDir, { recursive: true });
-          await fs.writeFile(
-            path.join(targetDir, "package.json"),
-            JSON.stringify({ name: "@elizaos/plugin-test", version: "1.0.0" }),
-          );
+          await writeClonedPluginDir(targetDir, {
+            name: DEFAULT_PLUGIN_ID,
+            version: "1.0.0",
+          });
           return;
         }
         if (file === "npm" && args.join(" ") === "install") {
@@ -568,7 +569,7 @@ describe("plugin-eject", () => {
       });
 
       const { ejectPlugin } = await loadPluginEject();
-      const result = await ejectPlugin("@elizaos/plugin-test");
+      const result = await ejectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe("install failed without Error");
@@ -639,8 +640,8 @@ describe("plugin-eject", () => {
     it("syncs successfully and updates upstream metadata", async () => {
       const pluginDir = await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -678,7 +679,7 @@ describe("plugin-eject", () => {
       });
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(true);
       expect(result.upstreamCommits).toBe(2);
@@ -699,8 +700,8 @@ describe("plugin-eject", () => {
     it("reports conflicts on merge failure", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -733,7 +734,7 @@ describe("plugin-eject", () => {
       });
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.localChanges).toBe(true);
@@ -748,8 +749,8 @@ describe("plugin-eject", () => {
     it("handles shallow clones by trying --unshallow and continuing", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -789,7 +790,7 @@ describe("plugin-eject", () => {
       });
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(true);
       expect(vi.mocked(execFile)).toHaveBeenCalledWith(
@@ -809,13 +810,13 @@ describe("plugin-eject", () => {
     it("rejects invalid upstream schema metadata", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         "invalid-schema",
       );
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Missing or invalid");
@@ -824,8 +825,8 @@ describe("plugin-eject", () => {
     it("rejects metadata with invalid upstream URL or branch", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {
           gitUrl: "git@github.com:elizaos-plugins/plugin-test.git",
           branch: "bad branch",
@@ -834,7 +835,7 @@ describe("plugin-eject", () => {
       );
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe("Invalid upstream metadata");
@@ -844,8 +845,8 @@ describe("plugin-eject", () => {
     it("continues when shallow check throws and then applies normal fetch flow", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -885,7 +886,7 @@ describe("plugin-eject", () => {
       });
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(true);
       expect(vi.mocked(execFile)).toHaveBeenCalledWith(
@@ -899,8 +900,8 @@ describe("plugin-eject", () => {
     it("treats merge conflicts as empty when conflict diff cannot be read", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -936,7 +937,7 @@ describe("plugin-eject", () => {
       });
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.conflicts).toEqual([]);
@@ -946,8 +947,8 @@ describe("plugin-eject", () => {
     it("reports non-Error merge errors as string", async () => {
       await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -983,7 +984,7 @@ describe("plugin-eject", () => {
       });
 
       const { syncPlugin } = await loadPluginEject();
-      const result = await syncPlugin("@elizaos/plugin-test");
+      const result = await syncPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.conflicts).toEqual(["src/conflict.ts"]);
@@ -996,8 +997,8 @@ describe("plugin-eject", () => {
     it("removes an ejected plugin directory", async () => {
       const pluginDir = await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
         {},
       );
 
@@ -1005,14 +1006,14 @@ describe("plugin-eject", () => {
       const result = await reinjectPlugin("test");
 
       expect(result.success).toBe(true);
-      expect(result.pluginName).toBe("@elizaos/plugin-test");
+      expect(result.pluginName).toBe(DEFAULT_PLUGIN_ID);
       expect(result.removedPath).toBe(pluginDir);
       await expect(fs.access(pluginDir)).rejects.toThrow();
     });
 
     it("returns error when plugin is not ejected", async () => {
       const { reinjectPlugin } = await loadPluginEject();
-      const result = await reinjectPlugin("@elizaos/plugin-test");
+      const result = await reinjectPlugin(DEFAULT_PLUGIN_ID);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("is not ejected");
@@ -1074,9 +1075,9 @@ describe("plugin-eject", () => {
       await fs.writeFile(path.join(base, "not-dir.txt"), "ignore me");
       const pluginDir = await writeEjectedPlugin(
         tmpDir,
-        "_elizaos_plugin-test",
-        { name: "@elizaos/plugin-test", version: "1.0.0" },
-        { npmPackage: "@elizaos/plugin-test", commitHash: "abc" },
+        DEFAULT_PLUGIN_DIR_NAME,
+        { name: DEFAULT_PLUGIN_ID, version: "1.0.0" },
+        { npmPackage: DEFAULT_PLUGIN_ID, commitHash: "abc" },
       );
       const readdirSpy = vi.spyOn(fs, "readdir").mockResolvedValueOnce([
         {
@@ -1088,7 +1089,7 @@ describe("plugin-eject", () => {
           isDirectory: () => true,
         } as never,
         {
-          name: "_elizaos_plugin-test",
+          name: DEFAULT_PLUGIN_DIR_NAME,
           isDirectory: () => true,
         } as never,
       ]);
@@ -1098,18 +1099,18 @@ describe("plugin-eject", () => {
 
       expect(list).toEqual([
         {
-          name: "@elizaos/plugin-test",
+          name: DEFAULT_PLUGIN_ID,
           path: pluginDir,
           version: "1.0.0",
           upstream: {
             $schema: "milaidy-upstream-v1",
             source: "github:elizaos-plugins/plugin-test",
-            gitUrl: "https://github.com/elizaos-plugins/plugin-test.git",
+            gitUrl: DEFAULT_PLUGIN_GIT_URL,
             branch: "main",
             commitHash: "abc",
             ejectedAt: expect.any(String),
-            npmPackage: "@elizaos/plugin-test",
-            npmVersion: "2.0.0",
+            npmPackage: DEFAULT_PLUGIN_ID,
+            npmVersion: DEFAULT_PLUGIN_VERSION,
             lastSyncAt: null,
             localCommits: 0,
           },
@@ -1133,7 +1134,7 @@ describe("plugin-eject", () => {
       const betaDir = await writeEjectedPlugin(
         tmpDir,
         "_elizaos_plugin-beta",
-        { name: "@elizaos/plugin-beta", version: "2.0.0" },
+        { name: "@elizaos/plugin-beta", version: DEFAULT_PLUGIN_VERSION },
         "missing",
       );
 
@@ -1150,7 +1151,7 @@ describe("plugin-eject", () => {
       expect(alpha?.upstream?.$schema).toBe("milaidy-upstream-v1");
       expect(beta?.upstream).toBeNull();
       expect(alpha?.version).toBe("1.0.0");
-      expect(beta?.version).toBe("2.0.0");
+      expect(beta?.version).toBe(DEFAULT_PLUGIN_VERSION);
     });
   });
 });
