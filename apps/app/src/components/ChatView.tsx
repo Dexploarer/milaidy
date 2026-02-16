@@ -253,7 +253,14 @@ export function ChatView() {
       )}
 
       {/* ── Messages ───────────────────────────────────────────────── */}
-      <div ref={messagesRef} className="flex-1 overflow-y-auto py-2 relative" style={{ zIndex: 1 }}>
+      <div
+        ref={messagesRef}
+        className="flex-1 overflow-y-auto py-2 relative"
+        style={{ zIndex: 1 }}
+        role="log"
+        aria-live="polite"
+        aria-label="Chat history"
+      >
         {msgs.length === 0 && !chatSending ? (
           <div className="text-center py-10 text-muted italic">
             Send a message to start chatting.
@@ -265,6 +272,7 @@ export function ChatView() {
               className="mb-4 leading-relaxed max-w-[65%]"
               data-testid="chat-message"
               data-role={msg.role}
+              role="article"
             >
               <div
                 className={`font-bold text-[13px] mb-0.5 ${
@@ -325,8 +333,9 @@ export function ChatView() {
           }`}
           onClick={() => setAvatarVisible((v) => !v)}
           title={avatarVisible ? "Hide avatar" : "Show avatar"}
+          aria-label={avatarVisible ? "Hide avatar" : "Show avatar"}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
             {!avatarVisible && <line x1="3" y1="3" x2="21" y2="21" />}
@@ -346,8 +355,9 @@ export function ChatView() {
             if (muting) voice.stopSpeaking();
           }}
           title={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
+          aria-label={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
             {agentVoiceMuted ? (
               <line x1="23" y1="9" x2="17" y2="15" />
@@ -374,8 +384,9 @@ export function ChatView() {
             }`}
             onClick={voice.toggleListening}
             title={voice.isListening ? "Stop listening" : "Voice input"}
+            aria-label={voice.isListening ? "Stop listening" : "Voice input"}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill={voice.isListening ? "currentColor" : "none"} stroke="currentColor" strokeWidth={voice.isListening ? "0" : "2"}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill={voice.isListening ? "currentColor" : "none"} stroke="currentColor" strokeWidth={voice.isListening ? "0" : "2"} aria-hidden="true">
               {voice.isListening ? (
                 <>
                   <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
@@ -404,6 +415,7 @@ export function ChatView() {
             className="flex-1 px-3 py-2 border border-border bg-card text-txt text-sm font-body leading-relaxed resize-none overflow-y-hidden min-h-[38px] max-h-[200px] focus:border-accent focus:outline-none"
             rows={1}
             placeholder={voice.isListening ? "Listening..." : "Type a message..."}
+            aria-label="Chat input"
             value={chatInput}
             onChange={(e) => setState("chatInput", e.target.value)}
             onKeyDown={handleKeyDown}
