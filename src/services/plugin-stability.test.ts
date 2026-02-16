@@ -32,6 +32,7 @@ import {
   createEnvSandbox,
   extractPlugin,
   isOptionalImportError,
+  isWorkspaceDependency,
   tryOptionalDynamicImport,
 } from "../test-support/test-helpers";
 
@@ -880,13 +881,6 @@ describe("Version Skew Detection (issue #10)", () => {
     return (
       manifest.overrides?.["@elizaos/core"] ??
       manifest.pnpm?.overrides?.["@elizaos/core"]
-    );
-  }
-
-  function isWorkspaceDependency(version: string | undefined): boolean {
-    return (
-      typeof version === "string" &&
-      (version.startsWith(".") || version.startsWith("workspace:"))
     );
   }
 

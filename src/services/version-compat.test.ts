@@ -7,6 +7,7 @@
  * @see https://github.com/milady-ai/milady/issues/10
  */
 import { describe, expect, it } from "vitest";
+import { isWorkspaceDependency } from "../test-support/test-helpers";
 import {
   AI_PROVIDER_PLUGINS,
   compareSemver,
@@ -375,13 +376,6 @@ describe("Package.json version pinning (issue #10)", () => {
     return (
       manifest.overrides?.["@elizaos/core"] ??
       manifest.pnpm?.overrides?.["@elizaos/core"]
-    );
-  }
-
-  function isWorkspaceDependency(version: string | undefined): boolean {
-    return (
-      typeof version === "string" &&
-      (version.startsWith(".") || version.startsWith("workspace:"))
     );
   }
 
