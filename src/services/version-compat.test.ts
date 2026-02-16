@@ -30,8 +30,6 @@ function _getCorePin(pkg: RootPackageJson): string | undefined {
   );
 }
 
-// Re-export for tests in this file that may reference it
-export { isWorkspaceDependency };
 
 // ============================================================================
 //  1. Semver parsing
