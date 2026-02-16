@@ -235,6 +235,8 @@ interface ServerState {
   >;
   /** Whether shell access is enabled (can be toggled in UI). */
   shellEnabled?: boolean;
+  /** Cached redacted config to avoid re-computing on every poll. */
+  redactedConfig: Record<string, unknown> | null;
 }
 
 interface ShareIngestItem {
@@ -4370,6 +4372,7 @@ async function handleRequest(
       if (!state.config.env) state.config.env = {};
       (state.config.env as Record<string, string>).ANTHROPIC_API_KEY =
         body.token.trim();
+      state.redactedConfig = null;
       saveMilaidyConfig(state.config);
       json(res, { success: true });
     } catch (err) {
@@ -6495,6 +6498,7 @@ async function handleRequest(
     }
 
     try {
+      state.redactedConfig = null;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -8186,6 +8190,7 @@ async function handleRequest(
       lastCheckAt: undefined,
       lastCheckVersion: undefined,
     };
+    state.redactedConfig = null;
     saveMilaidyConfig(state.config);
     json(res, { channel: ch });
     return;
@@ -8193,10 +8198,14 @@ async function handleRequest(
 
   // ── GET /api/connectors ──────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/connectors") {
-    const connectors = state.config.connectors ?? state.config.channels ?? {};
-    json(res, {
-      connectors: redactConfigSecrets(connectors as Record<string, unknown>),
-    });
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
+    const connectors =
+      (state.redactedConfig.connectors as Record<string, unknown>) ??
+      (state.redactedConfig.channels as Record<string, unknown>) ??
+      {};
+    json(res, { connectors });
     return;
   }
 
@@ -8227,14 +8236,17 @@ async function handleRequest(
     if (!state.config.connectors) state.config.connectors = {};
     state.config.connectors[connectorName] = config as ConnectorConfig;
     try {
+      state.redactedConfig = null;
       saveMilaidyConfig(state.config);
     } catch {
       /* test envs */
     }
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
     json(res, {
-      connectors: redactConfigSecrets(
-        (state.config.connectors ?? {}) as Record<string, unknown>,
-      ),
+      connectors:
+        (state.redactedConfig.connectors as Record<string, unknown>) ?? {},
     });
     return;
   }
@@ -8257,14 +8269,17 @@ async function handleRequest(
       delete state.config.channels[name];
     }
     try {
+      state.redactedConfig = null;
       saveMilaidyConfig(state.config);
     } catch {
       /* test envs */
     }
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
     json(res, {
-      connectors: redactConfigSecrets(
-        (state.config.connectors ?? {}) as Record<string, unknown>,
-      ),
+      connectors:
+        (state.redactedConfig.connectors as Record<string, unknown>) ?? {},
     });
     return;
   }
@@ -8286,7 +8301,10 @@ async function handleRequest(
 
   // ── GET /api/config ──────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/config") {
-    json(res, redactConfigSecrets(state.config));
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
+    json(res, state.redactedConfig);
     return;
   }
 
@@ -8456,13 +8474,18 @@ async function handleRequest(
     }
 
     try {
+      state.redactedConfig = null;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
         `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
       );
     }
-    json(res, redactConfigSecrets(state.config));
+    // Repopulate cache immediately for the response
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
+    json(res, state.redactedConfig);
     return;
   }
 
@@ -8597,6 +8620,7 @@ async function handleRequest(
       state.config.features = {};
     }
     state.config.features.shellEnabled = enabled;
+    state.redactedConfig = null;
     saveMilaidyConfig(state.config);
 
     // If a runtime is active, restart so plugin loading honors the new
@@ -10701,6 +10725,7 @@ async function handleRequest(
     >[string];
 
     try {
+      state.redactedConfig = null;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -10732,6 +10757,7 @@ async function handleRequest(
     if (state.config.mcp?.servers?.[serverName]) {
       delete state.config.mcp.servers[serverName];
       try {
+        state.redactedConfig = null;
         saveMilaidyConfig(state.config);
       } catch (err) {
         logger.warn(
@@ -11012,6 +11038,7 @@ async function handleRequest(
     const config = loadMilaidyConfig();
     if (!config.customActions) config.customActions = [];
     config.customActions.push(actionDef);
+    state.redactedConfig = null;
     saveMilaidyConfig(config);
 
     // Hot-register into the running agent so it's available immediately
@@ -11178,6 +11205,7 @@ async function handleRequest(
 
     actions[idx] = updated;
     config.customActions = actions;
+    state.redactedConfig = null;
     saveMilaidyConfig(config);
 
     json(res, { ok: true, action: updated });
@@ -11197,6 +11225,7 @@ async function handleRequest(
 
     actions.splice(idx, 1);
     config.customActions = actions;
+    state.redactedConfig = null;
     saveMilaidyConfig(config);
 
     json(res, { ok: true });
@@ -11323,6 +11352,7 @@ export async function startApiServer(opts?: {
     activeConversationId: null,
     permissionStates: {},
     shellEnabled: config.features?.shellEnabled !== false,
+    redactedConfig: null,
   };
 
   const trainingService = new TrainingService({
@@ -11330,6 +11360,7 @@ export async function startApiServer(opts?: {
     getConfig: () => state.config,
     setConfig: (nextConfig: MilaidyConfig) => {
       state.config = nextConfig;
+      state.redactedConfig = null;
       saveMilaidyConfig(nextConfig);
     },
   });
