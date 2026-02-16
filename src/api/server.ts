@@ -2820,8 +2820,7 @@ async function handleRequest(
     const currentInstalls = JSON.stringify(freshConfig.plugins?.installs ?? {});
     if (
       configChanged ||
-      currentInstalls !== state.lastInstallsConfig ||
-      state.installedPluginsCache.length === 0
+      currentInstalls !== state.lastInstallsConfig
     ) {
       const bundledIds = new Set(state.plugins.map((p) => p.id));
       state.installedPluginsCache = discoverInstalledPlugins(
