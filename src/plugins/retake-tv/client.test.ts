@@ -136,11 +136,16 @@ describe("RetakeClient", () => {
     fetchMock.mockImplementation(
       (_url: string, init?: RequestInit) =>
         new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener(
-            "abort",
-            () => reject(new DOMException("aborted", "AbortError")),
-            { once: true },
-          );
+          const onAbort = () => {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          };
+          if (init?.signal?.aborted) {
+            onAbort();
+          } else {
+            init?.signal?.addEventListener("abort", onAbort, { once: true });
+          }
         }),
     );
 
