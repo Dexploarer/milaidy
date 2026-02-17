@@ -12,6 +12,8 @@ export function Nav() {
           .filter((t: Tab): t is Tab => validTabs.includes(t))
           .map((t: Tab) => (
             <button key={t}
+              role="tab"
+              aria-selected={tab === t}
               className={`inline-block px-3 py-1.5 text-[13px] bg-transparent border-0 border-b-2 cursor-pointer transition-colors ${
                 tab === t
                   ? "text-accent font-medium border-b-accent"
