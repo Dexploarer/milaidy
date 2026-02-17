@@ -11,6 +11,7 @@ const READY_EVENT_BY_AUTH_TYPE: Record<string, string> = {
   HYPERSCAPE_AUTH: "HYPERSCAPE_READY",
   RS_2004SCAPE_AUTH: "RS_2004SCAPE_READY",
 };
+const LOCAL_EMBEDDED_GAME_APPS = new Set(["milady-social-composer"]);
 
 function resolvePostMessageTargetOrigin(viewerUrl: string): string {
   if (viewerUrl.startsWith("/")) return window.location.origin;
@@ -95,6 +96,13 @@ export function GameView() {
     if (!activeGameApp) return;
     setStopping(true);
     try {
+      if (LOCAL_EMBEDDED_GAME_APPS.has(activeGameApp)) {
+        resetActiveGameState();
+        setState("tab", "apps");
+        setActionNotice("Session closed.", "success", 2400);
+        return;
+      }
+
       const stopResult = await client.stopApp(activeGameApp);
       resetActiveGameState();
       setState("tab", "apps");

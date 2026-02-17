@@ -33,6 +33,10 @@ import {
   saveMiladyConfig,
 } from "../config/config";
 import { resolveModelsCacheDir, resolveStateDir } from "../config/paths";
+import {
+  DEFAULT_LARGE_MODEL,
+  DEFAULT_SMALL_MODEL,
+} from "../config/model-defaults";
 import type { ConnectorConfig, CustomActionDef } from "../config/types.milady";
 import { CharacterSchema } from "../config/zod-schema";
 import { EMOTE_BY_ID, EMOTE_CATALOG } from "../emotes/catalog";
@@ -193,6 +197,7 @@ interface ServerState {
   agentState:
     | "not_started"
     | "starting"
+    | "needs_provider"
     | "running"
     | "paused"
     | "stopped"
@@ -249,6 +254,80 @@ interface ServerState {
   /** Whether shell access is enabled (can be toggled in UI). */
   shellEnabled?: boolean;
 }
+
+const AI_PROVIDER_PLUGIN_KEYWORDS = [
+  "anthropic",
+  "openai",
+  "groq",
+  "google",
+  "google-genai",
+  "mistral",
+  "cohere",
+  "together",
+  "perplexity",
+  "deepseek",
+  "xai",
+  "openrouter",
+  "gemini",
+  "ollama",
+  "vercel",
+  "gateway",
+  "zai",
+  "elizacloud",
+];
+
+function runtimeHasConfiguredProvider(runtime: AgentRuntime | null): boolean {
+  if (!runtime) return false;
+
+  const providers = (runtime as { providers?: unknown[] }).providers;
+  if (Array.isArray(providers) && providers.length > 0) {
+    return true;
+  }
+
+  const plugins = (runtime as { plugins?: Array<{ name?: unknown }> }).plugins;
+  if (!Array.isArray(plugins)) {
+    return false;
+  }
+  return plugins.some((plugin) => {
+    const name = typeof plugin.name === "string" ? plugin.name.toLowerCase() : "";
+    return AI_PROVIDER_PLUGIN_KEYWORDS.some((keyword) => name.includes(keyword));
+  });
+}
+
+function getProviderEnvKeysForHydration(): Set<string> {
+  const providerKeys = new Set<string>([
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "AI_GATEWAY_API_KEY",
+    "AIGATEWAY_API_KEY",
+    "OLLAMA_BASE_URL",
+    "ELIZAOS_CLOUD_API_KEY",
+    "ELIZAOS_CLOUD_ENABLED",
+    "ELIZAOS_CLOUD_BASE_URL",
+    "ELIZAOS_CLOUD_SMALL_MODEL",
+    "ELIZAOS_CLOUD_LARGE_MODEL",
+    "SMALL_MODEL",
+    "LARGE_MODEL",
+  ]);
+
+  for (const option of getProviderOptions()) {
+    if (option.envKey) {
+      providerKeys.add(option.envKey);
+    }
+  }
+
+  return providerKeys;
+}
+
+function resolveAgentStateFromRuntime(
+  runtime: AgentRuntime | null,
+  fallbackState: ServerState["agentState"] = "not_started",
+): ServerState["agentState"] {
+  if (!runtime) return fallbackState;
+  return runtimeHasConfiguredProvider(runtime) ? "running" : "needs_provider";
+}
+
+const PROVIDER_MISSING_ERROR_MESSAGE =
+  "No model provider is configured. Configure and test a provider before chatting.";
 
 interface ShareIngestItem {
   id: string;
@@ -1633,6 +1712,58 @@ const readBody = (req: http.IncomingMessage): Promise<string> =>
     (value) => value ?? "",
   );
 
+interface SocialScriptResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+async function runTwitterClientCommand(args: string[]): Promise<SocialScriptResult> {
+  const { spawn } = await import("node:child_process");
+  const command = "python3";
+  const scriptPath = SOCIAL_CLIENT_SCRIPT_PATH;
+  const argList = [scriptPath, ...args];
+
+  return await new Promise<SocialScriptResult>((resolve, reject) => {
+    const proc = spawn(command, argList, {
+      cwd: process.cwd(),
+      env: { ...process.env, FORCE_COLOR: "0" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf-8");
+    });
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf-8");
+    });
+
+    proc.on("error", (err: Error) => {
+      reject(new Error(err.message));
+    });
+
+    proc.on("close", (code: number | null) => {
+      resolve({
+        code: code ?? 1,
+        stdout,
+        stderr,
+      });
+    });
+  });
+}
+
+function parseSocialResult(stdout: string): Record<string, unknown> | null {
+  const trimmed = stdout.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 function json(res: http.ServerResponse, data: unknown, status = 200): void {
   sendJson(res, data, status);
 }
@@ -2886,6 +3017,37 @@ function isRedactedSecretValue(value: unknown): boolean {
   );
 }
 
+type SocialPlatform = "x" | "twitter" | "telegram" | "discord";
+
+interface SocialPostPayload {
+  platform: SocialPlatform;
+  text: string;
+  // X/Twitter
+  username?: string;
+  useBrowserCookies?: boolean;
+  browser?: "chrome" | "chromium" | "edge";
+  chromeProfile?: string;
+  chromeProfileName?: string;
+  chromeCookieNames?: string;
+  // Telegram
+  chatId?: string;
+  telegramToken?: string;
+  // Discord
+  channelId?: string;
+  discordToken?: string;
+}
+
+interface SocialPostRunResult {
+  ok: true;
+  platform: SocialPlatform;
+  platformResult?: Record<string, unknown>;
+  message?: string;
+}
+
+const SOCIAL_CLIENT_SCRIPT_PATH = path.resolve(
+  fileURLToPath(new URL("../../scripts/twitter_client.py", import.meta.url)),
+);
+
 // ---------------------------------------------------------------------------
 // Skill-ID path-traversal guard
 // ---------------------------------------------------------------------------
@@ -2945,19 +3107,20 @@ function getProviderOptions(): Array<{
     {
       id: "anthropic-subscription",
       name: "Anthropic Subscription",
-      envKey: null,
+      envKey: "ANTHROPIC_API_KEY",
       pluginName: "@elizaos/plugin-anthropic",
       keyPrefix: null,
       description:
-        "Use your $20-200/mo Claude subscription via OAuth or setup token.",
+        "Use your $20-200/mo Claude subscription via setup token.",
     },
     {
       id: "openai-subscription",
       name: "OpenAI Subscription",
-      envKey: null,
+      envKey: "OPENAI_API_KEY",
       pluginName: "@elizaos/plugin-openai",
       keyPrefix: null,
-      description: "Use your $20-200/mo ChatGPT subscription via OAuth.",
+      description:
+        "Use your $20-200/mo ChatGPT subscription via setup token.",
     },
     {
       id: "anthropic",
@@ -4836,7 +4999,7 @@ async function handleRequest(
             state.runtime = newRuntime;
             state.chatConnectionReady = null;
             state.chatConnectionPromise = null;
-            state.agentState = "running";
+            state.agentState = resolveAgentStateFromRuntime(newRuntime);
             state.agentName = newRuntime.character.name ?? "Milady";
             state.startedAt = Date.now();
             logger.info("[milady-api] Runtime restarted successfully");
@@ -5066,16 +5229,19 @@ async function handleRequest(
   }
 
   // ── POST /api/subscription/anthropic/start ──────────────────────────────
-  // Start Anthropic OAuth flow — returns URL for user to visit
+  // Start Anthropic login flow — returns URL for user to visit
   if (method === "POST" && pathname === "/api/subscription/anthropic/start") {
     try {
-      const { startAnthropicLogin } = await import("../auth/index");
+      const { startAnthropicLogin } = await import("../auth/anthropic");
       const flow = await startAnthropicLogin();
-      // Store flow in server state for the exchange step
       state._anthropicFlow = flow;
-      json(res, { authUrl: flow.authUrl });
+      json(res, {
+        authUrl: flow.authUrl,
+        instructions:
+          "Open this page, create a Claude setup token (or paste one you already have), then return here.",
+      });
     } catch (err) {
-      error(res, `Failed to start Anthropic login: ${err}`, 500);
+      error(res, `Failed to start Anthropic subscription login: ${err}`, 500);
     }
     return;
   }
@@ -5089,26 +5255,23 @@ async function handleRequest(
     const body = await readJsonBody<{ code: string }>(req, res);
     if (!body) return;
     if (!body.code) {
-      error(res, "Missing code", 400);
+      error(res, "OAuth code is required", 400);
+      return;
+    }
+    if (!state._anthropicFlow) {
+      error(res, "No Anthropic subscription login session found", 400);
       return;
     }
     try {
-      const { saveCredentials, applySubscriptionCredentials } = await import(
-        "../auth/index"
-      );
-      const flow = state._anthropicFlow;
-      if (!flow) {
-        error(res, "No active flow — call /start first", 400);
-        return;
-      }
-      // Submit the code and wait for credentials
-      flow.submitCode(body.code);
-      const credentials = await flow.credentials;
-      saveCredentials("anthropic-subscription", credentials);
-      await applySubscriptionCredentials();
-      delete state._anthropicFlow;
-      json(res, { success: true, expiresAt: credentials.expires });
+      const { saveCredentials } = await import("../auth/credentials");
+      state._anthropicFlow.submitCode(body.code);
+      const credentials = await state._anthropicFlow.credentials;
+      await saveCredentials("anthropic-subscription", credentials);
+      process.env.ANTHROPIC_API_KEY = credentials.access;
+      state._anthropicFlow = undefined;
+      json(res, { success: true, expiresAt: new Date(credentials.expires).toISOString() });
     } catch (err) {
+      state._anthropicFlow = undefined;
       error(res, `Anthropic exchange failed: ${err}`, 500);
     }
     return;
@@ -5122,17 +5285,58 @@ async function handleRequest(
   ) {
     const body = await readJsonBody<{ token: string }>(req, res);
     if (!body) return;
-    if (!body.token || !body.token.startsWith("sk-ant-")) {
+    const token = body.token?.trim() ?? "";
+    if (!token || !token.startsWith("sk-ant-")) {
       error(res, "Invalid token format — expected sk-ant-oat01-...", 400);
       return;
     }
     try {
       // Setup tokens are direct API keys — set in env immediately
-      process.env.ANTHROPIC_API_KEY = body.token.trim();
+      const directCredentials = {
+        access: token,
+        refresh: "",
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 5,
+      };
+      const { saveCredentials } = await import("../auth/credentials");
+      await saveCredentials("anthropic-subscription", directCredentials);
+      process.env.ANTHROPIC_API_KEY = token;
       // Also save to config so it persists across restarts
       if (!state.config.env) state.config.env = {};
       (state.config.env as Record<string, string>).ANTHROPIC_API_KEY =
-        body.token.trim();
+        token;
+      saveMiladyConfig(state.config);
+      json(res, { success: true });
+    } catch (err) {
+      error(res, `Failed to save setup token: ${err}`, 500);
+    }
+    return;
+  }
+
+  // ── POST /api/subscription/openai/setup-token ──────────────────────────
+  // Accept an OpenAI API key (sk-...) directly
+  if (
+    method === "POST" &&
+    pathname === "/api/subscription/openai/setup-token"
+  ) {
+    const body = await readJsonBody<{ token: string }>(req, res);
+    if (!body) return;
+    const token = body.token?.trim() ?? "";
+    if (!token || !token.startsWith("sk-")) {
+      error(res, "Invalid token format — expected sk-...", 400);
+      return;
+    }
+    try {
+      const directCredentials = {
+        access: token,
+        refresh: "",
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 5,
+      };
+      const { saveCredentials } = await import("../auth/credentials");
+      await saveCredentials("openai-subscription", directCredentials);
+      process.env.OPENAI_API_KEY = token;
+      if (!state.config.env) state.config.env = {};
+      (state.config.env as Record<string, string>).OPENAI_API_KEY =
+        token;
       saveMiladyConfig(state.config);
       json(res, { success: true });
     } catch (err) {
@@ -5142,47 +5346,28 @@ async function handleRequest(
   }
 
   // ── POST /api/subscription/openai/start ─────────────────────────────────
-  // Start OpenAI Codex OAuth flow — returns URL and starts callback server
+  // Start OpenAI Codex OAuth flow — returns URL and state
   if (method === "POST" && pathname === "/api/subscription/openai/start") {
     try {
-      const { startCodexLogin } = await import("../auth/index");
-      // Clean up any stale flow from a previous attempt
-      if (state._codexFlow) {
-        try {
-          state._codexFlow.close();
-        } catch (err) {
-          logger.debug(
-            `[api] OAuth flow cleanup failed: ${err instanceof Error ? err.message : err}`,
-          );
-        }
+      const { startCodexLogin } = await import("../auth/openai-codex");
+      if (state._codexFlowTimer) {
+        clearTimeout(state._codexFlowTimer);
+        state._codexFlowTimer = undefined;
       }
-      clearTimeout(state._codexFlowTimer);
-
       const flow = await startCodexLogin();
-      // Store flow state + auto-cleanup after 10 minutes
       state._codexFlow = flow;
-      state._codexFlowTimer = setTimeout(
-        () => {
-          try {
-            flow.close();
-          } catch (err) {
-            logger.debug(
-              `[api] OAuth flow cleanup failed: ${err instanceof Error ? err.message : err}`,
-            );
-          }
-          delete state._codexFlow;
-          delete state._codexFlowTimer;
-        },
-        10 * 60 * 1000,
-      );
+      state._codexFlowTimer = setTimeout(() => {
+        state._codexFlow?.close();
+        state._codexFlow = undefined;
+        state._codexFlowTimer = undefined;
+      }, 60 * 10 * 1000);
       json(res, {
         authUrl: flow.authUrl,
         state: flow.state,
-        instructions:
-          "Open the URL in your browser. After login, if auto-redirect doesn't work, paste the full redirect URL.",
+        instructions: "Open this page and create an OpenAI API key, then paste it below.",
       });
     } catch (err) {
-      error(res, `Failed to start OpenAI login: ${err}`, 500);
+      error(res, `Failed to start OpenAI subscription login: ${err}`, 500);
     }
     return;
   }
@@ -5190,60 +5375,34 @@ async function handleRequest(
   // ── POST /api/subscription/openai/exchange ──────────────────────────────
   // Exchange OpenAI auth code or wait for callback
   if (method === "POST" && pathname === "/api/subscription/openai/exchange") {
-    const body = await readJsonBody<{
-      code?: string;
-      waitForCallback?: boolean;
-    }>(req, res);
+    const body = await readJsonBody<{ code: string }>(req, res);
     if (!body) return;
-    let flow: import("../auth/index").CodexFlow | undefined;
+    if (!body.code) {
+      error(res, "OAuth code is required", 400);
+      return;
+    }
+    if (!state._codexFlow) {
+      error(res, "No OpenAI subscription login session found", 400);
+      return;
+    }
     try {
-      const { saveCredentials, applySubscriptionCredentials } = await import(
-        "../auth/index"
-      );
-      flow = state._codexFlow;
-
-      if (!flow) {
-        error(res, "No active flow — call /start first", 400);
-        return;
-      }
-
-      if (body.code) {
-        // Manual code/URL paste — submit to flow
-        flow.submitCode(body.code);
-      } else if (!body.waitForCallback) {
-        error(res, "Provide either code or set waitForCallback: true", 400);
-        return;
-      }
-
-      // Wait for credentials (either from callback server or manual submission)
-      let credentials: import("../auth/index").OAuthCredentials;
-      try {
-        credentials = await flow.credentials;
-      } catch (err) {
-        try {
-          flow.close();
-        } catch (closeErr) {
-          logger.debug(
-            `[api] OAuth flow cleanup failed: ${closeErr instanceof Error ? closeErr.message : closeErr}`,
-          );
-        }
-        delete state._codexFlow;
+      if (state._codexFlowTimer) {
         clearTimeout(state._codexFlowTimer);
-        delete state._codexFlowTimer;
-        error(res, `OpenAI exchange failed: ${err}`, 500);
-        return;
+        state._codexFlowTimer = undefined;
       }
-      saveCredentials("openai-codex", credentials);
-      await applySubscriptionCredentials();
-      flow.close();
-      delete state._codexFlow;
-      clearTimeout(state._codexFlowTimer);
-      delete state._codexFlowTimer;
+      const { saveCredentials } = await import("../auth/credentials");
+      state._codexFlow.submitCode(body.code);
+      const credentials = await state._codexFlow.credentials;
+      await saveCredentials("openai-subscription", credentials);
+      process.env.OPENAI_API_KEY = credentials.access;
+      state._codexFlow.close();
+      state._codexFlow = undefined;
       json(res, {
         success: true,
-        expiresAt: credentials.expires,
+        expiresAt: new Date(credentials.expires).toISOString(),
       });
     } catch (err) {
+      state._codexFlow = undefined;
       error(res, `OpenAI exchange failed: ${err}`, 500);
     }
     return;
@@ -5253,7 +5412,11 @@ async function handleRequest(
   // Remove subscription credentials
   if (method === "DELETE" && pathname.startsWith("/api/subscription/")) {
     const provider = pathname.split("/").pop();
-    if (provider === "anthropic-subscription" || provider === "openai-codex") {
+    if (
+      provider === "anthropic-subscription" ||
+      provider === "openai-subscription" ||
+      provider === "openai-codex"
+    ) {
       try {
         const { deleteCredentials } = await import("../auth/index");
         deleteCredentials(provider);
@@ -5433,12 +5596,23 @@ async function handleRequest(
 
   // ── GET /api/onboarding/options ─────────────────────────────────────────
   if (method === "GET" && pathname === "/api/onboarding/options") {
+    const onboardingOpenRouterModels = await getOrFetchProvider("openrouter");
+    const openrouterModels = onboardingOpenRouterModels
+      .filter((model) => model.category === "chat")
+      .slice(0, 200)
+      .map((model) => ({
+        id: model.id,
+        name: model.name || model.id,
+        description: `${model.name ?? model.id}`,
+      }));
+
     json(res, {
       names: pickRandomNames(5),
       styles: STYLE_PRESETS,
       providers: getProviderOptions(),
       cloudProviders: getCloudProviderOptions(),
       models: getModelOptions(),
+      openrouterModels,
       inventoryProviders: getInventoryProviderOptions(),
       sharedStyleRules: "Keep responses brief. Be helpful and concise.",
     });
@@ -5542,52 +5716,142 @@ async function handleRequest(
       config.models.small =
         (body.smallModel as string) ||
         config.models.small ||
-        "openai/gpt-5-mini";
+        DEFAULT_SMALL_MODEL;
       config.models.large =
         (body.largeModel as string) ||
         config.models.large ||
-        "anthropic/claude-sonnet-4.5";
+        DEFAULT_LARGE_MODEL;
     }
 
     // ── Local LLM provider ────────────────────────────────────────────────
+    const providerId = typeof body.provider === "string" ? body.provider : "";
+    const incomingProviderApiKey =
+      typeof body.providerApiKey === "string" ? body.providerApiKey.trim() : "";
+    const incomingSubscriptionApiKey =
+      typeof body.subscriptionApiKey === "string"
+        ? body.subscriptionApiKey.trim()
+        : "";
+    const incomingSubscriptionProvider =
+      typeof body.subscriptionProvider === "string"
+        ? body.subscriptionProvider
+        : providerId;
+    const incomingPrimaryModel =
+      providerId && typeof body.primaryModel === "string"
+        ? body.primaryModel.trim()
+        : "";
+    const incomingOpenRouterModel =
+      providerId === "openrouter" && typeof body.openrouterModel === "string"
+        ? body.openrouterModel.trim()
+        : "";
+    const isSubscriptionProvider =
+      providerId === "anthropic-subscription" ||
+      providerId === "openai-subscription";
+    const defaultProviderPrimaryModel =
+      providerId === "openai" || providerId === "openai-subscription"
+        ? DEFAULT_SMALL_MODEL
+        : providerId === "anthropic" || providerId === "anthropic-subscription"
+          ? DEFAULT_LARGE_MODEL
+          : "";
+    let derivedPrimaryModel =
+      incomingPrimaryModel ||
+      (providerId === "openrouter" ? incomingOpenRouterModel : "");
+    if (!derivedPrimaryModel && providerId === "openrouter" && runMode === "local") {
+      const openrouterModels = await getOrFetchProvider("openrouter");
+      derivedPrimaryModel =
+        openrouterModels.find((model) => model.category === "chat")?.id ?? "";
+    }
+    if (!derivedPrimaryModel && isSubscriptionProvider && runMode === "local") {
+      derivedPrimaryModel =
+        providerId === "openai-subscription"
+          ? DEFAULT_SMALL_MODEL
+          : DEFAULT_LARGE_MODEL;
+      logger.info(
+        `[milady-api] Defaulting primary model to ${derivedPrimaryModel} for provider ${providerId}`,
+      );
+    }
+    if (!derivedPrimaryModel && defaultProviderPrimaryModel && runMode === "local") {
+      derivedPrimaryModel = defaultProviderPrimaryModel;
+      logger.info(
+        `[milady-api] Defaulting primary model to ${derivedPrimaryModel} for provider ${providerId}`,
+      );
+    }
+
+    if (runMode === "local" && derivedPrimaryModel.length > 0) {
+      if (!config.agents.defaults.model || typeof config.agents.defaults.model !== "object") {
+        config.agents.defaults.model = {};
+      }
+      const existingModelConfig = config.agents.defaults.model as Record<
+        string,
+        unknown
+      >;
+      const existingFallbacks = Array.isArray(existingModelConfig.fallbacks)
+        ? existingModelConfig.fallbacks.filter(
+            (fallback): fallback is string => typeof fallback === "string",
+          )
+        : undefined;
+      config.agents.defaults.model = {
+        ...existingModelConfig,
+        primary: derivedPrimaryModel,
+        ...(existingFallbacks ? { fallbacks: existingFallbacks } : {}),
+      };
+      logger.info(
+        `[milady-api] Onboarding primary model set to ${derivedPrimaryModel}`,
+      );
+    }
+
     {
       if (!config.env) config.env = {};
       const envCfg = config.env as Record<string, unknown>;
       const vars = (envCfg.vars ?? {}) as Record<string, string>;
 
-      const providerId = typeof body.provider === "string" ? body.provider : "";
-
       // Persist vars back onto config.env
       (envCfg as Record<string, unknown>).vars = vars;
 
       // API-key providers (envKey backed)
-      if (runMode === "local" && providerId && body.providerApiKey) {
+      if (runMode === "local" && providerId) {
         const providerOpt = getProviderOptions().find(
           (p) => p.id === providerId,
         );
-        if (providerOpt?.envKey) {
+        const keyValue =
+          isSubscriptionProvider
+            ? incomingSubscriptionApiKey || incomingProviderApiKey
+            : incomingProviderApiKey;
+        if (providerOpt?.envKey && keyValue) {
           (config.env as Record<string, string>)[providerOpt.envKey] =
-            body.providerApiKey as string;
-          process.env[providerOpt.envKey] = body.providerApiKey as string;
+            keyValue;
+          process.env[providerOpt.envKey] = keyValue;
         }
       }
     }
 
-    // ── Subscription providers (no API key needed — uses OAuth) ──────────
+    // ── Subscription providers (API key or OAuth supported) ──────────────
     // If the user selected a subscription provider during onboarding,
-    // note it in config. The actual OAuth flow happens via
-    // /api/subscription/{provider}/start + /exchange endpoints.
+    // persist the selected provider and token directly if present.
     if (
       runMode === "local" &&
-      (body.provider === "anthropic-subscription" ||
-        body.provider === "openai-subscription")
+      (incomingSubscriptionProvider === "anthropic-subscription" ||
+        incomingSubscriptionProvider === "openai-subscription")
     ) {
+      const subscriptionApiKey =
+        isSubscriptionProvider
+          ? incomingSubscriptionApiKey || incomingProviderApiKey
+          : "";
+
       if (!config.agents) config.agents = {};
       if (!config.agents.defaults) config.agents.defaults = {};
       (config.agents.defaults as Record<string, unknown>).subscriptionProvider =
-        body.provider;
+        incomingSubscriptionProvider;
+      if (subscriptionApiKey) {
+        const directCredentials = {
+          access: subscriptionApiKey,
+          refresh: "",
+          expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 5,
+        };
+        const { saveCredentials } = await import("../auth/credentials");
+        await saveCredentials(incomingSubscriptionProvider, directCredentials);
+      }
       logger.info(
-        `[milady-api] Subscription provider selected: ${body.provider} — complete OAuth via /api/subscription/ endpoints`,
+        `[milady-api] Subscription provider selected: ${incomingSubscriptionProvider} with direct token`,
       );
     }
 
@@ -5714,7 +5978,7 @@ async function handleRequest(
 
   // ── POST /api/agent/start ───────────────────────────────────────────────
   if (method === "POST" && pathname === "/api/agent/start") {
-    state.agentState = "running";
+    state.agentState = resolveAgentStateFromRuntime(state.runtime);
     state.startedAt = Date.now();
     const detectedModel = state.runtime
       ? (state.runtime.plugins.find(
@@ -5789,7 +6053,7 @@ async function handleRequest(
     const svc = getAutonomySvc(state.runtime);
     if (svc) await svc.enableAutonomy();
 
-    state.agentState = "running";
+    state.agentState = resolveAgentStateFromRuntime(state.runtime);
     json(res, {
       ok: true,
       status: {
@@ -5877,7 +6141,7 @@ async function handleRequest(
         state.runtime = newRuntime;
         state.chatConnectionReady = null;
         state.chatConnectionPromise = null;
-        state.agentState = "running";
+        state.agentState = resolveAgentStateFromRuntime(newRuntime, "restarting");
         state.agentName = newRuntime.character.name ?? "Milady";
         state.startedAt = Date.now();
         patchMessageServiceForAutonomy(state);
@@ -9063,6 +9327,273 @@ async function handleRequest(
     return;
   }
 
+  // ── POST /api/social/post ─────────────────────────────────────────────
+  if (method === "POST" && pathname === "/api/social/post") {
+    const body = await readJsonBody<SocialPostPayload>(req, res);
+    if (!body) return;
+
+    const platform =
+      typeof body.platform === "string"
+        ? body.platform.trim().toLowerCase()
+        : "";
+    const normalizedPlatform = platform as SocialPlatform;
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!normalizedPlatform || !["x", "twitter", "telegram", "discord"].includes(normalizedPlatform)) {
+      error(res, "Unsupported platform.");
+      return;
+    }
+    const effectivePlatform = normalizedPlatform;
+    if (!text) {
+      error(res, "Missing post text.");
+      return;
+    }
+
+    if (effectivePlatform === "x" || effectivePlatform === "twitter") {
+      const username =
+        typeof body.username === "string" ? body.username.trim() : "";
+      if (!username) {
+        error(res, "Missing X username.");
+        return;
+      }
+
+      const useBrowserCookies =
+        body.useBrowserCookies !== undefined
+          ? Boolean(body.useBrowserCookies)
+          : true;
+      const browser =
+        body.browser === "chromium" || body.browser === "edge"
+          ? body.browser
+          : "chrome";
+      const chromeProfile =
+        typeof body.chromeProfile === "string"
+          ? body.chromeProfile.trim()
+          : undefined;
+      const chromeProfileName =
+        typeof body.chromeProfileName === "string"
+          ? body.chromeProfileName.trim()
+          : undefined;
+      const chromeCookieNames =
+        typeof body.chromeCookieNames === "string"
+          ? body.chromeCookieNames.trim()
+          : undefined;
+
+      if (!useBrowserCookies) {
+        error(
+          res,
+          "For this UI, X actions require browser cookies. Enable useBrowserCookies.",
+          400,
+        );
+        return;
+      }
+
+      const args = [
+        "post",
+        "--username",
+        username,
+        "--text",
+        text,
+        "--use-browser-cookies",
+        "--browser",
+        browser,
+      ];
+      if (chromeProfile) {
+        args.push("--chrome-profile", chromeProfile);
+      }
+      if (chromeProfileName) {
+        args.push("--chrome-profile-name", chromeProfileName);
+      }
+      if (chromeCookieNames) {
+        args.push("--chrome-cookie-names", chromeCookieNames);
+      }
+
+      let commandResult: SocialScriptResult;
+      try {
+        commandResult = await runTwitterClientCommand(args);
+      } catch (err) {
+        error(
+          res,
+          err instanceof Error
+            ? `Failed to start twitter client: ${err.message}`
+            : "Failed to start twitter client.",
+          500,
+        );
+        return;
+      }
+      const platformResult = parseSocialResult(commandResult.stdout);
+      if (commandResult.code !== 0) {
+        const message =
+          platformResult?.error?.toString() ??
+          commandResult.stderr.trim() ||
+          "X post failed.";
+        error(res, message, 500);
+        return;
+      }
+
+      json(res, {
+        ok: true,
+        platform: effectivePlatform,
+        platformResult: platformResult ?? {
+          rawOutput: commandResult.stdout || commandResult.stderr,
+        },
+        message: "Tweet posted.",
+      } as SocialPostRunResult);
+      return;
+    }
+
+    if (effectivePlatform === "telegram") {
+      const chatId =
+        typeof body.chatId === "string" ? body.chatId.trim() : "";
+      const connectorToken =
+        typeof body.telegramToken === "string"
+          ? body.telegramToken.trim()
+          : "";
+      const stateToken =
+        typeof state.config.connectors?.telegram?.botToken === "string"
+          ? state.config.connectors.telegram.botToken.trim()
+          : "";
+      const resolvedToken = connectorToken || stateToken;
+
+      if (!chatId) {
+        error(res, "Missing Telegram chatId.");
+        return;
+      }
+      if (!resolvedToken) {
+        error(res, "Telegram token not configured. Add connectors.telegram.botToken.");
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, 15000);
+      try {
+        const telegramRes = await fetch(
+          `https://api.telegram.org/bot${resolvedToken}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              chat_id: chatId,
+              text,
+            }),
+          },
+        );
+        const telegramBody = (await telegramRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          description?: string;
+          result?: unknown;
+          message?: string;
+        };
+        if (!telegramRes.ok || telegramBody.ok === false) {
+          error(
+            res,
+            telegramBody.description || telegramBody.message || "Telegram send failed.",
+            telegramRes.status,
+          );
+          return;
+        }
+        json(res, {
+          ok: true,
+          platform: effectivePlatform,
+          platformResult: telegramBody as Record<string, unknown>,
+          message: "Telegram message sent.",
+        } as SocialPostRunResult);
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          error(res, "Telegram request timed out.", 500);
+          return;
+        }
+        error(
+          res,
+          err instanceof Error
+            ? `Telegram request failed: ${err.message}`
+            : "Telegram request failed.",
+          500,
+        );
+      } finally {
+        clearTimeout(timeout);
+      }
+      return;
+    }
+
+    const channelId =
+      typeof body.channelId === "string" ? body.channelId.trim() : "";
+    const connectorToken =
+      typeof body.discordToken === "string"
+        ? body.discordToken.trim()
+        : "";
+    const stateToken =
+      typeof state.config.connectors?.discord?.token === "string"
+        ? state.config.connectors.discord.token.trim()
+        : "";
+    const resolvedToken = connectorToken || stateToken;
+
+    if (!channelId) {
+      error(res, "Missing Discord channelId.");
+      return;
+    }
+    if (!resolvedToken) {
+      error(res, "Discord token not configured. Add connectors.discord.token.");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 15000);
+    try {
+      const discordRes = await fetch(
+        `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bot ${resolvedToken}`,
+            "Content-Type": "application/json",
+            "User-Agent": "Milady Social Composer",
+          },
+          signal: controller.signal,
+          body: JSON.stringify({ content: text }),
+        },
+      );
+      const discordBody = (await discordRes.json().catch(() => ({}))) as {
+        id?: string;
+        content?: string;
+        message?: string;
+      };
+      if (!discordRes.ok) {
+        error(
+          res,
+          discordBody.message ||
+            "Discord send failed.",
+          discordRes.status,
+        );
+        return;
+      }
+      json(res, {
+        ok: true,
+        platform: effectivePlatform,
+        platformResult: discordBody as Record<string, unknown>,
+        message: "Discord message sent.",
+      } as SocialPostRunResult);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        error(res, "Discord request timed out.", 500);
+        return;
+      }
+      error(
+        res,
+        err instanceof Error
+          ? `Discord request failed: ${err.message}`
+          : "Discord request failed.",
+        500,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+    return;
+  }
+
   // ── DELETE /api/connectors/:name ─────────────────────────────────────────
   if (method === "DELETE" && pathname.startsWith("/api/connectors/")) {
     const name = decodeURIComponent(pathname.slice("/api/connectors/".length));
@@ -9927,6 +10458,19 @@ async function handleRequest(
           writeSseData(res, "[DONE]");
           return;
         }
+        if (!runtimeHasConfiguredProvider(state.runtime)) {
+          writeSseData(
+            res,
+            JSON.stringify({
+              error: {
+                message: PROVIDER_MISSING_ERROR_MESSAGE,
+                type: "service_unavailable",
+              },
+            }),
+          );
+          writeSseData(res, "[DONE]");
+          return;
+        }
 
         sendChunk({ role: "assistant" }, null);
 
@@ -10008,6 +10552,19 @@ async function handleRequest(
             {
               error: {
                 message: "Agent is not running",
+                type: "service_unavailable",
+              },
+            },
+            503,
+          );
+          return;
+        }
+        if (!runtimeHasConfiguredProvider(state.runtime)) {
+          json(
+            res,
+            {
+              error: {
+                message: PROVIDER_MISSING_ERROR_MESSAGE,
                 type: "service_unavailable",
               },
             },
@@ -10151,6 +10708,20 @@ async function handleRequest(
           );
           return;
         }
+        if (!runtimeHasConfiguredProvider(state.runtime)) {
+          writeSseJson(
+            res,
+            {
+              type: "error",
+              error: {
+                type: "service_unavailable",
+                message: PROVIDER_MISSING_ERROR_MESSAGE,
+              },
+            },
+            "error",
+          );
+          return;
+        }
 
         writeSseJson(
           res,
@@ -10279,6 +10850,19 @@ async function handleRequest(
               error: {
                 type: "service_unavailable",
                 message: "Agent is not running",
+              },
+            },
+            503,
+          );
+          return;
+        }
+        if (!runtimeHasConfiguredProvider(state.runtime)) {
+          json(
+            res,
+            {
+              error: {
+                type: "service_unavailable",
+                message: PROVIDER_MISSING_ERROR_MESSAGE,
               },
             },
             503,
@@ -10450,6 +11034,10 @@ async function handleRequest(
     const runtime = state.runtime;
     if (!runtime) {
       error(res, "Agent is not running", 503);
+      return;
+    }
+    if (!runtimeHasConfiguredProvider(runtime)) {
+      error(res, PROVIDER_MISSING_ERROR_MESSAGE, 503);
       return;
     }
 
@@ -10807,6 +11395,10 @@ async function handleRequest(
 
     if (!state.runtime) {
       error(res, "Agent is not running", 503);
+      return;
+    }
+    if (!runtimeHasConfiguredProvider(state.runtime)) {
+      error(res, PROVIDER_MISSING_ERROR_MESSAGE, 503);
       return;
     }
 
@@ -12676,7 +13268,12 @@ export async function startApiServer(opts?: {
   port?: number;
   runtime?: AgentRuntime;
   /** Initial state when starting without a runtime (e.g. embedded bootstrapping). */
-  initialAgentState?: "not_started" | "starting" | "stopped" | "error";
+  initialAgentState?:
+    | "not_started"
+    | "starting"
+    | "stopped"
+    | "error"
+    | "needs_provider";
   /**
    * Called when the UI requests a restart via `POST /api/agent/restart`.
    * Should stop the current runtime, create a new one, and return it.
@@ -12706,7 +13303,9 @@ export async function startApiServer(opts?: {
   // Wallet/inventory routes read from process.env at request-time.
   // Hydrate persisted config.env values so addresses remain visible after restarts.
   const persistedEnv = config.env as Record<string, string> | undefined;
-  const envKeysToHydrate = [
+  const persistedEnvVars = persistedEnv?.vars;
+  const envKeysToHydrate = new Set([
+    ...getProviderEnvKeysForHydration(),
     "EVM_PRIVATE_KEY",
     "SOLANA_PRIVATE_KEY",
     "ALCHEMY_API_KEY",
@@ -12715,9 +13314,14 @@ export async function startApiServer(opts?: {
     "HELIUS_API_KEY",
     "BIRDEYE_API_KEY",
     "SOLANA_RPC_URL",
-  ] as const;
+  ]);
   for (const key of envKeysToHydrate) {
-    const value = persistedEnv?.[key];
+    const directValue = persistedEnv?.[key];
+    const varsValue =
+      persistedEnvVars && typeof persistedEnvVars[key] === "string"
+        ? persistedEnvVars[key]
+        : undefined;
+    const value = varsValue ?? directValue;
     if (typeof value === "string" && value.trim() && !process.env[key]) {
       process.env[key] = value.trim();
     }
@@ -12741,7 +13345,7 @@ export async function startApiServer(opts?: {
 
   const hasRuntime = opts?.runtime != null;
   const initialAgentState = hasRuntime
-    ? "running"
+    ? resolveAgentStateFromRuntime(opts.runtime ?? null)
     : (opts?.initialAgentState ?? "not_started");
   const agentName = hasRuntime
     ? (opts.runtime?.character.name ?? "Milady")
@@ -13371,7 +13975,7 @@ export async function startApiServer(opts?: {
     state.chatConnectionPromise = null;
     bindRuntimeStreams(rt);
     // AppManager doesn't need a runtime reference
-    state.agentState = "running";
+    state.agentState = resolveAgentStateFromRuntime(rt, "restarting");
     state.agentName = rt.character.name ?? "Milady";
     state.startedAt = Date.now();
     addLog("info", `Runtime restarted — agent: ${state.agentName}`, "system", [
