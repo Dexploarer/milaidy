@@ -1,5 +1,5 @@
-import net from "node:net";
 import type { AgentRuntime } from "@elizaos/core";
+import { isLoopbackHost } from "../security/network-policy";
 import type { TrainingService } from "../services/training-service";
 import { parsePositiveInteger } from "../utils/number-parsing";
 import type { RouteHelpers, RouteRequestContext } from "./route-helpers";
@@ -9,46 +9,6 @@ export type TrainingRouteHelpers = RouteHelpers;
 export interface TrainingRouteContext extends RouteRequestContext {
   runtime: AgentRuntime | null;
   trainingService: TrainingService;
-}
-
-function normalizeHostLike(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "");
-}
-
-function decodeIpv6MappedHex(mapped: string): string | null {
-  const match = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(mapped);
-  if (!match) return null;
-  const hi = Number.parseInt(match[1], 16);
-  const lo = Number.parseInt(match[2], 16);
-  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
-  return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join(".");
-}
-
-function normalizeLoopbackHost(host: string): string {
-  const normalized = normalizeHostLike(host).split("%")[0] ?? "";
-  if (!normalized.startsWith("::ffff:")) return normalized;
-  const mapped = normalized.slice("::ffff:".length);
-  if (net.isIP(mapped) === 4) return mapped;
-  return decodeIpv6MappedHex(mapped) ?? normalized;
-}
-
-function isLoopbackHost(host: string): boolean {
-  const normalized = normalizeLoopbackHost(host);
-  if (!normalized) return false;
-  if (normalized === "localhost" || normalized === "::1") {
-    return true;
-  }
-
-  // Accept only IPv4 literals in 127.0.0.0/8, not hostnames that start with
-  // "127." (for example "127.0.0.1.evil.com").
-  if (net.isIP(normalized) === 4) {
-    return normalized.startsWith("127.");
-  }
-
-  return false;
 }
 
 function resolveOllamaUrlRejection(rawUrl: string): string | null {

@@ -6,19 +6,12 @@
  */
 
 import { contextBridge, desktopCapturer, ipcRenderer } from "electron";
+import type { IpcChannel } from "./native/ipc-channels";
+import type { IpcValue } from "./native/ipc-types";
 
 // Load Capacitor runtime
 require("./rt/electron-rt");
 
-type IpcPrimitive = string | number | boolean | null | undefined;
-type IpcObject = { [key: string]: IpcValue };
-type IpcValue =
-  | IpcPrimitive
-  | IpcObject
-  | IpcValue[]
-  | ArrayBuffer
-  | Float32Array
-  | Uint8Array;
 type IpcListener = (...args: IpcValue[]) => void;
 type ElectronIpcListener = Parameters<typeof ipcRenderer.on>[1];
 
@@ -28,7 +21,7 @@ const ipcListenerRegistry = new Map<
 >();
 
 function getWrappedListener(
-  channel: string,
+  channel: IpcChannel,
   listener: IpcListener,
 ): ElectronIpcListener {
   let channelRegistry = ipcListenerRegistry.get(channel);
@@ -47,7 +40,10 @@ function getWrappedListener(
   return wrapped;
 }
 
-function clearWrappedListener(channel: string, listener: IpcListener): void {
+function clearWrappedListener(
+  channel: IpcChannel,
+  listener: IpcListener,
+): void {
   const channelRegistry = ipcListenerRegistry.get(channel);
   if (!channelRegistry) return;
   channelRegistry.delete(listener);
@@ -58,14 +54,14 @@ function clearWrappedListener(channel: string, listener: IpcListener): void {
  */
 const electronAPI = {
   ipcRenderer: {
-    invoke: (channel: string, ...args: IpcValue[]) =>
+    invoke: (channel: IpcChannel, ...args: IpcValue[]) =>
       ipcRenderer.invoke(channel, ...args) as Promise<IpcValue>,
-    send: (channel: string, ...args: IpcValue[]) =>
+    send: (channel: IpcChannel, ...args: IpcValue[]) =>
       ipcRenderer.send(channel, ...args),
-    on: (channel: string, listener: IpcListener) => {
+    on: (channel: IpcChannel, listener: IpcListener) => {
       ipcRenderer.on(channel, getWrappedListener(channel, listener));
     },
-    once: (channel: string, listener: IpcListener) => {
+    once: (channel: IpcChannel, listener: IpcListener) => {
       const wrapped: ElectronIpcListener = (_event, ...args) => {
         clearWrappedListener(channel, listener);
         listener(...(args as IpcValue[]));
@@ -78,13 +74,13 @@ const electronAPI = {
       channelRegistry.set(listener, wrapped);
       ipcRenderer.once(channel, wrapped);
     },
-    removeListener: (channel: string, listener: IpcListener) => {
+    removeListener: (channel: IpcChannel, listener: IpcListener) => {
       const wrapped = ipcListenerRegistry.get(channel)?.get(listener);
       if (!wrapped) return;
       ipcRenderer.removeListener(channel, wrapped);
       clearWrappedListener(channel, listener);
     },
-    removeAllListeners: (channel: string) => {
+    removeAllListeners: (channel: IpcChannel) => {
       ipcRenderer.removeAllListeners(channel);
       ipcListenerRegistry.delete(channel);
     },

@@ -75,10 +75,14 @@ import {
   taskToTriggerSummary,
 } from "../triggers/runtime";
 import { parseClampedInteger } from "../utils/number-parsing";
+import { handleAgentLifecycleRoutes } from "./agent-lifecycle-routes";
+import { handleAuthRoutes } from "./auth-routes";
+import { getAutonomyState, handleAutonomyRoutes } from "./autonomy-routes";
 import { type CloudRouteState, handleCloudRoute } from "./cloud-routes";
 
 import {
   extractAnthropicSystemAndLastUser,
+  extractCompatTextContent,
   extractOpenAiSystemAndLastUser,
   resolveCompatRoomKey,
 } from "./compat-utils";
@@ -93,12 +97,14 @@ import {
   sendJsonError,
 } from "./http-helpers";
 import { handleKnowledgeRoutes } from "./knowledge-routes";
+import { handlePermissionRoutes } from "./permissions-routes";
 import {
   type PluginParamInfo,
   validatePluginConfig,
 } from "./plugin-validation";
 import { RegistryService } from "./registry-service";
 import { handleSandboxRoute } from "./sandbox-routes";
+import { handleSubscriptionRoutes } from "./subscription-routes";
 import { resolveTerminalRunLimits } from "./terminal-run-limits";
 import { handleTrainingRoutes } from "./training-routes";
 import { handleTrajectoryRoute } from "./trajectory-routes";
@@ -129,21 +135,6 @@ import {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-/** Subset of the core AutonomyService interface we use for lifecycle control. */
-interface AutonomyServiceLike {
-  enableAutonomy(): Promise<void>;
-  disableAutonomy(): Promise<void>;
-  isLoopRunning(): boolean;
-}
-
-/** Helper to retrieve the AutonomyService from a runtime (may be null). */
-function getAutonomySvc(
-  runtime: AgentRuntime | null,
-): AutonomyServiceLike | null {
-  if (!runtime) return null;
-  return runtime.getService("AUTONOMY") as AutonomyServiceLike | null;
-}
 
 function getAgentEventSvc(
   runtime: AgentRuntime | null,
@@ -1987,11 +1978,17 @@ async function generateChatResponse(
   opts?: ChatGenerateOptions,
 ): Promise<ChatGenerationResult> {
   let responseText = "";
+  let streamedViaOnChunk = false;
   const messageSource =
     typeof message.content.source === "string" &&
     message.content.source.trim().length > 0
       ? message.content.source
       : "api";
+  const emitChunk = (chunk: string): void => {
+    if (!chunk) return;
+    responseText += chunk;
+    opts?.onChunk?.(chunk);
+  };
 
   // The core message service emits MESSAGE_SENT but not MESSAGE_RECEIVED.
   // Emit inbound events here so trajectory/session hooks run for API chat.
@@ -2032,11 +2029,22 @@ async function generateChatResponse(
           throw new Error("client_disconnected");
         }
 
-        if (content?.text) {
-          responseText += content.text;
-          opts?.onChunk?.(content.text);
-        }
+        const chunk = extractCompatTextContent(content);
+        if (!chunk || streamedViaOnChunk) return [];
+        emitChunk(chunk);
         return [];
+      },
+      {
+        onStreamChunk: opts?.onChunk
+          ? async (chunk: string) => {
+              if (opts?.isAborted?.()) {
+                throw new Error("client_disconnected");
+              }
+              if (!chunk) return;
+              streamedViaOnChunk = true;
+              emitChunk(chunk);
+            }
+          : undefined,
       },
     );
 
@@ -2080,10 +2088,21 @@ async function generateChatResponse(
     throw err;
   }
 
-  // Fallback: if callback wasn't used for text, stream + return final text.
-  if (!responseText && result?.responseContent?.text) {
-    responseText = result.responseContent.text;
-    opts?.onChunk?.(result.responseContent.text);
+  const resultText = extractCompatTextContent(result?.responseContent);
+
+  // Fallback: if callbacks weren't used for text, stream + return final text.
+  if (!responseText && resultText) {
+    emitChunk(resultText);
+  } else if (
+    resultText &&
+    resultText !== responseText &&
+    resultText.startsWith(responseText)
+  ) {
+    // Keep streaming monotonic when final text extends emitted chunks.
+    emitChunk(resultText.slice(responseText.length));
+  } else if (resultText && resultText !== responseText) {
+    // Canonical final response may differ from streamed chunks (normalization).
+    responseText = resultText;
   }
 
   const noResponseFallback = opts?.resolveNoResponseText?.();
@@ -4105,28 +4124,20 @@ function serializeForRuntimeDebug(
 // ── Autonomy → User message routing ──────────────────────────────────
 
 /**
- * Route non-conversation output to the user's active conversation.
+ * Route non-conversation text output to the user's active conversation.
  * Stores the message as a Memory in the conversation room and broadcasts
  * a `proactive-message` WS event to the frontend.
- *
- * @param source - Channel label shown in the UI (e.g. "autonomy", "telegram").
  */
-async function routeAutonomyToUser(
+async function routeAutonomyTextToUser(
   state: ServerState,
-  responseMessages: import("@elizaos/core").Memory[],
+  responseText: string,
   source = "autonomy",
 ): Promise<void> {
   const runtime = state.runtime;
   if (!runtime) return;
 
-  // Collect response text from all response messages
-  const texts: string[] = [];
-  for (const mem of responseMessages) {
-    const text = mem.content?.text?.trim();
-    if (text) texts.push(text);
-  }
-  if (texts.length === 0) return;
-  const responseText = texts.join("\n\n");
+  const normalizedText = responseText.trim();
+  if (!normalizedText) return;
 
   // Find target conversation (active, or most recent)
   let conv: ConversationMeta | undefined;
@@ -4149,7 +4160,7 @@ async function routeAutonomyToUser(
     entityId: runtime.agentId,
     roomId: conv.roomId,
     content: {
-      text: responseText,
+      text: normalizedText,
       source,
     },
   });
@@ -4163,7 +4174,7 @@ async function routeAutonomyToUser(
     message: {
       id: agentMessage.id ?? `auto-${Date.now()}`,
       role: "assistant",
-      text: responseText,
+      text: normalizedText,
       timestamp: Date.now(),
       source,
     },
@@ -4171,59 +4182,39 @@ async function routeAutonomyToUser(
 }
 
 /**
- * Monkey-patch `runtime.messageService.handleMessage` to intercept
- * autonomy output and route it to the user's active conversation.
- * Follows the same pattern as @elizaos/plugin-phetta-companion event handlers.
+ * Route non-conversation agent events into the active user chat.
+ * This avoids monkey-patching the message service and relies on explicit
+ * event stream plumbing from AGENT_EVENT.
  */
-function patchMessageServiceForAutonomy(state: ServerState): void {
-  const runtime = state.runtime;
-  if (!runtime?.messageService) return;
+async function maybeRouteAutonomyEventToConversation(
+  state: ServerState,
+  event: AgentEventPayloadLike,
+): Promise<void> {
+  if (event.stream !== "assistant") return;
 
-  const svc = runtime.messageService as unknown as {
-    handleMessage: (
-      rt: import("@elizaos/core").IAgentRuntime,
-      message: import("@elizaos/core").Memory,
-      callback?: (
-        content: Content,
-      ) => Promise<import("@elizaos/core").Memory[]>,
-      options?: import("@elizaos/core").MessageProcessingOptions,
-    ) => Promise<import("@elizaos/core").MessageProcessingResult>;
-    __miladyAutonomyPatched?: boolean;
-  };
+  const payload =
+    event.data && typeof event.data === "object"
+      ? (event.data as Record<string, unknown>)
+      : null;
+  const text = typeof payload?.text === "string" ? payload.text.trim() : "";
+  if (!text) return;
 
-  if (svc.__miladyAutonomyPatched) return;
-  svc.__miladyAutonomyPatched = true;
+  // Keep regular conversation messages in their own room only.
+  if (
+    event.roomId &&
+    Array.from(state.conversations.values()).some(
+      (c) => c.roomId === event.roomId,
+    )
+  ) {
+    return;
+  }
 
-  const orig = svc.handleMessage.bind(svc);
+  const source =
+    typeof payload?.source === "string" && payload.source.trim().length > 0
+      ? payload.source
+      : "autonomy";
 
-  svc.handleMessage = async (
-    rt: import("@elizaos/core").IAgentRuntime,
-    message: import("@elizaos/core").Memory,
-    callback?: (content: Content) => Promise<import("@elizaos/core").Memory[]>,
-    options?: import("@elizaos/core").MessageProcessingOptions,
-  ): Promise<import("@elizaos/core").MessageProcessingResult> => {
-    const result = await orig(rt, message, callback, options);
-
-    // Detect non-conversation messages (autonomy, background tasks, etc.)
-    const isFromConversation = Array.from(state.conversations.values()).some(
-      (c) => c.roomId === message.roomId,
-    );
-
-    if (!isFromConversation && result?.responseMessages?.length > 0) {
-      // Forward to user's active conversation (fire-and-forget)
-      const rawSource = message.content?.source;
-      const source = typeof rawSource === "string" ? rawSource : "autonomy";
-      void routeAutonomyToUser(state, result.responseMessages, source).catch(
-        (err) => {
-          logger.warn(
-            `[autonomy-route] Failed to route proactive output: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        },
-      );
-    }
-
-    return result;
-  };
+  await routeAutonomyTextToUser(state, text, source);
 }
 
 async function handleRequest(
@@ -4417,275 +4408,42 @@ async function handleRequest(
     return;
   }
 
-  // ── GET /api/auth/status ───────────────────────────────────────────────
-  if (method === "GET" && pathname === "/api/auth/status") {
-    const required = Boolean(process.env.MILADY_API_TOKEN?.trim());
-    const enabled = pairingEnabled();
-    if (enabled) ensurePairingCode();
-    json(res, {
-      required,
-      pairingEnabled: enabled,
-      expiresAt: enabled ? pairingExpiresAt : null,
-    });
-    return;
-  }
-
-  // ── POST /api/auth/pair ────────────────────────────────────────────────
-  if (method === "POST" && pathname === "/api/auth/pair") {
-    const body = await readJsonBody<{ code?: string }>(req, res);
-    if (!body) return;
-
-    const token = process.env.MILADY_API_TOKEN?.trim();
-    if (!token) {
-      error(res, "Pairing not enabled", 400);
-      return;
-    }
-    if (!pairingEnabled()) {
-      error(res, "Pairing disabled", 403);
-      return;
-    }
-    if (!rateLimitPairing(req.socket.remoteAddress ?? null)) {
-      error(res, "Too many attempts. Try again later.", 429);
-      return;
-    }
-
-    const provided = normalizePairingCode(body.code ?? "");
-    const current = ensurePairingCode();
-    if (!current || Date.now() > pairingExpiresAt) {
-      ensurePairingCode();
-      error(
-        res,
-        "Pairing code expired. Check server logs for a new code.",
-        410,
-      );
-      return;
-    }
-
-    const expected = normalizePairingCode(current);
-    const a = Buffer.from(expected, "utf8");
-    const b = Buffer.from(provided, "utf8");
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      error(res, "Invalid pairing code", 403);
-      return;
-    }
-
-    pairingCode = null;
-    pairingExpiresAt = 0;
-    json(res, { token });
-    return;
-  }
-
-  // ── GET /api/subscription/status ──────────────────────────────────────
-  // Returns the status of subscription-based auth providers
-  if (method === "GET" && pathname === "/api/subscription/status") {
-    try {
-      const { getSubscriptionStatus } = await import("../auth/index");
-      json(res, { providers: getSubscriptionStatus() });
-    } catch (err) {
-      error(res, `Failed to get subscription status: ${err}`, 500);
-    }
-    return;
-  }
-
-  // ── POST /api/subscription/anthropic/start ──────────────────────────────
-  // Start Anthropic OAuth flow — returns URL for user to visit
-  if (method === "POST" && pathname === "/api/subscription/anthropic/start") {
-    try {
-      const { startAnthropicLogin } = await import("../auth/index");
-      const flow = await startAnthropicLogin();
-      // Store flow in server state for the exchange step
-      state._anthropicFlow = flow;
-      json(res, { authUrl: flow.authUrl });
-    } catch (err) {
-      error(res, `Failed to start Anthropic login: ${err}`, 500);
-    }
-    return;
-  }
-
-  // ── POST /api/subscription/anthropic/exchange ───────────────────────────
-  // Exchange Anthropic auth code for tokens
   if (
-    method === "POST" &&
-    pathname === "/api/subscription/anthropic/exchange"
+    await handleAuthRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      readJsonBody,
+      json,
+      error,
+      pairingEnabled,
+      ensurePairingCode,
+      normalizePairingCode,
+      rateLimitPairing,
+      getPairingExpiresAt: () => pairingExpiresAt,
+      clearPairing: () => {
+        pairingCode = null;
+        pairingExpiresAt = 0;
+      },
+    })
   ) {
-    const body = await readJsonBody<{ code: string }>(req, res);
-    if (!body) return;
-    if (!body.code) {
-      error(res, "Missing code", 400);
-      return;
-    }
-    try {
-      const { saveCredentials, applySubscriptionCredentials } = await import(
-        "../auth/index"
-      );
-      const flow = state._anthropicFlow;
-      if (!flow) {
-        error(res, "No active flow — call /start first", 400);
-        return;
-      }
-      // Submit the code and wait for credentials
-      flow.submitCode(body.code);
-      const credentials = await flow.credentials;
-      saveCredentials("anthropic-subscription", credentials);
-      await applySubscriptionCredentials();
-      delete state._anthropicFlow;
-      json(res, { success: true, expiresAt: credentials.expires });
-    } catch (err) {
-      error(res, `Anthropic exchange failed: ${err}`, 500);
-    }
     return;
   }
 
-  // ── POST /api/subscription/anthropic/setup-token ────────────────────────
-  // Accept an Anthropic setup-token (sk-ant-oat01-...) directly
   if (
-    method === "POST" &&
-    pathname === "/api/subscription/anthropic/setup-token"
+    await handleSubscriptionRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      state,
+      readJsonBody,
+      json,
+      error,
+      saveConfig: saveMiladyConfig,
+    })
   ) {
-    const body = await readJsonBody<{ token: string }>(req, res);
-    if (!body) return;
-    if (!body.token || !body.token.startsWith("sk-ant-")) {
-      error(res, "Invalid token format — expected sk-ant-oat01-...", 400);
-      return;
-    }
-    try {
-      // Setup tokens are direct API keys — set in env immediately
-      process.env.ANTHROPIC_API_KEY = body.token.trim();
-      // Also save to config so it persists across restarts
-      if (!state.config.env) state.config.env = {};
-      (state.config.env as Record<string, string>).ANTHROPIC_API_KEY =
-        body.token.trim();
-      saveMiladyConfig(state.config);
-      json(res, { success: true });
-    } catch (err) {
-      error(res, `Failed to save setup token: ${err}`, 500);
-    }
-    return;
-  }
-
-  // ── POST /api/subscription/openai/start ─────────────────────────────────
-  // Start OpenAI Codex OAuth flow — returns URL and starts callback server
-  if (method === "POST" && pathname === "/api/subscription/openai/start") {
-    try {
-      const { startCodexLogin } = await import("../auth/index");
-      // Clean up unknown stale flow from a previous attempt
-      if (state._codexFlow) {
-        try {
-          state._codexFlow.close();
-        } catch (err) {
-          logger.debug(
-            `[api] OAuth flow cleanup failed: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-      }
-      clearTimeout(state._codexFlowTimer);
-
-      const flow = await startCodexLogin();
-      // Store flow state + auto-cleanup after 10 minutes
-      state._codexFlow = flow;
-      state._codexFlowTimer = setTimeout(
-        () => {
-          try {
-            flow.close();
-          } catch (err) {
-            logger.debug(
-              `[api] OAuth flow cleanup failed: ${err instanceof Error ? err.message : err}`,
-            );
-          }
-          delete state._codexFlow;
-          delete state._codexFlowTimer;
-        },
-        10 * 60 * 1000,
-      );
-      json(res, {
-        authUrl: flow.authUrl,
-        state: flow.state,
-        instructions:
-          "Open the URL in your browser. After login, if auto-redirect doesn't work, paste the full redirect URL.",
-      });
-    } catch (err) {
-      error(res, `Failed to start OpenAI login: ${err}`, 500);
-    }
-    return;
-  }
-
-  // ── POST /api/subscription/openai/exchange ──────────────────────────────
-  // Exchange OpenAI auth code or wait for callback
-  if (method === "POST" && pathname === "/api/subscription/openai/exchange") {
-    const body = await readJsonBody<{
-      code?: string;
-      waitForCallback?: boolean;
-    }>(req, res);
-    if (!body) return;
-    let flow: import("../auth/index").CodexFlow | undefined;
-    try {
-      const { saveCredentials, applySubscriptionCredentials } = await import(
-        "../auth/index"
-      );
-      flow = state._codexFlow;
-
-      if (!flow) {
-        error(res, "No active flow — call /start first", 400);
-        return;
-      }
-
-      if (body.code) {
-        // Manual code/URL paste — submit to flow
-        flow.submitCode(body.code);
-      } else if (!body.waitForCallback) {
-        error(res, "Provide either code or set waitForCallback: true", 400);
-        return;
-      }
-
-      // Wait for credentials (either from callback server or manual submission)
-      let credentials: import("../auth/index").OAuthCredentials;
-      try {
-        credentials = await flow.credentials;
-      } catch (err) {
-        try {
-          flow.close();
-        } catch (closeErr) {
-          logger.debug(
-            `[api] OAuth flow cleanup failed: ${closeErr instanceof Error ? closeErr.message : closeErr}`,
-          );
-        }
-        delete state._codexFlow;
-        clearTimeout(state._codexFlowTimer);
-        delete state._codexFlowTimer;
-        error(res, `OpenAI exchange failed: ${err}`, 500);
-        return;
-      }
-      saveCredentials("openai-codex", credentials);
-      await applySubscriptionCredentials();
-      flow.close();
-      delete state._codexFlow;
-      clearTimeout(state._codexFlowTimer);
-      delete state._codexFlowTimer;
-      json(res, {
-        success: true,
-        expiresAt: credentials.expires,
-      });
-    } catch (err) {
-      error(res, `OpenAI exchange failed: ${err}`, 500);
-    }
-    return;
-  }
-
-  // ── DELETE /api/subscription/:provider ───────────────────────────────────
-  // Remove subscription credentials
-  if (method === "DELETE" && pathname.startsWith("/api/subscription/")) {
-    const provider = pathname.split("/").pop();
-    if (provider === "anthropic-subscription" || provider === "openai-codex") {
-      try {
-        const { deleteCredentials } = await import("../auth/index");
-        deleteCredentials(provider);
-        json(res, { success: true });
-      } catch (err) {
-        error(res, `Failed to delete credentials: ${err}`, 500);
-      }
-    } else {
-      error(res, `Unknown provider: ${provider}`, 400);
-    }
     return;
   }
 
@@ -5134,94 +4892,16 @@ async function handleRequest(
     return;
   }
 
-  // ── POST /api/agent/start ───────────────────────────────────────────────
-  if (method === "POST" && pathname === "/api/agent/start") {
-    state.agentState = "running";
-    state.startedAt = Date.now();
-    const detectedModel = state.runtime
-      ? (state.runtime.plugins.find(
-          (p) =>
-            p.name.includes("anthropic") ||
-            p.name.includes("openai") ||
-            p.name.includes("groq"),
-        )?.name ?? "unknown")
-      : "unknown";
-    state.model = detectedModel;
-
-    // Enable the autonomy task — the core TaskService will pick it up
-    // and fire the first tick immediately (updatedAt starts at 0).
-    const svc = getAutonomySvc(state.runtime);
-    if (svc) await svc.enableAutonomy();
-
-    // Patch messageService for autonomy routing (may be first time if runtime
-    // was provided before the API server's patch ran, or after a restart).
-    patchMessageServiceForAutonomy(state);
-
-    json(res, {
-      ok: true,
-      status: {
-        state: state.agentState,
-        agentName: state.agentName,
-        model: state.model,
-        uptime: 0,
-        startedAt: state.startedAt,
-      },
-    });
-    return;
-  }
-
-  // ── POST /api/agent/stop ────────────────────────────────────────────────
-  if (method === "POST" && pathname === "/api/agent/stop") {
-    const svc = getAutonomySvc(state.runtime);
-    if (svc) await svc.disableAutonomy();
-
-    state.agentState = "stopped";
-    state.startedAt = undefined;
-    state.model = undefined;
-    json(res, {
-      ok: true,
-      status: { state: state.agentState, agentName: state.agentName },
-    });
-    return;
-  }
-
-  // ── POST /api/agent/pause ───────────────────────────────────────────────
-  if (method === "POST" && pathname === "/api/agent/pause") {
-    const svc = getAutonomySvc(state.runtime);
-    if (svc) await svc.disableAutonomy();
-
-    state.agentState = "paused";
-    json(res, {
-      ok: true,
-      status: {
-        state: state.agentState,
-        agentName: state.agentName,
-        model: state.model,
-        uptime: state.startedAt ? Date.now() - state.startedAt : undefined,
-        startedAt: state.startedAt,
-      },
-    });
-    return;
-  }
-
-  // ── POST /api/agent/resume ──────────────────────────────────────────────
-  if (method === "POST" && pathname === "/api/agent/resume") {
-    // Re-enable the autonomy task — first tick fires immediately
-    // because the new task is created with updatedAt: 0.
-    const svc = getAutonomySvc(state.runtime);
-    if (svc) await svc.enableAutonomy();
-
-    state.agentState = "running";
-    json(res, {
-      ok: true,
-      status: {
-        state: state.agentState,
-        agentName: state.agentName,
-        model: state.model,
-        uptime: state.startedAt ? Date.now() - state.startedAt : undefined,
-        startedAt: state.startedAt,
-      },
-    });
+  if (
+    await handleAgentLifecycleRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      state,
+      json,
+    })
+  ) {
     return;
   }
 
@@ -5302,7 +4982,6 @@ async function handleRequest(
         state.agentState = "running";
         state.agentName = newRuntime.character.name ?? "Milady";
         state.startedAt = Date.now();
-        patchMessageServiceForAutonomy(state);
         json(res, {
           ok: true,
           status: {
@@ -5549,17 +5228,17 @@ async function handleRequest(
     return;
   }
 
-  // ── POST /api/agent/autonomy ────────────────────────────────────────────
-  // Autonomy is always enabled; kept for backward compat.
-  if (method === "POST" && pathname === "/api/agent/autonomy") {
-    json(res, { ok: true, autonomy: true });
-    return;
-  }
-
-  // ── GET /api/agent/autonomy ─────────────────────────────────────────────
-  // Autonomy is always enabled.
-  if (method === "GET" && pathname === "/api/agent/autonomy") {
-    json(res, { enabled: true });
+  if (
+    await handleAutonomyRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      runtime: state.runtime,
+      readJsonBody,
+      json,
+    })
+  ) {
     return;
   }
 
@@ -8828,171 +8507,20 @@ async function handleRequest(
     return;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // Permission routes (/api/permissions/*)
-  // System permissions for computer use, microphone, camera, etc.
-  // ═══════════════════════════════════════════════════════════════════════
-
-  // ── GET /api/permissions ───────────────────────────────────────────────
-  // Returns all system permission states
-  if (method === "GET" && pathname === "/api/permissions") {
-    const permStates = state.permissionStates ?? {};
-    json(res, {
-      permissions: permStates,
-      platform: process.platform,
-      shellEnabled: state.shellEnabled ?? true,
-    });
-    return;
-  }
-
-  // ── GET /api/permissions/shell ─────────────────────────────────────────
-  // Return shell toggle status in a stable shape for UI clients.
-  if (method === "GET" && pathname === "/api/permissions/shell") {
-    const enabled = state.shellEnabled ?? true;
-    if (!state.permissionStates) {
-      state.permissionStates = {};
-    }
-    const shellState = state.permissionStates.shell;
-    const permission = {
-      id: "shell",
-      status: enabled ? "granted" : "denied",
-      lastChecked: shellState?.lastChecked ?? Date.now(),
-      canRequest: false,
-    };
-    state.permissionStates.shell = permission;
-
-    // Keep the legacy top-level permission fields for compatibility with
-    // callers that previously treated /api/permissions/shell as a generic
-    // /api/permissions/:id response.
-    json(res, {
-      enabled,
-      ...permission,
-      permission,
-    });
-    return;
-  }
-
-  // ── GET /api/permissions/:id ───────────────────────────────────────────
-  // Returns a single permission state
-  if (method === "GET" && pathname.startsWith("/api/permissions/")) {
-    const permId = pathname.slice("/api/permissions/".length);
-    if (!permId || permId.includes("/")) {
-      error(res, "Invalid permission ID", 400);
-      return;
-    }
-    const permStates = state.permissionStates ?? {};
-    const permState = permStates[permId];
-    if (!permState) {
-      json(res, {
-        id: permId,
-        status: "not-applicable",
-        lastChecked: Date.now(),
-        canRequest: false,
-      });
-      return;
-    }
-    json(res, permState);
-    return;
-  }
-
-  // ── POST /api/permissions/refresh ──────────────────────────────────────
-  // Force refresh all permission states (clears cache)
-  if (method === "POST" && pathname === "/api/permissions/refresh") {
-    // Signal to the client that they should refresh permissions via IPC
-    // The actual permission checking happens in the Electron main process
-    json(res, {
-      message: "Permission refresh requested",
-      action: "ipc:permissions:refresh",
-    });
-    return;
-  }
-
-  // ── POST /api/permissions/:id/request ──────────────────────────────────
-  // Request a specific permission (triggers system prompt or opens settings)
   if (
-    method === "POST" &&
-    pathname.match(/^\/api\/permissions\/[^/]+\/request$/)
+    await handlePermissionRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      state,
+      readJsonBody,
+      json,
+      error,
+      saveConfig: saveMiladyConfig,
+      scheduleRuntimeRestart,
+    })
   ) {
-    const permId = pathname.split("/")[3];
-    json(res, {
-      message: `Permission request for ${permId}`,
-      action: `ipc:permissions:request:${permId}`,
-    });
-    return;
-  }
-
-  // ── POST /api/permissions/:id/open-settings ────────────────────────────
-  // Open system settings for a specific permission
-  if (
-    method === "POST" &&
-    pathname.match(/^\/api\/permissions\/[^/]+\/open-settings$/)
-  ) {
-    const permId = pathname.split("/")[3];
-    json(res, {
-      message: `Opening settings for ${permId}`,
-      action: `ipc:permissions:openSettings:${permId}`,
-    });
-    return;
-  }
-
-  // ── PUT /api/permissions/shell ─────────────────────────────────────────
-  // Toggle shell access enabled/disabled
-  if (method === "PUT" && pathname === "/api/permissions/shell") {
-    const body = await readJsonBody(req, res);
-    if (!body) return;
-    const enabled = body.enabled === true;
-    state.shellEnabled = enabled;
-
-    // Update permission state
-    if (!state.permissionStates) {
-      state.permissionStates = {};
-    }
-    state.permissionStates.shell = {
-      id: "shell",
-      status: enabled ? "granted" : "denied",
-      lastChecked: Date.now(),
-      canRequest: false,
-    };
-
-    // Save to config
-    if (!state.config.features) {
-      state.config.features = {};
-    }
-    state.config.features.shellEnabled = enabled;
-    saveMiladyConfig(state.config);
-
-    // If a runtime is active, restart so plugin loading honors the new
-    // shellEnabled flag and shell tools are loaded/unloaded consistently.
-    if (state.runtime && ctx?.onRestart) {
-      scheduleRuntimeRestart(
-        `Shell access ${enabled ? "enabled" : "disabled"}`,
-      );
-    }
-
-    json(res, {
-      shellEnabled: enabled,
-      permission: state.permissionStates.shell,
-    });
-    return;
-  }
-
-  // ── PUT /api/permissions/state ─────────────────────────────────────────
-  // Update permission states from Electron (called by renderer after IPC)
-  if (method === "PUT" && pathname === "/api/permissions/state") {
-    const body = await readJsonBody(req, res);
-    if (!body) return;
-    if (body.permissions && typeof body.permissions === "object") {
-      state.permissionStates = body.permissions as Record<
-        string,
-        {
-          id: string;
-          status: string;
-          lastChecked: number;
-          canRequest: boolean;
-        }
-      >;
-    }
-    json(res, { updated: true, permissions: state.permissionStates });
     return;
   }
 
@@ -10801,10 +10329,10 @@ async function handleRequest(
             event.stream === "provider" ||
             event.stream === "evaluator"),
       );
-    const autonomySvc = getAutonomySvc(state.runtime);
+    const autonomyState = getAutonomyState(state.runtime);
     const autonomy = {
-      enabled: true,
-      thinking: autonomySvc?.isLoopRunning() ?? false,
+      enabled: autonomyState.enabled,
+      thinking: autonomyState.thinking,
       lastEventAt: latestAutonomyEvent?.ts ?? null,
     };
     let tasksAvailable = false;
@@ -12499,6 +12027,12 @@ export async function startApiServer(opts?: {
         roomId: event.roomId,
         payload: event.data,
       });
+
+      void maybeRouteAutonomyEventToConversation(state, event).catch((err) => {
+        logger.warn(
+          `[autonomy-route] Failed to route proactive event: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
     });
 
     const unsubHeartbeat = svc.subscribeHeartbeat((event) => {
@@ -12739,25 +12273,6 @@ export async function startApiServer(opts?: {
     }
   };
 
-  // Make broadcastStatus accessible to route handlers via state
-  state.broadcastStatus = broadcastStatus;
-
-  // Generic broadcast — sends an arbitrary JSON payload to all WS clients.
-  state.broadcastWs = (data: Record<string, unknown>) => {
-    const message = JSON.stringify(data);
-    for (const client of wsClients) {
-      if (client.readyState === 1) {
-        try {
-          client.send(message);
-        } catch (err) {
-          logger.error(
-            `[milady-api] WebSocket broadcast error: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-      }
-    }
-  };
-
   // Broadcast status every 5 seconds
   const statusInterval = setInterval(broadcastStatus, 5000);
 
@@ -12850,12 +12365,7 @@ export async function startApiServer(opts?: {
 
     // Broadcast status update immediately after restart
     broadcastStatus();
-    // Re-patch the new runtime's messageService for autonomy routing
-    patchMessageServiceForAutonomy(state);
   };
-
-  // Patch the initial runtime (if provided) for autonomy routing
-  patchMessageServiceForAutonomy(state);
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
