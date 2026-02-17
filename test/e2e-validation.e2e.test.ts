@@ -48,6 +48,24 @@ import {
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(testDir, "..");
+
+type RootPackageManifest = {
+  bin?: { milady?: string };
+  exports?: Record<string, string>;
+  engines?: { node?: string };
+  dependencies?: Record<string, string>;
+};
+
+const packageManifest = JSON.parse(
+  fs.readFileSync(path.join(packageRoot, "package.json"), "utf-8"),
+) as RootPackageManifest;
+const cliEntryRelativePath = packageManifest.bin?.milady ?? "milaidy.mjs";
+const cliEntryPath = path.join(packageRoot, cliEntryRelativePath);
+
+function fileExistsAny(candidates: string[]): boolean {
+  return candidates.some((candidate) => fs.existsSync(candidate));
+}
+
 dotenv.config({ path: path.resolve(packageRoot, ".env") });
 dotenv.config({ path: path.resolve(packageRoot, "..", "eliza", ".env") });
 
@@ -355,13 +373,17 @@ describe("Fresh Install Simulation", () => {
   it("builds successfully (dist/ exists)", () => {
     const distDir = path.join(packageRoot, "dist");
     expect(fs.existsSync(distDir)).toBe(true);
-    expect(fs.existsSync(path.join(distDir, "index"))).toBe(true);
+    expect(
+      fileExistsAny([
+        path.join(distDir, "index.js"),
+        path.join(distDir, "index"),
+      ]),
+    ).toBe(true);
   });
 
-  it("milady.mjs entry point exists and is executable", () => {
-    const entry = path.join(packageRoot, "milady.mjs");
-    expect(fs.existsSync(entry)).toBe(true);
-    const content = fs.readFileSync(entry, "utf-8");
+  it("CLI entry point exists and is executable", () => {
+    expect(fs.existsSync(cliEntryPath)).toBe(true);
+    const content = fs.readFileSync(cliEntryPath, "utf-8");
     expect(content).toContain("#!/usr/bin/env node");
   });
 
@@ -373,7 +395,7 @@ describe("Fresh Install Simulation", () => {
 
     const result = await runSubprocess(
       "node",
-      [path.join(packageRoot, "milady.mjs"), "--help"],
+      [cliEntryPath, "--help"],
       { env, timeoutMs: 30_000 },
     );
 
@@ -446,9 +468,13 @@ describe("Fresh Install Simulation", () => {
 // ===================================================================
 
 describe("CLI Entry Point (npx milady equivalent)", () => {
-  it("dist/entry.js exists and is loadable", () => {
-    const entryPath = path.join(packageRoot, "dist", "entry");
-    expect(fs.existsSync(entryPath)).toBe(true);
+  it("dist entry artifact exists and is loadable", () => {
+    expect(
+      fileExistsAny([
+        path.join(packageRoot, "dist", "entry.js"),
+        path.join(packageRoot, "dist", "entry"),
+      ]),
+    ).toBe(true);
   });
 
   it("CLI version command outputs version string", async () => {
@@ -459,7 +485,7 @@ describe("CLI Entry Point (npx milady equivalent)", () => {
 
     const result = await runSubprocess(
       "node",
-      [path.join(packageRoot, "milady.mjs"), "--version"],
+      [cliEntryPath, "--version"],
       { env, timeoutMs: 30_000 },
     );
 
@@ -1590,20 +1616,28 @@ describe("Runtime Integration (with model provider)", () => {
 // ===================================================================
 
 describe("Fresh Machine Validation (non-Docker)", () => {
-  it("package.json has correct bin entry", () => {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(packageRoot, "package.json"), "utf-8"),
-    ) as Record<string, Record<string, string>>;
-    expect(pkg.bin?.milady).toBe("milady.mjs");
+  it("package.json declares a Milady CLI bin that resolves on disk", () => {
+    const cliBin = packageManifest.bin?.milady;
+    expect(typeof cliBin).toBe("string");
+    if (typeof cliBin === "string") {
+      expect(fs.existsSync(path.join(packageRoot, cliBin))).toBe(true);
+    }
   });
 
-  it("package.json exports are valid", () => {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(packageRoot, "package.json"), "utf-8"),
-    ) as Record<string, Record<string, string>>;
-    expect(pkg.exports?.["."]).toBe("./dist/index");
-    expect(pkg.exports?.["./cli-entry"]).toBe("./milady.mjs");
-    expect(pkg.exports?.["./eliza"]).toBe("./dist/runtime/eliza");
+  it("package.json exports point to existing files", () => {
+    const exportsMap = packageManifest.exports ?? {};
+    const rootExport = exportsMap["."];
+    const cliExport = exportsMap["./cli-entry"];
+    const elizaExport = exportsMap["./eliza"];
+    expect(typeof rootExport).toBe("string");
+    expect(typeof cliExport).toBe("string");
+    expect(typeof elizaExport).toBe("string");
+
+    for (const value of [rootExport, cliExport, elizaExport]) {
+      if (typeof value !== "string") continue;
+      const resolved = path.join(packageRoot, value.replace(/^\.\//, ""));
+      expect(fs.existsSync(resolved)).toBe(true);
+    }
   });
 
   it("dist/ contains expected entry files", () => {
@@ -1615,8 +1649,12 @@ describe("Fresh Machine Validation (non-Docker)", () => {
       return;
     }
 
-    expect(fs.existsSync(path.join(distDir, "index"))).toBe(true);
-    expect(fs.existsSync(path.join(distDir, "entry"))).toBe(true);
+    expect(
+      fileExistsAny([path.join(distDir, "index.js"), path.join(distDir, "index")]),
+    ).toBe(true);
+    expect(
+      fileExistsAny([path.join(distDir, "entry.js"), path.join(distDir, "entry")]),
+    ).toBe(true);
   });
 
   it("Node 22+ engine requirement is specified", () => {

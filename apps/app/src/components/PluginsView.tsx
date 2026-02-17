@@ -1683,7 +1683,7 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
     const isDragOver = dragOverId === p.id && draggingId !== p.id;
 
     return (
-      <div
+      <li
         key={p.id}
         draggable
         onDragStart={(e) => handleDragStart(e, p.id)}
@@ -1858,8 +1858,11 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
         {p.enabled && p.validationErrors && p.validationErrors.length > 0 && (
           <div className="px-3 py-1.5 border-t border-destructive bg-[rgba(153,27,27,0.04)] text-xs">
             {p.validationErrors.map(
-              (err: { field: string; message: string }, i: number) => (
-                <div key={i} className="text-destructive mb-0.5 text-[10px]">
+              (err: { field: string; message: string }) => (
+                <div
+                  key={`${err.field}:${err.message}`}
+                  className="text-destructive mb-0.5 text-[10px]"
+                >
                   {err.field}: {err.message}
                 </div>
               ),
@@ -1873,23 +1876,26 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
           p.validationWarnings.length > 0 && (
             <div className="px-3 py-1">
               {p.validationWarnings.map(
-                (w: { field: string; message: string }, i: number) => (
-                  <div key={i} className="text-warn text-[10px]">
+                (w: { field: string; message: string }) => (
+                  <div
+                    key={`${w.field}:${w.message}`}
+                    className="text-warn text-[10px]"
+                  >
                     {w.message}
                   </div>
                 ),
               )}
             </div>
           )}
-      </div>
+      </li>
     );
   };
 
   /** Render a grid of plugin cards. */
   const renderPluginGrid = (plugins: PluginInfo[]) => (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 m-0 p-0 list-none">
       {plugins.map((p: PluginInfo) => renderPluginCard(p))}
-    </div>
+    </ul>
   );
 
   // Resolve the plugin whose settings dialog is currently open.
@@ -2034,6 +2040,14 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
               onClick={(e) => {
                 if (e.target === e.currentTarget) toggleSettings(p.id);
               }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleSettings(p.id);
+                }
+              }}
+              role="dialog"
+              aria-modal="true"
             >
               <div className="w-full max-w-2xl max-h-[85vh] border border-border bg-card shadow-lg flex flex-col overflow-hidden">
                 {/* Dialog header */}
@@ -2211,6 +2225,15 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
               setAddDirPath("");
             }
           }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setAddDirOpen(false);
+              setAddDirPath("");
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
         >
           <div className="w-full max-w-md border border-border bg-card p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">

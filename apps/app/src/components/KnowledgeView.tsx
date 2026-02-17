@@ -131,7 +131,7 @@ function UploadZone({
 
   return (
     <div className="mb-6">
-      <div
+      <section
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           dragOver
             ? "border-[var(--accent)] bg-[var(--accent)]/5"
@@ -143,6 +143,7 @@ function UploadZone({
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
+        aria-label="Knowledge upload dropzone"
       >
         <input
           ref={fileInputRef}
@@ -189,7 +190,7 @@ function UploadZone({
           />
           Include AI image descriptions (more context, may increase cost)
         </label>
-      </div>
+      </section>
 
       {showUrlInput && (
         <div className="mt-4 p-4 border border-[var(--border)] bg-[var(--card)] rounded">
@@ -331,9 +332,11 @@ function DocumentCard({
 }) {
   return (
     <div className="flex items-center justify-between p-4 border border-[var(--border)] bg-[var(--card)] rounded hover:border-[var(--accent)]/50 transition-colors">
-      <div
+      <button
+        type="button"
         className="flex-1 min-w-0 cursor-pointer"
         onClick={() => onSelect(doc.id)}
+        aria-label={`Open ${doc.filename}`}
       >
         <div className="font-medium text-sm text-[var(--txt)] truncate mb-1">
           {doc.filename}
@@ -353,7 +356,7 @@ function DocumentCard({
             </span>
           )}
         </div>
-      </div>
+      </button>
       <div className="flex items-center gap-2 ml-4">
         <ConfirmDeleteControl
           triggerClassName={btnDanger}

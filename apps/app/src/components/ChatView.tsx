@@ -45,7 +45,8 @@ export function ChatView() {
     droppedFiles,
     shareIngestNotice,
     chatMode,
-    chatAgentVoiceMuted,
+    chatAvatarVisible: avatarVisible,
+    chatAgentVoiceMuted: agentVoiceMuted,
     selectedVrmIndex,
   } = useApp();
 
@@ -168,7 +169,7 @@ export function ChatView() {
   const agentInitial = agentName.trim().charAt(0).toUpperCase() || "A";
 
   useEffect(() => {
-    if (chatAgentVoiceMuted) return;
+    if (agentVoiceMuted) return;
 
     const latestAssistant = [...msgs]
       .reverse()
@@ -180,12 +181,12 @@ export function ChatView() {
       latestAssistant.text,
       !chatSending,
     );
-  }, [msgs, chatSending, chatAgentVoiceMuted, queueAssistantSpeech]);
+  }, [msgs, chatSending, agentVoiceMuted, queueAssistantSpeech]);
 
   useEffect(() => {
-    if (!chatAgentVoiceMuted) return;
+    if (!agentVoiceMuted) return;
     stopSpeaking();
-  }, [chatAgentVoiceMuted, stopSpeaking]);
+  }, [agentVoiceMuted, stopSpeaking]);
 
   useEffect(() => {
     setState(
@@ -320,7 +321,7 @@ export function ChatView() {
                           typeof msg.source === "string" &&
                           msg.source &&
                           msg.source !== "client_chat" && (
-                            <span className="ml-1.5 text-[10px] font-normal text-muted">
+                            <span className="ml-1.5 text-[10px] font-normal text-muted opacity-40">
                               via {msg.source}
                             </span>
                           )}
@@ -378,8 +379,8 @@ export function ChatView() {
           className="text-xs text-muted py-0.5 flex gap-2 relative"
           style={{ zIndex: 1 }}
         >
-          {droppedFiles.map((f, i) => (
-            <span key={i}>{f}</span>
+          {droppedFiles.map((f) => (
+            <span key={f}>{f}</span>
           ))}
         </div>
       )}
@@ -422,6 +423,7 @@ export function ChatView() {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
+            <title>Custom actions</title>
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
           <span className="text-[10px] font-medium">Actions</span>
@@ -435,7 +437,7 @@ export function ChatView() {
               ? "border-accent text-accent"
               : "border-border text-muted hover:border-accent hover:text-accent"
           }`}
-          onClick={() => setAvatarVisible((v) => !v)}
+          onClick={() => setState("chatAvatarVisible", !avatarVisible)}
           title={avatarVisible ? "Hide avatar" : "Show avatar"}
         >
           <svg
@@ -448,6 +450,7 @@ export function ChatView() {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
+            <title>{avatarVisible ? "Hide avatar" : "Show avatar"}</title>
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
             {!avatarVisible && <line x1="3" y1="3" x2="21" y2="21" />}
@@ -464,7 +467,7 @@ export function ChatView() {
           }`}
           onClick={() => {
             const muting = !agentVoiceMuted;
-            setAgentVoiceMuted(muting);
+            setState("chatAgentVoiceMuted", muting);
             if (muting) voice.stopSpeaking();
           }}
           title={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
@@ -479,6 +482,7 @@ export function ChatView() {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
+            <title>{agentVoiceMuted ? "Unmute voice" : "Mute voice"}</title>
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
             {agentVoiceMuted ? (
               <line x1="23" y1="9" x2="17" y2="15" />
@@ -518,6 +522,9 @@ export function ChatView() {
               stroke="currentColor"
               strokeWidth={voice.isListening ? "0" : "2"}
             >
+              <title>
+                {voice.isListening ? "Stop listening" : "Voice input"}
+              </title>
               {voice.isListening ? (
                 <>
                   <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />

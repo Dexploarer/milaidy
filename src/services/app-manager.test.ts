@@ -1,4 +1,3 @@
-
 /**
  * Tests for the Milady AppManager.
  *
@@ -8,13 +7,13 @@
  */
 
 import { logger } from "@elizaos/core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppManager } from "./app-manager";
 
 // Mock logger to avoid noise
-vi.spyOn(logger, "info").mockImplementation(() => { });
-vi.spyOn(logger, "warn").mockImplementation(() => { });
-vi.spyOn(logger, "error").mockImplementation(() => { });
+vi.spyOn(logger, "info").mockImplementation(() => {});
+vi.spyOn(logger, "warn").mockImplementation(() => {});
+vi.spyOn(logger, "error").mockImplementation(() => {});
 
 const APP_SCOPE = "@elizaos/app-";
 const APP_2004SCAPE = `${APP_SCOPE}2004scape`;
@@ -115,7 +114,9 @@ describe("AppManager", () => {
   describe("launch", () => {
     it("throws when app not found", async () => {
       mockPluginManager.getRegistryPlugin.mockResolvedValue(null);
-      await expect(mgr.launch(mockPluginManager, "missing")).rejects.toThrow("not found");
+      await expect(mgr.launch(mockPluginManager, "missing")).rejects.toThrow(
+        "not found",
+      );
     });
 
     it("installs plugin if not installed", async () => {
@@ -136,7 +137,10 @@ describe("AppManager", () => {
 
       const result = await mgr.launch(mockPluginManager, APP_2004SCAPE);
 
-      expect(mockPluginManager.installPlugin).toHaveBeenCalledWith(APP_2004SCAPE, undefined);
+      expect(mockPluginManager.installPlugin).toHaveBeenCalledWith(
+        APP_2004SCAPE,
+        undefined,
+      );
       expect(result.pluginInstalled).toBe(true);
       expect(result.needsRestart).toBe(true);
     });
@@ -150,7 +154,9 @@ describe("AppManager", () => {
         viewer: { url: "http://example.com", embedParams: {} },
       });
       mockPluginManager.getRegistryPlugin.mockResolvedValue(appInfo);
-      mockPluginManager.listInstalledPlugins.mockResolvedValue([{ name: APP_2004SCAPE }]);
+      mockPluginManager.listInstalledPlugins.mockResolvedValue([
+        { name: APP_2004SCAPE },
+      ]);
 
       const result = await mgr.launch(mockPluginManager, APP_2004SCAPE);
 
@@ -168,12 +174,19 @@ describe("AppManager", () => {
         description: "RuneScape",
       });
       mockPluginManager.getRegistryPlugin.mockResolvedValue(appInfo);
-      mockPluginManager.listInstalledPlugins.mockResolvedValue([{ name: APP_2004SCAPE }]);
-      mockPluginManager.uninstallPlugin.mockResolvedValue({ success: true, requiresRestart: true });
+      mockPluginManager.listInstalledPlugins.mockResolvedValue([
+        { name: APP_2004SCAPE },
+      ]);
+      mockPluginManager.uninstallPlugin.mockResolvedValue({
+        success: true,
+        requiresRestart: true,
+      });
 
       const result = await mgr.stop(mockPluginManager, APP_2004SCAPE);
 
-      expect(mockPluginManager.uninstallPlugin).toHaveBeenCalledWith(APP_2004SCAPE);
+      expect(mockPluginManager.uninstallPlugin).toHaveBeenCalledWith(
+        APP_2004SCAPE,
+      );
       expect(result.success).toBe(true);
       expect(result.pluginUninstalled).toBe(true);
     });
@@ -182,7 +195,7 @@ describe("AppManager", () => {
   describe("listInstalled", () => {
     it("formats installed plugins", async () => {
       mockPluginManager.listInstalledPlugins.mockResolvedValue([
-        { name: "@elizaos/plugin-test", version: "1.0.0", installedAt: "now" }
+        { name: "@elizaos/plugin-test", version: "1.0.0", installedAt: "now" },
       ]);
 
       const result = await mgr.listInstalled(mockPluginManager);

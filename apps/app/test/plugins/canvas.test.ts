@@ -88,7 +88,11 @@ describe("@milady/capacitor-canvas", () => {
       });
       const updated = (await c.getLayers({ canvasId })).layers.find(
         (l) => l.id === layerId,
-      )!;
+      );
+      expect(updated).toBeDefined();
+      if (!updated) {
+        throw new Error("updated layer not found");
+      }
       expect(updated.opacity).toBe(0.5);
       expect(updated.visible).toBe(false);
     });

@@ -138,6 +138,7 @@ export function App() {
           strokeLinejoin="round"
           aria-hidden
         >
+          <title>Chats</title>
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         Chats
@@ -171,6 +172,7 @@ export function App() {
           strokeLinejoin="round"
           aria-hidden
         >
+          <title>Status</title>
           <path d="M3 3v18h18" />
           <path d="m7 14 4-4 3 3 5-6" />
         </svg>
@@ -268,7 +270,7 @@ export function App() {
             ) : (
               <>
                 <ConversationsSidebar />
-                <main className="flex flex-col flex-1 min-w-0 overflow-visible pt-3 px-5">
+                <main className="flex flex-col flex-1 min-w-0 overflow-visible pt-3 px-3 xl:px-5">
                   <ChatView />
                 </main>
                 <AutonomousPanel />
@@ -290,7 +292,7 @@ export function App() {
           <Header />
           <Nav />
           <main
-            className={`flex-1 min-h-0 py-6 px-5 ${isAdvancedTab ? "overflow-hidden" : "overflow-y-auto"}`}
+            className={`flex-1 min-h-0 py-4 px-3 xl:py-6 xl:px-5 ${isAdvancedTab ? "overflow-hidden" : "overflow-y-auto"}`}
           >
             <ViewRouter />
           </main>

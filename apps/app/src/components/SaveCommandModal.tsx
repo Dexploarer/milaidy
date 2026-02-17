@@ -65,6 +65,14 @@ export function SaveCommandModal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-md border border-border bg-card shadow-lg flex flex-col overflow-hidden">
         {/* Header */}

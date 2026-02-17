@@ -253,12 +253,13 @@ describe("custom actions smoke flow", () => {
 
     const onSaved = vi.fn();
 
-    let tree: TestRenderer.ReactTestRenderer;
+    let tree: TestRenderer.ReactTestRenderer | null = null;
     await act(async () => {
       tree = TestRenderer.create(React.createElement(FlowHarness, { onSaved }));
     });
+    if (!tree) throw new Error("failed to render FlowHarness");
 
-    const actionsButton = findButtonByText(tree!, "Actions");
+    const actionsButton = findButtonByText(tree, "Actions");
     await act(async () => {
       actionsButton.props.onClick();
     });
@@ -271,7 +272,7 @@ describe("custom actions smoke flow", () => {
     );
     expect(title.length).toBe(1);
 
-    const createButton = findButtonByText(tree!, "+ New Custom Action");
+    const createButton = findButtonByText(tree, "+ New Custom Action");
     await act(async () => {
       createButton.props.onClick();
     });
@@ -283,7 +284,7 @@ describe("custom actions smoke flow", () => {
     expect(editorHeader.length).toBe(1);
 
     const promptInput = findInputByPlaceholder(
-      tree!,
+      tree,
       "e.g. Check if a website is up and return status",
     );
     await act(async () => {
@@ -293,7 +294,7 @@ describe("custom actions smoke flow", () => {
     });
     await flush();
 
-    const generateButton = findButtonByText(tree!, "Generate");
+    const generateButton = findButtonByText(tree, "Generate");
     await act(async () => {
       generateButton.props.onClick();
     });
@@ -303,7 +304,7 @@ describe("custom actions smoke flow", () => {
       "Build a URL health check action",
     );
 
-    const nameInput = findInputByPlaceholder(tree!, "MY_ACTION");
+    const nameInput = findInputByPlaceholder(tree, "MY_ACTION");
     expect(nameInput.props.value).toBe("CHECK_SITE");
 
     const descriptionArea = tree?.root.findAll(
@@ -313,7 +314,7 @@ describe("custom actions smoke flow", () => {
     )[0];
     expect(descriptionArea.props.value).toBe("Checks if a URL responds.");
 
-    const saveButton = findButtonByText(tree!, "Save");
+    const saveButton = findButtonByText(tree, "Save");
     await act(async () => {
       saveButton.props.onClick();
     });

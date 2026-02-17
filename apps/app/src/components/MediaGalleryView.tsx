@@ -322,12 +322,19 @@ export function MediaGalleryView() {
       {lightboxItem && (
         <div
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-8"
-          onClick={() => setLightboxItem(null)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLightboxItem(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setLightboxItem(null);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
         >
-          <div
-            className="bg-[var(--card)] border border-[var(--border)] max-w-[90vw] max-h-[90vh] overflow-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="bg-[var(--card)] border border-[var(--border)] max-w-[90vw] max-h-[90vh] overflow-auto">
             {/* Header */}
             <div className="flex items-center justify-between p-3 border-b border-[var(--border)]">
               <div className="text-xs text-[var(--txt)] font-medium truncate mr-4">

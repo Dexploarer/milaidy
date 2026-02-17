@@ -59,11 +59,11 @@ export function Header() {
     "inline-flex items-center justify-center w-7 h-7 border border-border bg-bg cursor-pointer text-sm leading-none hover:border-accent hover:text-accent transition-colors";
 
   return (
-    <header className="border-b border-border py-3 px-3 sm:py-4 sm:px-5">
+    <header className="border-b border-border py-2 px-3 sm:py-3 sm:px-4">
       <div className="flex items-center gap-2 min-w-0">
         <div className="shrink-0 min-w-0">
           <span
-            className="text-lg font-bold text-txt-strong truncate block"
+            className="text-base font-bold text-txt-strong truncate block"
             data-testid="agent-name"
           >
             {name}
@@ -79,7 +79,7 @@ export function Header() {
                 <button
                   type="button"
                   onClick={() => setTab("character")}
-                  className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[11px] sm:text-xs font-bold text-[var(--accent)] cursor-pointer hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] transition-colors animate-pulse"
+                  className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[11px] sm:text-xs font-bold text-[var(--accent)] cursor-pointer hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] transition-colors animate-pulse"
                 >
                   <span
                     className="inline-block w-2 h-2 rounded-full bg-[var(--accent)] animate-ping"
@@ -95,7 +95,7 @@ export function Header() {
                   href={cloudTopUpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`inline-flex shrink-0 items-center gap-1 px-2 py-0.5 border font-mono text-[11px] sm:text-xs no-underline transition-colors hover:border-accent hover:text-accent ${cloudCredits === null ? "border-muted text-muted" : creditColor}`}
+                  className={`inline-flex shrink-0 items-center gap-1 px-2 py-1.5 border font-mono text-[11px] sm:text-xs no-underline transition-colors hover:border-accent hover:text-accent ${cloudCredits === null ? "border-muted text-muted" : creditColor}`}
                 >
                   <svg
                     width="14"
@@ -107,6 +107,7 @@ export function Header() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
+                    <title>Cloud credits</title>
                     <circle cx="12" cy="12" r="10" />
                     <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
                     <path d="M12 18V6" />
@@ -116,7 +117,7 @@ export function Header() {
                     : `$${cloudCredits.toFixed(2)}`}
                 </a>
               ) : (
-                <span className="inline-flex shrink-0 items-center gap-1 px-2 py-0.5 border border-danger text-danger font-mono text-[11px] sm:text-xs">
+                <span className="inline-flex shrink-0 items-center gap-1 px-2 py-1.5 border border-danger text-danger font-mono text-[11px] sm:text-xs">
                   Cloud disconnected
                 </span>
               ))}
@@ -168,7 +169,7 @@ export function Header() {
               </button>
             </div>
             {(evmShort || solShort) && (
-              <div className="wallet-wrapper relative inline-flex shrink-0">
+              <div className="wallet-wrapper relative inline-flex shrink-0 group">
                 <button
                   type="button"
                   onClick={() => setTab("wallets")}
@@ -184,12 +185,13 @@ export function Header() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
+                    <title>Wallets</title>
                     <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
                     <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
                     <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
                   </svg>
                 </button>
-                <div className="wallet-tooltip hidden absolute top-full right-0 mt-2 p-3 border border-border bg-bg z-50 min-w-[280px] shadow-lg">
+                <div className="wallet-tooltip hidden group-hover:block absolute top-full right-0 mt-2 p-3 border border-border bg-bg z-50 min-w-[280px] shadow-lg">
                   {evmShort && (
                     <div className="flex items-center gap-2 text-xs py-1">
                       <span className="font-bold font-mono min-w-[30px]">
@@ -207,7 +209,7 @@ export function Header() {
                             copyToClipboard(evmAddress);
                           }
                         }}
-                        className="px-1.5 py-0.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent"
+                        className="px-1.5 py-1 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent"
                       >
                         copy
                       </button>
@@ -230,7 +232,7 @@ export function Header() {
                             copyToClipboard(solanaAddress);
                           }
                         }}
-                        className="px-1.5 py-0.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent"
+                        className="px-1.5 py-1 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent"
                       >
                         copy
                       </button>

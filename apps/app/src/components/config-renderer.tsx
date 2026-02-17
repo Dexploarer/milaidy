@@ -621,7 +621,8 @@ export const ConfigRenderer = forwardRef<
 
       {advanced.length > 0 && (
         <div className="mt-5 pt-4 border-t border-[var(--border)]">
-          <div
+          <button
+            type="button"
             className="flex items-center gap-2 cursor-pointer select-none group mb-3"
             onClick={() => setAdvancedOpen((prev) => !prev)}
           >
@@ -638,7 +639,7 @@ export const ConfigRenderer = forwardRef<
               {advanced.length}
             </span>
             <span className="flex-1 h-px bg-[var(--border)] opacity-50 ml-1" />
-          </div>
+          </button>
           {advancedOpen && (
             <div className="grid grid-cols-6 gap-x-5 gap-y-0 pt-1 animate-[cr-slide_var(--duration-normal,200ms)_ease]">
               {advanced.map((f) => renderField(f))}

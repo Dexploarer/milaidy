@@ -258,9 +258,13 @@ describe("onboarding finish locking", () => {
     });
 
     expect(api).not.toBeNull();
+    const requireApi = () => {
+      if (!api) throw new Error("onboarding probe API was not initialized");
+      return api;
+    };
 
-    await waitForOnboardingOptions(() => api!);
-    await advanceToPermissions(() => api!);
+    await waitForOnboardingOptions(requireApi);
+    await advanceToPermissions(requireApi);
 
     await act(async () => {
       void api?.handleOnboardingNext();
@@ -301,9 +305,13 @@ describe("onboarding finish locking", () => {
     });
 
     expect(api).not.toBeNull();
+    const requireApi = () => {
+      if (!api) throw new Error("onboarding probe API was not initialized");
+      return api;
+    };
 
-    await waitForOnboardingOptions(() => api!);
-    await advanceToPermissions(() => api!);
+    await waitForOnboardingOptions(requireApi);
+    await advanceToPermissions(requireApi);
 
     await act(async () => {
       await api?.handleOnboardingNext();
@@ -348,9 +356,13 @@ describe("onboarding finish locking", () => {
     });
 
     expect(api).not.toBeNull();
+    const requireApi = () => {
+      if (!api) throw new Error("onboarding probe API was not initialized");
+      return api;
+    };
 
-    await waitForOnboardingOptions(() => api!);
-    await advanceToPermissions(() => api!);
+    await waitForOnboardingOptions(requireApi);
+    await advanceToPermissions(requireApi);
 
     await act(async () => {
       await api?.handleOnboardingNext();

@@ -81,12 +81,15 @@ export function LoadingScreen({
           userSelect: "none",
         }}
       >
-        {grid.map((line, y) => (
-          <div key={y} style={{ whiteSpace: "pre" }}>
-            {line.map((c, x) =>
+        {grid.map((line) => (
+          <div
+            key={line.map((c) => c.char).join("")}
+            style={{ whiteSpace: "pre" }}
+          >
+            {line.map((c) =>
               c.isLetter ? (
                 <span
-                  key={x}
+                  key={`${c.char}-${c.delay.toFixed(3)}-${c.duration.toFixed(3)}`}
                   className="dither-char"
                   style={{
                     animationDelay: `${c.delay.toFixed(2)}s`,
@@ -96,7 +99,11 @@ export function LoadingScreen({
                   {c.char}
                 </span>
               ) : (
-                <span key={x}>{c.char}</span>
+                <span
+                  key={`${c.char}-${c.delay.toFixed(3)}-${c.duration.toFixed(3)}`}
+                >
+                  {c.char}
+                </span>
               ),
             )}
           </div>

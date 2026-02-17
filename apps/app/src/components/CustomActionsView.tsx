@@ -210,44 +210,40 @@ export function CustomActionsView() {
           {filteredActions.map((action) => (
             <div
               key={action.id}
-              onClick={(e) => {
-                // Don't open editor if clicking on interactive elements
-                if (
-                  e.target instanceof HTMLButtonElement ||
-                  e.target instanceof HTMLInputElement
-                ) {
-                  return;
-                }
-                handleEdit(action);
-              }}
               className="border border-border bg-card rounded p-4 space-y-3 cursor-pointer hover:border-accent/50 transition-colors"
             >
-              {/* Name and Badge */}
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-bold text-sm text-txt flex-1 break-words">
-                  {action.name}
-                </h3>
-                <span
-                  className={`px-2 py-0.5 text-xs rounded ${getBadgeColor(
-                    action.handler.type,
-                  )}`}
-                >
-                  {action.handler.type}
-                </span>
-              </div>
+              <button
+                type="button"
+                className="w-full bg-transparent border-0 p-0 m-0 text-left cursor-pointer"
+                onClick={() => handleEdit(action)}
+              >
+                {/* Name and Badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-bold text-sm text-txt flex-1 break-words">
+                    {action.name}
+                  </h3>
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded ${getBadgeColor(
+                      action.handler.type,
+                    )}`}
+                  >
+                    {action.handler.type}
+                  </span>
+                </div>
 
-              {/* Description */}
-              {action.description && (
-                <p className="text-xs text-muted line-clamp-3">
-                  {action.description}
+                {/* Description */}
+                {action.description && (
+                  <p className="text-xs text-muted line-clamp-3">
+                    {action.description}
+                  </p>
+                )}
+
+                {/* Parameters Count */}
+                <p className="text-xs text-muted">
+                  {action.parameters?.length || 0} parameter
+                  {action.parameters?.length === 1 ? "" : "s"}
                 </p>
-              )}
-
-              {/* Parameters Count */}
-              <p className="text-xs text-muted">
-                {action.parameters?.length || 0} parameter
-                {action.parameters?.length === 1 ? "" : "s"}
-              </p>
+              </button>
 
               {/* Actions Row */}
               <div className="flex items-center justify-between pt-2 border-t border-border">
@@ -266,20 +262,14 @@ export function CustomActionsView() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(action);
-                    }}
+                    onClick={() => handleEdit(action)}
                     className="px-2 py-1 text-xs border border-border bg-surface text-muted rounded hover:bg-card transition-colors"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(action.id, action.name);
-                    }}
+                    onClick={() => handleDelete(action.id, action.name)}
                     className="px-2 py-1 text-xs border border-border bg-surface text-danger rounded hover:bg-card transition-colors"
                   >
                     Delete

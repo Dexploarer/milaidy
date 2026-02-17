@@ -307,11 +307,14 @@ describe("Token auth gate (MILADY_API_TOKEN set)", () => {
     }
   });
 
-  it("accepts WebSocket upgrade with query token", async () => {
+  it("rejects WebSocket query-token auth by default", async () => {
     const result = await connectWs(
       `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(TEST_TOKEN)}`,
     );
-    expect(result.kind).toBe("open");
+    expect(result.kind).toBe("rejected");
+    if (result.kind === "rejected") {
+      expect(result.status).toBe(401);
+    }
   });
 
   // ── Auth endpoints exempt from token ───────────────────────────────────

@@ -110,5 +110,8 @@ export default defineConfig({
       // Allow serving files from the app directory and milady src
       allow: [here, miladyRoot],
     },
+    watch: {
+      usePolling: true,
+    },
   },
 });

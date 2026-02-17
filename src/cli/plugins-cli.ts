@@ -1,5 +1,10 @@
+import type { IAgentRuntime } from "@elizaos/core";
 import chalk from "chalk";
 import type { Command } from "commander";
+import type {
+  InstallProgressLike,
+  PluginManagerLike,
+} from "../services/plugin-manager-types";
 import { parseClampedInteger } from "../utils/number-parsing";
 
 /**
@@ -64,10 +69,13 @@ function displayPluginConfig(
   }
 }
 
-async function getPluginManager() {
+async function getPluginManager(): Promise<PluginManagerLike> {
   const { PluginManagerService } = await import(
     "@elizaos/plugin-plugin-manager"
   );
+  const PluginManagerServiceCtor = PluginManagerService as unknown as new (
+    runtime: IAgentRuntime,
+  ) => PluginManagerLike;
   const mockRuntime = {
     plugins: [],
     actions: [],
@@ -80,8 +88,8 @@ async function getPluginManager() {
     registerProvider: () => {},
     registerEvaluator: () => {},
     registerEvent: () => {},
-  } as unknown;
-  return new PluginManagerService(mockRuntime);
+  } as unknown as IAgentRuntime;
+  return new PluginManagerServiceCtor(mockRuntime);
 }
 
 export function registerPluginsCli(program: Command): void {
@@ -106,7 +114,7 @@ export function registerPluginsCli(program: Command): void {
         fallback: 30,
       });
       const installed = await pluginManager.listInstalledPlugins();
-      const installedNames = new Set(installed.map((p: unknown) => p.name));
+      const installedNames = new Set(installed.map((p) => p.name));
 
       if (opts.query) {
         const results = await pluginManager.searchRegistry(opts.query, limit);
@@ -300,10 +308,7 @@ export function registerPluginsCli(program: Command): void {
 
       console.log(`\nInstalling ${chalk.cyan(normalizedName)}...\n`);
 
-      const progressHandler = (progress: {
-        phase: string;
-        message: string;
-      }) => {
+      const progressHandler = (progress: InstallProgressLike) => {
         console.log(`  [${progress.phase}] ${progress.message}`);
       };
 

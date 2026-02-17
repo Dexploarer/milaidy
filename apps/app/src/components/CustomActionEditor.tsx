@@ -875,7 +875,10 @@ export function CustomActionEditor({
                   </button>
                 </div>
                 {httpHeaders.map((header, i) => (
-                  <div key={i} className="flex gap-2">
+                  <div
+                    key={`${header.key}:${header.value}`}
+                    className="flex gap-2"
+                  >
                     <input
                       type="text"
                       value={header.key}

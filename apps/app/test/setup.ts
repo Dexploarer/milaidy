@@ -252,10 +252,12 @@ if (typeof globalThis.WebSocket === "undefined") {
       setTimeout(() => this.emit("open", {}), 0);
     }
     addEventListener(e: string, h: (...a: unknown[]) => void) {
-      (
-        this.handlers.get(e) ??
-        (this.handlers.set(e, []), this.handlers.get(e)!)
-      ).push(h);
+      let eventHandlers = this.handlers.get(e);
+      if (!eventHandlers) {
+        eventHandlers = [];
+        this.handlers.set(e, eventHandlers);
+      }
+      eventHandlers.push(h);
     }
     removeEventListener(e: string, h: (...a: unknown[]) => void) {
       const hs = this.handlers.get(e);

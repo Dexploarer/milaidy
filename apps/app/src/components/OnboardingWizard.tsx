@@ -441,10 +441,6 @@ export function OnboardingWizard() {
                     ? "border-accent ring-2 ring-accent/30"
                     : "border-border hover:border-accent"
                 }`}
-                onClick={() => {
-                  setIsCustomSelected(true);
-                  setState("onboardingName", customNameText);
-                }}
               >
                 <input
                   type="text"
@@ -686,9 +682,10 @@ export function OnboardingWizard() {
             <div className="flex flex-col gap-2 text-left max-w-[600px] mx-auto">
               {onboardingOptions?.cloudProviders.map(
                 (provider: CloudProviderOption) => (
-                  <div
+                  <button
+                    type="button"
                     key={provider.id}
-                    className={`px-4 py-3 border cursor-pointer bg-card transition-colors rounded-lg ${
+                    className={`w-full px-4 py-3 border cursor-pointer bg-card transition-colors rounded-lg text-left ${
                       onboardingCloudProvider === provider.id
                         ? "border-accent !bg-accent !text-accent-fg"
                         : "border-border hover:border-accent"
@@ -707,7 +704,7 @@ export function OnboardingWizard() {
                         {provider.description}
                       </div>
                     )}
-                  </div>
+                  </button>
                 ),
               )}
             </div>
@@ -725,6 +722,7 @@ export function OnboardingWizard() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
+                      <title>Connected</title>
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                     connected~
@@ -1029,6 +1027,7 @@ export function OnboardingWizard() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
+                      <title>Connected</title>
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                     connected~
@@ -1124,6 +1123,7 @@ export function OnboardingWizard() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
+                        <title>Connected</title>
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                       Connected to Claude
@@ -1195,6 +1195,7 @@ export function OnboardingWizard() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
+                        <title>Connected</title>
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                       Connected to ChatGPT
@@ -1307,9 +1308,10 @@ export function OnboardingWizard() {
                   <div className="flex flex-col gap-2">
                     {onboardingOptions.openrouterModels.map(
                       (model: OpenRouterModelOption) => (
-                        <div
+                        <button
+                          type="button"
                           key={model.id}
-                          className={`px-4 py-3 border cursor-pointer transition-colors text-left rounded-lg ${
+                          className={`w-full px-4 py-3 border cursor-pointer transition-colors text-left rounded-lg ${
                             onboardingOpenRouterModel === model.id
                               ? "border-accent !bg-accent !text-accent-fg"
                               : "border-border bg-card hover:border-accent/50"
@@ -1322,7 +1324,7 @@ export function OnboardingWizard() {
                               {model.description}
                             </div>
                           )}
-                        </div>
+                        </button>
                       ),
                     )}
                   </div>
@@ -1412,6 +1414,7 @@ export function OnboardingWizard() {
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                   >
+                                    <title>Connected</title>
                                     <polyline points="20 6 9 17 4 12" />
                                   </svg>
                                   connected~ no keys needed

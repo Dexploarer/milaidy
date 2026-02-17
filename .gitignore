@@ -17,6 +17,8 @@ apps/app/electron/build/
 package-lock.json
 bun.lock
 bun.lockb
+pnpm-lock.yaml
+**/pnpm-lock.yaml
 !deploy/cloud-agent-template/package-lock.json
 
 # Docker overrides
@@ -50,6 +52,10 @@ milady-workspace/
 temp_capture_*.jpg
 knip_output*.txt
 src/benchmark/mock-plugin.ts
+biome-report.json
+
+# Local audit outputs
+report/
 
 # Agent learning docs & knowledge base
 knowledge/

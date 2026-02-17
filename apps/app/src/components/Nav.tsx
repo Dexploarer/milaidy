@@ -45,6 +45,7 @@ export function Nav({ mobileLeft }: NavProps) {
             strokeLinejoin="round"
             aria-hidden
           >
+            <title>Menu</title>
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="3" y1="18" x2="21" y2="18" />
@@ -52,7 +53,7 @@ export function Nav({ mobileLeft }: NavProps) {
         </button>
       </nav>
 
-      <nav className="hidden lg:flex border-b border-border py-2 px-5 gap-1 overflow-x-auto whitespace-nowrap">
+      <nav className="hidden lg:flex border-b border-border py-1.5 px-3 xl:px-5 gap-0.5 overflow-x-auto whitespace-nowrap">
         {TAB_GROUPS.map((group: (typeof TAB_GROUPS)[number]) => {
           const primaryTab = group.tabs[0];
           const isActive = group.tabs.includes(tab);
@@ -60,7 +61,7 @@ export function Nav({ mobileLeft }: NavProps) {
             <button
               type="button"
               key={group.label}
-              className={`inline-block shrink-0 px-3 py-1.5 text-[13px] bg-transparent border-0 border-b-2 cursor-pointer transition-colors ${
+              className={`inline-block shrink-0 px-2 xl:px-3 py-1 text-[12px] bg-transparent border-0 border-b-2 cursor-pointer transition-colors ${
                 isActive
                   ? "text-accent font-medium border-b-accent"
                   : "text-muted border-b-transparent hover:text-txt"

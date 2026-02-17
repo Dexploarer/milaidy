@@ -447,15 +447,17 @@ describe("app startup onboarding flow (e2e)", () => {
   });
 
   it("progresses through onboarding and lands in chat", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
+    let tree: TestRenderer.ReactTestRenderer | null = null;
 
     await act(async () => {
       tree = TestRenderer.create(React.createElement(App));
     });
+    if (!tree) throw new Error("failed to render App");
+    const renderedTree = tree;
 
     for (let i = 0; i < 20 && !state.onboardingComplete; i += 1) {
       if (state.onboardingStep === "name") {
-        const nameInput = tree?.root.findAll(
+        const nameInput = renderedTree.root.findAll(
           (node) =>
             node.type === "input" &&
             node.props.placeholder === "enter custom name...",
@@ -464,35 +466,35 @@ describe("app startup onboarding flow (e2e)", () => {
         await act(async () => {
           nameInput.props.onChange({ target: { value: "Onboarding Smoke" } });
         });
-        await rerender(tree!);
+        await rerender(renderedTree);
       }
 
       if (state.onboardingStep === "style" && !state.onboardingStyle) {
-        clickButton(tree!, "chaotic");
-        await rerender(tree!);
+        clickButton(renderedTree, "chaotic");
+        await rerender(renderedTree);
       }
 
       if (state.onboardingStep === "runMode") {
         state.onboardingRunMode = "local-rawdog";
-        await rerender(tree!);
+        await rerender(renderedTree);
       }
 
       if (state.onboardingStep === "llmProvider") {
         state.onboardingProvider = "ollama";
-        await rerender(tree!);
+        await rerender(renderedTree);
       }
 
       if (state.onboardingStep === "permissions") {
-        clickButton(tree!, "permissions-continue");
+        clickButton(renderedTree, "permissions-continue");
       } else {
-        clickButton(tree!, "next");
+        clickButton(renderedTree, "next");
       }
-      await rerender(tree!);
+      await rerender(renderedTree);
     }
 
     expect(state.onboardingComplete).toBe(true);
 
-    const renderedText = tree?.root
+    const renderedText = renderedTree.root
       .findAllByType("div")
       .map((node) => node.children.join(""))
       .join("\n");

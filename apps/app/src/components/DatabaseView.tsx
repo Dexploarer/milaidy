@@ -193,7 +193,7 @@ function ResultsGrid({
         <tbody>
           {rows.map((row, i) => (
             <tr
-              key={i}
+              key={JSON.stringify(row)}
               className="border-b border-[var(--border)] hover:bg-[var(--accent)]/5 transition-colors"
             >
               <td className="px-2 py-1.5 text-[10px] text-[var(--muted)] text-right border-r border-[var(--border)] bg-[var(--bg)]/50 tabular-nums">
@@ -203,14 +203,24 @@ function ResultsGrid({
                 const raw = row[col];
                 const display = formatCell(raw);
                 const isNull = raw === null || raw === undefined;
+                const isExpandable = display.length > 40 && !!onCellClick;
                 return (
                   <td
                     key={col}
                     className="px-3 py-1.5 border-r border-[var(--border)] max-w-[280px] truncate cursor-default"
                     title={display}
-                    onClick={() =>
-                      display.length > 40 && onCellClick?.(display)
-                    }
+                    onClick={() => {
+                      if (isExpandable) onCellClick(display);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!isExpandable) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onCellClick(display);
+                      }
+                    }}
+                    role={isExpandable ? "button" : undefined}
+                    tabIndex={isExpandable ? 0 : undefined}
                   >
                     {isNull ? (
                       <span className="text-[var(--muted)] italic opacity-50">
@@ -713,10 +723,10 @@ export function DatabaseView() {
               <div className="px-3 py-1.5 text-[9px] text-[var(--muted)] uppercase font-bold tracking-wider border-b border-[var(--border)]">
                 Recent queries
               </div>
-              {queryHistory.slice(0, 5).map((q, i) => (
+              {queryHistory.slice(0, 5).map((q) => (
                 <button
                   type="button"
-                  key={i}
+                  key={q}
                   className="w-full px-3 py-1.5 text-[11px] font-mono text-[var(--txt)] text-left bg-transparent border-0 border-b border-[var(--border)] cursor-pointer hover:bg-[var(--accent)]/5 truncate"
                   onClick={() => setQueryText(q)}
                 >

@@ -7,6 +7,6 @@ export const uiCatalogProvider: Provider = {
     const catalogSummary = Object.entries(COMPONENT_CATALOG)
       .map(([name, meta]) => `- ${name}: ${meta.description}`)
       .join("\n");
-    return `Available UI Components:\n${catalogSummary}`;
+    return { text: `Available UI Components:\n${catalogSummary}` };
   },
 };

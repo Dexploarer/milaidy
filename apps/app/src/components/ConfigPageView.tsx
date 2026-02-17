@@ -391,6 +391,7 @@ export function ConfigPageView({ embedded = false }: { embedded?: boolean }) {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
+              <title>Secrets vault</title>
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
@@ -447,6 +448,14 @@ export function ConfigPageView({ embedded = false }: { embedded?: boolean }) {
           onClick={(e) => {
             if (e.target === e.currentTarget) setSecretsOpen(false);
           }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setSecretsOpen(false);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
         >
           <div className="w-full max-w-2xl max-h-[80vh] border border-[var(--border)] bg-[var(--card)] p-5 shadow-lg flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -462,6 +471,7 @@ export function ConfigPageView({ embedded = false }: { embedded?: boolean }) {
                   strokeLinejoin="round"
                   className="text-[var(--accent)]"
                 >
+                  <title>Secrets vault</title>
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>

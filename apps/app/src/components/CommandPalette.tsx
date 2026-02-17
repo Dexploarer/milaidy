@@ -246,12 +246,18 @@ export function CommandPalette() {
           closeCommandPalette();
         }
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeCommandPalette();
+        }
+      }}
       role="dialog"
       aria-modal="true"
+      tabIndex={-1}
     >
       <div
         className="bg-bg border border-border w-[520px] max-h-[420px] flex flex-col shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
         role="document"
       >
         <input

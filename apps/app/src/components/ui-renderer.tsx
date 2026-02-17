@@ -437,8 +437,8 @@ const InputComponent: ComponentFn = (props, _children, ctx, el) => {
       />
       {errors?.length ? (
         <div className="flex flex-col gap-0.5">
-          {errors.map((err, i) => (
-            <span key={i} className="text-[10px] text-[var(--destructive)]">
+          {errors.map((err) => (
+            <span key={err} className="text-[10px] text-[var(--destructive)]">
               {err}
             </span>
           ))}
@@ -482,8 +482,8 @@ const TextareaComponent: ComponentFn = (props, _children, ctx, el) => {
       />
       {errors?.length ? (
         <div className="flex flex-col gap-0.5">
-          {errors.map((err, i) => (
-            <span key={i} className="text-[10px] text-[var(--destructive)]">
+          {errors.map((err) => (
+            <span key={err} className="text-[10px] text-[var(--destructive)]">
               {err}
             </span>
           ))}
@@ -535,8 +535,8 @@ const SelectComponent: ComponentFn = (props, _children, ctx, el) => {
       </select>
       {errors?.length ? (
         <div className="flex flex-col gap-0.5">
-          {errors.map((err, i) => (
-            <span key={i} className="text-[10px] text-[var(--destructive)]">
+          {errors.map((err) => (
+            <span key={err} className="text-[10px] text-[var(--destructive)]">
               {err}
             </span>
           ))}
@@ -771,13 +771,13 @@ const TableComponent: ComponentFn = (props) => {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
+          {rows.map((row) => (
             <tr
-              key={i}
+              key={row.join("|")}
               className="border-b border-[var(--border)] last:border-b-0"
             >
-              {row.map((cell, j) => (
-                <td key={j} className="px-2.5 py-1.5">
+              {row.map((cell) => (
+                <td key={cell} className="px-2.5 py-1.5">
                   {cell}
                 </td>
               ))}
@@ -960,10 +960,10 @@ const RatingComponent: ComponentFn = (props) => {
         <div className="text-xs font-semibold">{String(props.label)}</div>
       ) : null}
       <div className="flex gap-0.5">
-        {Array.from({ length: max }, (_, i) => (
+        {Array.from({ length: max }, (_, i) => i + 1).map((starValue) => (
           <span
-            key={i}
-            className={`text-sm ${i < value ? "text-[var(--warn,#f39c12)]" : "text-[var(--muted)] opacity-30"}`}
+            key={starValue}
+            className={`text-sm ${starValue <= value ? "text-[var(--warn,#f39c12)]" : "text-[var(--muted)] opacity-30"}`}
           >
             ★
           </span>
@@ -1138,18 +1138,18 @@ const PaginationComponent: ComponentFn = (props, _children, ctx) => {
       >
         &larr;
       </button>
-      {Array.from({ length: total }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => i + 1).map((page) => (
         <button
-          key={i + 1}
+          key={page}
           type="button"
           className={`px-2 py-1 text-xs border cursor-pointer ${
-            i + 1 === current
+            page === current
               ? "bg-[var(--accent)] text-[var(--accent-foreground,#fff)] border-[var(--accent)]"
               : "border-[var(--border)] bg-[var(--card)] hover:bg-[var(--bg-hover)]"
           }`}
-          onClick={() => setValue(i + 1)}
+          onClick={() => setValue(page)}
         >
-          {i + 1}
+          {page}
         </button>
       ))}
       <button
@@ -1217,6 +1217,7 @@ const LineGraphComponent: ComponentFn = (props) => {
         className="w-full h-[100px]"
         preserveAspectRatio="none"
       >
+        <title>{String(props.title ?? "Line graph")}</title>
         <path
           d={pathD}
           fill="none"
@@ -1224,9 +1225,9 @@ const LineGraphComponent: ComponentFn = (props) => {
           strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
-        {points.map((p, i) => (
+        {points.map((p) => (
           <circle
-            key={i}
+            key={`${p.x}:${p.y}`}
             cx={p.x}
             cy={p.y}
             r="3"
@@ -1236,7 +1237,7 @@ const LineGraphComponent: ComponentFn = (props) => {
         ))}
         {data.map((d, i) => (
           <text
-            key={i}
+            key={`${d.label}:${d.value}`}
             x={points[i].x}
             y={h + 14}
             textAnchor="middle"
@@ -1256,10 +1257,14 @@ const LineGraphComponent: ComponentFn = (props) => {
 const TooltipComponent: ComponentFn = (props) => {
   const [show, setShow] = useState(false);
   return (
-    <div
+    <button
+      type="button"
       className="relative inline-block"
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)}
+      onBlur={() => setShow(false)}
+      onClick={() => setShow((prev) => !prev)}
     >
       <span className="text-xs text-[var(--accent)] underline cursor-help">
         {String(props.text ?? "Hover")}
@@ -1269,7 +1274,7 @@ const TooltipComponent: ComponentFn = (props) => {
           {String(props.content ?? "")}
         </div>
       )}
-    </div>
+    </button>
   );
 };
 
@@ -1340,7 +1345,7 @@ const AccordionComponent: ComponentFn = (props) => {
   return (
     <div className="border border-[var(--border)] divide-y divide-[var(--border)]">
       {items.map((item, i) => (
-        <div key={i}>
+        <div key={`${item.title}:${item.content}`}>
           <button
             type="button"
             className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold cursor-pointer hover:bg-[var(--bg-hover)]"
@@ -1376,6 +1381,14 @@ const DialogComponent: ComponentFn = (props, children, ctx) => {
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          close();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-md border border-[var(--border)] bg-[var(--card)] p-5 shadow-lg">
         <div className="flex items-center justify-between mb-3">
@@ -1416,6 +1429,14 @@ const DrawerComponent: ComponentFn = (props, children, ctx) => {
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          close();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-h-[80vh] border-t border-[var(--border)] bg-[var(--card)] p-5 shadow-lg overflow-y-auto animate-[slide-up_200ms_ease]">
         <div className="w-10 h-1 bg-[var(--border)] mx-auto mb-3 rounded-full" />

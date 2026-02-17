@@ -92,7 +92,7 @@ export function ConversationsSidebar({
 
   return (
     <aside
-      className={`${mobile ? "w-full min-w-0 h-full" : "w-60 min-w-60 border-r"} border-border bg-bg flex flex-col overflow-y-auto text-[13px]`}
+      className={`${mobile ? "w-full min-w-0 h-full" : "w-48 min-w-48 xl:w-60 xl:min-w-60 border-r"} border-border bg-bg flex flex-col overflow-y-auto text-[13px]`}
       data-testid="conversations-sidebar"
     >
       {mobile && (
@@ -113,7 +113,7 @@ export function ConversationsSidebar({
       <div className="p-3 border-b border-border">
         <button
           type="button"
-          className="w-full px-3 py-2 border border-border rounded-md bg-accent text-accent-fg text-[13px] font-medium cursor-pointer transition-opacity hover:opacity-90"
+          className="w-full px-3 py-1.5 border border-accent rounded-md bg-transparent text-accent text-[12px] font-medium cursor-pointer transition-colors hover:bg-accent hover:text-accent-fg"
           onClick={() => {
             handleNewConversation();
             onClose?.();
@@ -143,13 +143,6 @@ export function ConversationsSidebar({
                     ? "bg-bg-hover border-l-accent"
                     : "border-l-transparent hover:bg-bg-hover"
                 } group`}
-                onClick={() => {
-                  if (!isEditing) {
-                    void handleSelectConversation(conv.id);
-                    onClose?.();
-                  }
-                }}
-                onDoubleClick={() => handleDoubleClick(conv)}
               >
                 {isEditing ? (
                   <input
@@ -163,17 +156,27 @@ export function ConversationsSidebar({
                   />
                 ) : (
                   <>
-                    {unreadConversations.has(conv.id) && (
-                      <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate text-txt">
-                        {conv.title}
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 p-0 m-0 text-left cursor-pointer"
+                      onClick={() => {
+                        void handleSelectConversation(conv.id);
+                        onClose?.();
+                      }}
+                      onDoubleClick={() => handleDoubleClick(conv)}
+                    >
+                      {unreadConversations.has(conv.id) && (
+                        <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate text-txt">
+                          {conv.title}
+                        </div>
+                        <div className="text-[11px] text-muted mt-0.5">
+                          {formatRelativeTime(conv.updatedAt)}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-muted mt-0.5">
-                        {formatRelativeTime(conv.updatedAt)}
-                      </div>
-                    </div>
+                    </button>
                     <button
                       type="button"
                       data-testid="conv-delete"

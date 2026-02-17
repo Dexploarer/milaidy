@@ -1044,7 +1044,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cloudCreditsLow, setCloudCreditsLow] = useState(false);
   const [cloudCreditsCritical, setCloudCreditsCritical] = useState(false);
   const [cloudTopUpUrl, setCloudTopUpUrl] = useState(
-    "https://www.elizacloud.ai/dashboard/billing",
+    "https://www.elizacloud.ai/dashboard/settings?tab=billing",
   );
   const [cloudUserId, setCloudUserId] = useState<string | null>(null);
   const [cloudLoginBusy, setCloudLoginBusy] = useState(false);
@@ -3066,171 +3066,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Onboarding ─────────────────────────────────────────────────────
 
-  const handleOnboardingNext = useCallback(
-    async (options?: OnboardingNextOptions) => {
-      const opts = onboardingOptions;
-      switch (onboardingStep) {
-        case "welcome":
-          setOnboardingStep("name");
-          break;
-        case "name":
-          setOnboardingStep("avatar");
-          break;
-        case "avatar":
-          setOnboardingStep("style");
-          break;
-        case "style":
-          setOnboardingStep("theme");
-          break;
-        case "theme": {
-          setTheme(onboardingTheme);
-          setOnboardingStep("runMode");
-          break;
-        }
-        case "runMode":
-          if (onboardingRunMode === "cloud") {
-            if (opts && opts.cloudProviders.length === 1) {
-              setOnboardingCloudProvider(opts.cloudProviders[0].id);
-            }
-            setOnboardingStep("cloudProvider");
-          } else if (onboardingRunMode === "local-sandbox") {
-            setOnboardingStep("dockerSetup");
-          } else {
-            // local-rawdog: skip docker, go straight to LLM provider
-            setOnboardingStep("llmProvider");
-          }
-          break;
-        case "dockerSetup":
-          setOnboardingStep("llmProvider");
-          break;
-        case "cloudProvider":
-          setOnboardingStep("modelSelection");
-          break;
-        case "modelSelection":
-          if (cloudConnected) {
-            setOnboardingStep("connectors");
-          } else {
-            setOnboardingStep("cloudLogin");
-          }
-          break;
-        case "cloudLogin":
-          setOnboardingStep("connectors");
-          break;
-        case "llmProvider":
-          setOnboardingStep("inventorySetup");
-          break;
-        case "inventorySetup":
-          setOnboardingStep("connectors");
-          break;
-        case "connectors":
-          setOnboardingStep("permissions");
-          break;
-        case "permissions": {
-          if (options?.allowPermissionBypass) {
-            await handleOnboardingFinish();
-            break;
-          }
-          try {
-            const permissions = await client.getPermissions();
-            const missingPermissions =
-              getMissingOnboardingPermissions(permissions);
-            if (missingPermissions.length > 0) {
-              const missingLabels = missingPermissions
-                .map((id) => ONBOARDING_PERMISSION_LABELS[id] ?? id)
-                .join(", ");
-              setActionNotice(
-                `Missing required permissions: ${missingLabels}. Grant them or use "Skip for Now".`,
-                "error",
-                5200,
-              );
-              return;
-            }
-          } catch (err) {
-            setActionNotice(
-              `Could not verify permissions (${err instanceof Error ? err.message : "unknown error"}). Use "Skip for Now" to continue.`,
-              "error",
-              5200,
-            );
-            return;
-          }
-          await handleOnboardingFinish();
-          break;
-        }
-      }
-    },
-    [
-      onboardingStep,
-      onboardingOptions,
-      onboardingRunMode,
-      onboardingTheme,
-      setTheme,
-      cloudConnected,
-      setActionNotice,
-      // biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: defined later with useCallback to keep onboarding handlers grouped.
-      handleOnboardingFinish,
-    ],
-  );
-
-  const handleOnboardingBack = useCallback(() => {
-    switch (onboardingStep) {
-      case "name":
-        setOnboardingStep("welcome");
-        break;
-      case "avatar":
-        setOnboardingStep("name");
-        break;
-      case "style":
-        setOnboardingStep("avatar");
-        break;
-      case "theme":
-        setOnboardingStep("style");
-        break;
-      case "runMode":
-        setOnboardingStep("theme");
-        break;
-      case "cloudProvider":
-        setOnboardingStep("runMode");
-        break;
-      case "modelSelection":
-        setOnboardingStep("cloudProvider");
-        break;
-      case "cloudLogin":
-        setOnboardingStep("modelSelection");
-        if (cloudLoginPollTimer.current) {
-          clearInterval(cloudLoginPollTimer.current);
-          cloudLoginPollTimer.current = null;
-        }
-        cloudLoginBusyRef.current = false;
-        setCloudLoginBusy(false);
-        setCloudLoginError(null);
-        break;
-      case "dockerSetup":
-        setOnboardingStep("runMode");
-        break;
-      case "llmProvider":
-        if (onboardingRunMode === "local-sandbox") {
-          setOnboardingStep("dockerSetup");
-        } else {
-          setOnboardingStep("runMode");
-        }
-        break;
-      case "inventorySetup":
-        setOnboardingStep("llmProvider");
-        break;
-      case "connectors":
-        // Go back to whichever path we came from
-        if (onboardingRunMode === "cloud") {
-          setOnboardingStep("modelSelection");
-        } else {
-          setOnboardingStep("inventorySetup");
-        }
-        break;
-      case "permissions":
-        setOnboardingStep("connectors");
-        break;
-    }
-  }, [onboardingStep, onboardingRunMode]);
-
   const handleOnboardingFinish = useCallback(async () => {
     if (onboardingFinishBusyRef.current || onboardingRestarting) return;
     if (!onboardingOptions) return;
@@ -3347,6 +3182,170 @@ export function AppProvider({ children }: { children: ReactNode }) {
     onboardingBlooioPhoneNumber,
     setTab,
   ]);
+
+  const handleOnboardingNext = useCallback(
+    async (options?: OnboardingNextOptions) => {
+      const opts = onboardingOptions;
+      switch (onboardingStep) {
+        case "welcome":
+          setOnboardingStep("name");
+          break;
+        case "name":
+          setOnboardingStep("avatar");
+          break;
+        case "avatar":
+          setOnboardingStep("style");
+          break;
+        case "style":
+          setOnboardingStep("theme");
+          break;
+        case "theme": {
+          setTheme(onboardingTheme);
+          setOnboardingStep("runMode");
+          break;
+        }
+        case "runMode":
+          if (onboardingRunMode === "cloud") {
+            if (opts && opts.cloudProviders.length === 1) {
+              setOnboardingCloudProvider(opts.cloudProviders[0].id);
+            }
+            setOnboardingStep("cloudProvider");
+          } else if (onboardingRunMode === "local-sandbox") {
+            setOnboardingStep("dockerSetup");
+          } else {
+            // local-rawdog: skip docker, go straight to LLM provider
+            setOnboardingStep("llmProvider");
+          }
+          break;
+        case "dockerSetup":
+          setOnboardingStep("llmProvider");
+          break;
+        case "cloudProvider":
+          setOnboardingStep("modelSelection");
+          break;
+        case "modelSelection":
+          if (cloudConnected) {
+            setOnboardingStep("connectors");
+          } else {
+            setOnboardingStep("cloudLogin");
+          }
+          break;
+        case "cloudLogin":
+          setOnboardingStep("connectors");
+          break;
+        case "llmProvider":
+          setOnboardingStep("inventorySetup");
+          break;
+        case "inventorySetup":
+          setOnboardingStep("connectors");
+          break;
+        case "connectors":
+          setOnboardingStep("permissions");
+          break;
+        case "permissions": {
+          if (options?.allowPermissionBypass) {
+            await handleOnboardingFinish();
+            break;
+          }
+          try {
+            const permissions = await client.getPermissions();
+            const missingPermissions =
+              getMissingOnboardingPermissions(permissions);
+            if (missingPermissions.length > 0) {
+              const missingLabels = missingPermissions
+                .map((id) => ONBOARDING_PERMISSION_LABELS[id] ?? id)
+                .join(", ");
+              setActionNotice(
+                `Missing required permissions: ${missingLabels}. Grant them or use "Skip for Now".`,
+                "error",
+                5200,
+              );
+              return;
+            }
+          } catch (err) {
+            setActionNotice(
+              `Could not verify permissions (${err instanceof Error ? err.message : "unknown error"}). Use "Skip for Now" to continue.`,
+              "error",
+              5200,
+            );
+            return;
+          }
+          await handleOnboardingFinish();
+          break;
+        }
+      }
+    },
+    [
+      onboardingStep,
+      onboardingOptions,
+      onboardingRunMode,
+      onboardingTheme,
+      setTheme,
+      cloudConnected,
+      setActionNotice,
+      handleOnboardingFinish,
+    ],
+  );
+
+  const handleOnboardingBack = useCallback(() => {
+    switch (onboardingStep) {
+      case "name":
+        setOnboardingStep("welcome");
+        break;
+      case "avatar":
+        setOnboardingStep("name");
+        break;
+      case "style":
+        setOnboardingStep("avatar");
+        break;
+      case "theme":
+        setOnboardingStep("style");
+        break;
+      case "runMode":
+        setOnboardingStep("theme");
+        break;
+      case "cloudProvider":
+        setOnboardingStep("runMode");
+        break;
+      case "modelSelection":
+        setOnboardingStep("cloudProvider");
+        break;
+      case "cloudLogin":
+        setOnboardingStep("modelSelection");
+        if (cloudLoginPollTimer.current) {
+          clearInterval(cloudLoginPollTimer.current);
+          cloudLoginPollTimer.current = null;
+        }
+        cloudLoginBusyRef.current = false;
+        setCloudLoginBusy(false);
+        setCloudLoginError(null);
+        break;
+      case "dockerSetup":
+        setOnboardingStep("runMode");
+        break;
+      case "llmProvider":
+        if (onboardingRunMode === "local-sandbox") {
+          setOnboardingStep("dockerSetup");
+        } else {
+          setOnboardingStep("runMode");
+        }
+        break;
+      case "inventorySetup":
+        setOnboardingStep("llmProvider");
+        break;
+      case "connectors":
+        // Go back to whichever path we came from
+        if (onboardingRunMode === "cloud") {
+          setOnboardingStep("modelSelection");
+        } else {
+          setOnboardingStep("inventorySetup");
+        }
+        break;
+      case "permissions":
+        setOnboardingStep("connectors");
+        break;
+    }
+  }, [onboardingStep, onboardingRunMode]);
 
   // ── Cloud ──────────────────────────────────────────────────────────
 

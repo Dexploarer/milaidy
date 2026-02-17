@@ -54,6 +54,13 @@ import {
   getMcpServerDetails,
   searchMcpMarketplace,
 } from "../services/mcp-marketplace";
+import {
+  type CoreManagerLike,
+  type InstallProgressLike,
+  isCoreManagerLike,
+  isPluginManagerLike,
+  type PluginManagerLike,
+} from "../services/plugin-manager-types";
 import type { SandboxManager } from "../services/sandbox-manager";
 import {
   installMarketplaceSkill,
@@ -143,6 +150,22 @@ function getAgentEventSvc(
 ): AgentEventServiceLike | null {
   if (!runtime) return null;
   return runtime.getService("AGENT_EVENT") as AgentEventServiceLike | null;
+}
+
+function requirePluginManager(runtime: AgentRuntime | null): PluginManagerLike {
+  const service = runtime?.getService("plugin_manager");
+  if (!isPluginManagerLike(service)) {
+    throw new Error("Plugin manager service not found");
+  }
+  return service;
+}
+
+function requireCoreManager(runtime: AgentRuntime | null): CoreManagerLike {
+  const service = runtime?.getService("core_manager");
+  if (!isCoreManagerLike(service)) {
+    throw new Error("Core manager service not found");
+  }
+  return service;
 }
 
 function isUuidLike(value: string): value is UUID {
@@ -6168,11 +6191,10 @@ async function handleRequest(
   // ── GET /api/registry/plugins ──────────────────────────────────────────
   if (method === "GET" && pathname === "/api/registry/plugins") {
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const registry = await pluginManager.refreshRegistry();
       const installed = await pluginManager.listInstalledPlugins();
-      const installedNames = new Set(installed.map((p: unknown) => p.name));
+      const installedNames = new Set(installed.map((p) => p.name));
 
       // Also check which plugins are loaded in the runtime
       const loadedNames = state.runtime
@@ -6182,7 +6204,7 @@ async function handleRequest(
       // Cross-reference with bundled manifest so the Store can hide them
       const bundledIds = new Set(state.plugins.map((p) => p.id));
 
-      const plugins = Array.from(registry.values()).map((p: unknown) => {
+      const plugins = Array.from(registry.values()).map((p) => {
         const shortId = p.name
           .replace(/^@[^/]+\/plugin-/, "")
           .replace(/^@[^/]+\//, "")
@@ -6191,7 +6213,7 @@ async function handleRequest(
           ...p,
           installed: installedNames.has(p.name),
           installedVersion:
-            installed.find((i: unknown) => i.name === p.name)?.version ?? null,
+            installed.find((i) => i.name === p.name)?.version ?? null,
           loaded:
             loadedNames.has(p.name) ||
             loadedNames.has(p.name.replace("@elizaos/", "")),
@@ -6219,8 +6241,7 @@ async function handleRequest(
       pathname.slice("/api/registry/plugins/".length),
     );
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const info = await pluginManager.getRegistryPlugin(name);
       if (!info) {
         error(res, `Plugin "${name}" not found in registry`, 404);
@@ -6251,8 +6272,7 @@ async function handleRequest(
         ? parseClampedInteger(limitParam, { min: 1, max: 50, fallback: 15 })
         : 15;
 
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const results = await pluginManager.searchRegistry(query, limit);
       json(res, { query, count: results.length, results });
     } catch (err) {
@@ -6268,8 +6288,7 @@ async function handleRequest(
   // ── POST /api/registry/refresh ──────────────────────────────────────────
   if (method === "POST" && pathname === "/api/registry/refresh") {
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const registry = await pluginManager.refreshRegistry();
       json(res, { ok: true, count: registry.size });
     } catch (err) {
@@ -6389,11 +6408,10 @@ async function handleRequest(
     }
 
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const result = await pluginManager.installPlugin(
         pluginName,
-        (progress: unknown) => {
+        (progress: InstallProgressLike) => {
           logger.info(`[install] ${progress.phase}: ${progress.message}`);
           state.broadcastWs?.({
             type: "install-progress",
@@ -6451,8 +6469,7 @@ async function handleRequest(
     }
 
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const result = await pluginManager.uninstallPlugin(pluginName);
 
       if (!result.success) {
@@ -6486,8 +6503,7 @@ async function handleRequest(
   // List plugins that were installed from the registry at runtime.
   if (method === "GET" && pathname === "/api/plugins/installed") {
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
       const installed = await pluginManager.listInstalledPlugins();
       json(res, { count: installed.length, plugins: installed });
     } catch (err) {
@@ -6504,8 +6520,12 @@ async function handleRequest(
   // List plugins ejected to local source checkouts with upstream metadata.
   if (method === "GET" && pathname === "/api/plugins/ejected") {
     try {
-      const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-      if (!pluginManager) throw new Error("Plugin manager service not found");
+      const pluginManager = requirePluginManager(state.runtime);
+      if (typeof pluginManager.listEjectedPlugins !== "function") {
+        throw new Error(
+          "Plugin manager does not support listing ejected plugins",
+        );
+      }
       const plugins = await pluginManager.listEjectedPlugins();
       json(res, { count: plugins.length, plugins });
     } catch (err) {
@@ -6522,8 +6542,7 @@ async function handleRequest(
   // Returns whether @elizaos/core is ejected or resolved from npm.
   if (method === "GET" && pathname === "/api/core/status") {
     try {
-      const coreManager = state.runtime?.getService("core_manager") as unknown;
-      if (!coreManager) throw new Error("Core manager service not found");
+      const coreManager = requireCoreManager(state.runtime);
       const status = await coreManager.getCoreStatus();
       json(res, status);
     } catch (err) {
@@ -10410,7 +10429,7 @@ async function handleRequest(
         organizationId: authConnected
           ? cloudAuth?.getOrganizationId()
           : undefined,
-        topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
+        topUpUrl: "https://www.elizacloud.ai/dashboard/settings?tab=billing",
         reason: authConnected
           ? undefined
           : rt
@@ -10476,7 +10495,7 @@ async function handleRequest(
           balance,
           low,
           critical,
-          topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
+          topUpUrl: "https://www.elizacloud.ai/dashboard/settings?tab=billing",
         });
       } catch (err) {
         const msg =
@@ -10535,15 +10554,14 @@ async function handleRequest(
       balance,
       low,
       critical,
-      topUpUrl: "https://www.elizacloud.ai/dashboard/billing",
+      topUpUrl: "https://www.elizacloud.ai/dashboard/settings?tab=billing",
     });
     return;
   }
 
   // ── App routes (/api/apps/*) ──────────────────────────────────────────
   if (method === "GET" && pathname === "/api/apps") {
-    const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-    if (!pluginManager) throw new Error("Plugin manager service not found");
+    const pluginManager = requirePluginManager(state.runtime);
     const apps = await state.appManager.listAvailable(pluginManager);
     json(res, apps);
     return;
@@ -10556,16 +10574,14 @@ async function handleRequest(
       return;
     }
     const limit = parseBoundedLimit(url.searchParams.get("limit"));
-    const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-    if (!pluginManager) throw new Error("Plugin manager service not found");
+    const pluginManager = requirePluginManager(state.runtime);
     const results = await state.appManager.search(pluginManager, query, limit);
     json(res, results);
     return;
   }
 
   if (method === "GET" && pathname === "/api/apps/installed") {
-    const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-    if (!pluginManager) throw new Error("Plugin manager service not found");
+    const pluginManager = requirePluginManager(state.runtime);
     const installed = await state.appManager.listInstalled(pluginManager);
     json(res, installed);
     return;
@@ -10579,12 +10595,11 @@ async function handleRequest(
       error(res, "name is required");
       return;
     }
-    const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-    if (!pluginManager) throw new Error("Plugin manager service not found");
+    const pluginManager = requirePluginManager(state.runtime);
     const result = await state.appManager.launch(
       pluginManager,
       body.name.trim(),
-      (_progress: unknown) => {},
+      (_progress: InstallProgressLike) => {},
     );
     json(res, result);
     return;
@@ -10599,8 +10614,7 @@ async function handleRequest(
       return;
     }
     const appName = body.name.trim();
-    const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-    if (!pluginManager) throw new Error("Plugin manager service not found");
+    const pluginManager = requirePluginManager(state.runtime);
     const result = await state.appManager.stop(pluginManager, appName);
     json(res, result);
     return;
@@ -10614,8 +10628,7 @@ async function handleRequest(
       error(res, "app name is required");
       return;
     }
-    const pluginManager = state.runtime?.getService("plugin_manager") as unknown;
-    if (!pluginManager) throw new Error("Plugin manager service not found");
+    const pluginManager = requirePluginManager(state.runtime);
     const info = await state.appManager.getInfo(pluginManager, appName);
     if (!info) {
       error(res, `App "${appName}" not found in registry`, 404);

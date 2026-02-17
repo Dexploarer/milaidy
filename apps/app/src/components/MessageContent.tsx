@@ -461,23 +461,44 @@ export function MessageContent({ message }: MessageContentProps) {
 
   return (
     <div>
-      {segments.map((seg, i) => {
-        switch (seg.kind) {
-          case "text":
-            return (
-              <div key={i} className="text-txt whitespace-pre-wrap">
-                {seg.text}
-              </div>
-            );
-          case "config":
-            if (BLOCKED_IDS.has(seg.pluginId)) return null;
-            return <InlinePluginConfig key={i} pluginId={seg.pluginId} />;
-          case "ui-spec":
-            return <UiSpecBlock key={i} spec={seg.spec} raw={seg.raw} />;
-          default:
-            return null;
-        }
-      })}
+      {(() => {
+        const keyCounts = new Map<string, number>();
+        const nextKey = (base: string) => {
+          const nextCount = (keyCounts.get(base) ?? 0) + 1;
+          keyCounts.set(base, nextCount);
+          return `${base}:${nextCount}`;
+        };
+
+        return segments.map((seg) => {
+          const baseKey =
+            seg.kind === "text"
+              ? `text:${seg.text.slice(0, 80)}`
+              : seg.kind === "config"
+                ? `config:${seg.pluginId}`
+                : `ui:${seg.raw.slice(0, 80)}`;
+          const segmentKey = nextKey(baseKey);
+
+          switch (seg.kind) {
+            case "text":
+              return (
+                <div key={segmentKey} className="text-txt whitespace-pre-wrap">
+                  {seg.text}
+                </div>
+              );
+            case "config":
+              if (BLOCKED_IDS.has(seg.pluginId)) return null;
+              return (
+                <InlinePluginConfig key={segmentKey} pluginId={seg.pluginId} />
+              );
+            case "ui-spec":
+              return (
+                <UiSpecBlock key={segmentKey} spec={seg.spec} raw={seg.raw} />
+              );
+            default:
+              return null;
+          }
+        });
+      })()}
     </div>
   );
 }

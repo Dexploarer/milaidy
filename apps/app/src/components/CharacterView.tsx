@@ -85,7 +85,7 @@ function TagEditor({
       <div className="flex-1 min-h-0 overflow-y-auto border border-[var(--border)] bg-[var(--bg-muted)] p-1.5 flex flex-wrap gap-1.5 content-start">
         {items.map((item, i) => (
           <span
-            key={i}
+            key={item}
             className="inline-flex items-center gap-1 px-2 py-0.5 border border-[var(--border)] bg-[var(--card)] text-[11px] h-fit"
           >
             {item}
@@ -1238,7 +1238,9 @@ export function CharacterView() {
             <div className="flex flex-col gap-2 mt-3">
               {(d.messageExamples ?? []).map((convo, ci) => (
                 <div
-                  key={ci}
+                  key={convo.examples
+                    .map((msg) => `${msg.name}:${msg.content?.text ?? ""}`)
+                    .join("|")}
                   className="p-2.5 border border-[var(--border)] bg-[var(--bg-muted)]"
                 >
                   <div className="flex items-center justify-between mb-1.5">
@@ -1258,7 +1260,10 @@ export function CharacterView() {
                     </button>
                   </div>
                   {convo.examples.map((msg, mi) => (
-                    <div key={mi} className="flex gap-2 mb-1 last:mb-0">
+                    <div
+                      key={`${msg.name}:${msg.content?.text ?? ""}`}
+                      className="flex gap-2 mb-1 last:mb-0"
+                    >
                       <span
                         className={`text-[10px] font-semibold shrink-0 w-16 pt-0.5 ${msg.name === "{{user1}}" ? "text-[var(--muted)]" : "text-[var(--accent)]"}`}
                       >
@@ -1317,7 +1322,7 @@ export function CharacterView() {
             </summary>
             <div className="flex flex-col gap-1.5 mt-3">
               {(d.postExamples ?? []).map((post: string, pi: number) => (
-                <div key={pi} className="flex gap-2 items-start">
+                <div key={post} className="flex gap-2 items-start">
                   <input
                     type="text"
                     value={post}

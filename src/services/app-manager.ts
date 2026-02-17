@@ -16,12 +16,13 @@ import type {
   AppViewerAuthMessage,
   InstalledAppInfo,
 } from "../contracts/apps";
-
-// Import types from plugin manager directly since we need them for interface
-// Assuming types are exported from plugin-plugin-manager which is installed
-// Or just use 'unknown' temporarily if types are hard to reach from here without proper package exports
-// Using 'unknown' for pluginManager to avoid circular deps or complex type imports for now
-// Ideally: import type { PluginManagerService } from "@elizaos/plugin-plugin-manager";
+import type {
+  InstalledPluginInfo,
+  InstallProgressLike,
+  PluginManagerLike,
+  RegistryPluginInfo,
+  RegistrySearchResult,
+} from "./plugin-manager-types";
 
 export type {
   AppLaunchResult,
@@ -48,12 +49,12 @@ interface ActiveAppSession {
   startedAt: string;
 }
 
-function resolvePluginPackageName(appInfo: unknown): string {
-  const npmPackage = appInfo.npm.package?.trim();
+function resolvePluginPackageName(appInfo: RegistryPluginInfo): string {
+  const npmPackage = appInfo.npm.package.trim();
   return npmPackage && npmPackage.length > 0 ? npmPackage : appInfo.name;
 }
 
-function isAutoInstallable(appInfo: unknown): boolean {
+function isAutoInstallable(appInfo: RegistryPluginInfo): boolean {
   const supportsRuntime =
     appInfo.supports.v0 || appInfo.supports.v1 || appInfo.supports.v2;
   const hasVersion = Boolean(
@@ -168,11 +169,12 @@ function buildViewerAuthMessage(
 }
 
 function buildViewerConfig(
-  appInfo: unknown,
+  appInfo: RegistryPluginInfo,
   launchUrl: string | null,
 ): AppViewerConfig | null {
-  if (appInfo.viewer) {
-    const requestedPostMessageAuth = Boolean(appInfo.viewer.postMessageAuth);
+  const viewerInfo = appInfo.viewer;
+  if (viewerInfo) {
+    const requestedPostMessageAuth = Boolean(viewerInfo.postMessageAuth);
     const authMessage = buildViewerAuthMessage(
       appInfo.name,
       requestedPostMessageAuth,
@@ -190,7 +192,7 @@ function buildViewerConfig(
       }
     }
     const viewerUrl = normalizeSafeAppUrl(
-      buildViewerUrl(appInfo.viewer.url, appInfo.viewer.embedParams),
+      buildViewerUrl(viewerInfo.url, viewerInfo.embedParams),
     );
     if (!viewerUrl) {
       throw new Error(
@@ -200,9 +202,9 @@ function buildViewerConfig(
 
     return {
       url: viewerUrl,
-      embedParams: appInfo.viewer.embedParams,
+      embedParams: viewerInfo.embedParams,
       postMessageAuth,
-      sandbox: appInfo.viewer.sandbox ?? DEFAULT_VIEWER_SANDBOX,
+      sandbox: viewerInfo.sandbox ?? DEFAULT_VIEWER_SANDBOX,
       authMessage,
     };
   }
@@ -227,17 +229,25 @@ function buildViewerConfig(
 export class AppManager {
   private readonly activeSessions = new Map<string, ActiveAppSession>();
 
-  async listAvailable(pluginManager: unknown): Promise<unknown[]> {
+  async listAvailable(
+    pluginManager: PluginManagerLike,
+  ): Promise<RegistryPluginInfo[]> {
     const registry = await pluginManager.refreshRegistry();
-    // registry is Map<string, RegistryPlugin>
     return Array.from(registry.values());
   }
 
-  async search(pluginManager: unknown, query: string, limit = 15): Promise<unknown[]> {
+  async search(
+    pluginManager: PluginManagerLike,
+    query: string,
+    limit = 15,
+  ): Promise<RegistrySearchResult[]> {
     return pluginManager.searchRegistry(query, limit);
   }
 
-  async getInfo(pluginManager: unknown, name: string): Promise<unknown | null> {
+  async getInfo(
+    pluginManager: PluginManagerLike,
+    name: string,
+  ): Promise<RegistryPluginInfo | null> {
     return pluginManager.getRegistryPlugin(name);
   }
 
@@ -251,9 +261,9 @@ export class AppManager {
    * handle this by showing "connecting..." while the runtime restarts.
    */
   async launch(
-    pluginManager: unknown,
+    pluginManager: PluginManagerLike,
     name: string,
-    onProgress?: (progress: unknown) => void,
+    onProgress?: (progress: InstallProgressLike) => void,
   ): Promise<AppLaunchResult> {
     const appInfo = await pluginManager.getRegistryPlugin(name);
     if (!appInfo) {
@@ -266,7 +276,7 @@ export class AppManager {
 
     // Check if the plugin is already installed
     const installed = await pluginManager.listInstalledPlugins();
-    const alreadyInstalled = installed.some((p: unknown) => p.name === pluginName);
+    const alreadyInstalled = installed.some((p) => p.name === pluginName);
     let pluginInstalled = alreadyInstalled;
 
     let needsRestart = false;
@@ -313,7 +323,7 @@ export class AppManager {
     this.activeSessions.set(name, {
       appName: name,
       pluginName,
-      launchType: appInfo.launchType,
+      launchType: appInfo.launchType ?? "connect",
       launchUrl,
       viewerUrl: viewer?.url ?? null,
       startedAt: new Date().toISOString(),
@@ -322,14 +332,17 @@ export class AppManager {
     return {
       pluginInstalled,
       needsRestart,
-      displayName: appInfo.displayName,
-      launchType: appInfo.launchType,
+      displayName: appInfo.displayName ?? appInfo.name,
+      launchType: appInfo.launchType ?? "connect",
       launchUrl,
       viewer,
     };
   }
 
-  async stop(pluginManager: unknown, name: string): Promise<AppStopResult> {
+  async stop(
+    pluginManager: PluginManagerLike,
+    name: string,
+  ): Promise<AppStopResult> {
     const appInfo = await pluginManager.getRegistryPlugin(name);
     if (!appInfo) {
       throw new Error(`App "${name}" not found in the registry.`);
@@ -339,7 +352,7 @@ export class AppManager {
     const pluginName = resolvePluginPackageName(appInfo);
     const installed = await pluginManager.listInstalledPlugins();
     const isPluginInstalled = installed.some(
-      (plugin: unknown) => plugin.name === pluginName,
+      (plugin) => plugin.name === pluginName,
     );
     if (!hadSession && !isPluginInstalled) {
       return {
@@ -385,19 +398,19 @@ export class AppManager {
   }
 
   /** List apps whose plugins are currently installed on the agent. */
-  async listInstalled(pluginManager: unknown): Promise<InstalledAppInfo[]> {
+  async listInstalled(
+    pluginManager: PluginManagerLike,
+  ): Promise<InstalledAppInfo[]> {
     const installed = await pluginManager.listInstalledPlugins();
-    // For now, unknown installed plugin that has app metadata in the registry is an "installed app"
-    // This is a sync check against the local config, not a registry fetch
-    return installed.map((p: unknown) => ({
+    return installed.map((p: InstalledPluginInfo) => ({
       name: p.name,
       displayName: p.name
         .replace(/^@elizaos\/(app-|plugin-)/, "")
         .replace(/-/g, " ")
         .replace(/\b\w/g, (c: string) => c.toUpperCase()),
       pluginName: p.name,
-      version: p.version,
-      installedAt: p.installedAt,
+      version: p.version ?? "unknown",
+      installedAt: p.installedAt ?? "",
     }));
   }
 }

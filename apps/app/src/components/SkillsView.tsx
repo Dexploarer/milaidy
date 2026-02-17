@@ -179,7 +179,7 @@ function SkillCard({
                   idx: number,
                 ) => (
                   <div
-                    key={idx}
+                    key={`${f.file}:${f.line}:${f.message}`}
                     className={`flex items-start gap-2 px-3 py-1.5 text-[11px] font-mono ${
                       idx > 0 ? "border-t border-[var(--border)]" : ""
                     }`}
@@ -349,6 +349,14 @@ function InstallModal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-2xl max-h-[80vh] flex flex-col border border-[var(--border)] bg-[var(--bg)] overflow-hidden mx-4">
         {/* Header */}
@@ -657,6 +665,14 @@ function EditSkillModal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-4xl h-[85vh] flex flex-col border border-[var(--border)] bg-[var(--bg)] overflow-hidden mx-4">
         {/* Header */}

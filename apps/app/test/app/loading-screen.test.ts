@@ -13,24 +13,26 @@ function renderedText(tree: TestRenderer.ReactTestRenderer): string {
 
 describe("LoadingScreen", () => {
   it("shows backend startup label", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
+    let tree: TestRenderer.ReactTestRenderer | null = null;
     await act(async () => {
       tree = TestRenderer.create(
         React.createElement(LoadingScreen, { phase: "starting-backend" }),
       );
     });
+    if (!tree) throw new Error("failed to render loading screen");
 
-    expect(renderedText(tree!)).toContain("starting backend");
+    expect(renderedText(tree)).toContain("starting backend");
   });
 
   it("shows agent initialization label", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
+    let tree: TestRenderer.ReactTestRenderer | null = null;
     await act(async () => {
       tree = TestRenderer.create(
         React.createElement(LoadingScreen, { phase: "initializing-agent" }),
       );
     });
+    if (!tree) throw new Error("failed to render loading screen");
 
-    expect(renderedText(tree!)).toContain("initializing agent");
+    expect(renderedText(tree)).toContain("initializing agent");
   });
 });

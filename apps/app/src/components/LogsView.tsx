@@ -162,9 +162,9 @@ export function LogsView() {
             {hasActiveFilters ? " matching filters" : " yet"}.
           </div>
         ) : (
-          filteredLogs.map((entry: LogEntry, idx: number) => (
+          filteredLogs.map((entry: LogEntry) => (
             <div
-              key={idx}
+              key={`${entry.timestamp}-${entry.source}-${entry.level}-${entry.message}`}
               className="font-mono text-xs px-2 py-1 border-b border-border flex gap-2 items-baseline"
               data-testid="log-entry"
             >
@@ -193,11 +193,11 @@ export function LogsView() {
 
               {/* Tag badges */}
               <span className="inline-flex gap-0.5 shrink-0">
-                {(entry.tags ?? []).map((t: string, ti: number) => {
+                {(entry.tags ?? []).map((t: string) => {
                   const c = TAG_COLORS[t];
                   return (
                     <span
-                      key={ti}
+                      key={t}
                       className="inline-block text-[10px] px-1.5 py-px rounded-lg mr-0.5"
                       style={{
                         background: c ? c.bg : "var(--bg-muted)",

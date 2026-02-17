@@ -14,12 +14,6 @@
 
 import type http from "node:http";
 import type { AgentRuntime } from "@elizaos/core";
-import type {
-  Trajectory,
-  TrajectoryListItem,
-  TrajectoryListOptions,
-  TrajectoryLoggerService,
-} from "@elizaos/plugin-trajectory-logger";
 import {
   readJsonBody as parseJsonBody,
   sendJson,
@@ -31,21 +25,120 @@ import { createZipArchive } from "./zip-utils";
 // Types
 // ============================================================================
 
-type TrajectoryLoggerApi = Pick<
-  TrajectoryLoggerService,
-  | "isEnabled"
-  | "setEnabled"
-  | "listTrajectories"
-  | "getTrajectoryDetail"
-  | "getStats"
-  | "deleteTrajectories"
-  | "clearAllTrajectories"
-  | "exportTrajectories"
-> & {
+type TrajectoryStatus = "active" | "completed" | "error" | "timeout";
+
+interface TrajectoryListOptions {
+  limit?: number;
+  offset?: number;
+  source?: string;
+  status?: TrajectoryStatus;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  scenarioId?: string;
+  batchId?: string;
+  isTrainingData?: boolean;
+}
+
+interface TrajectoryListItem {
+  id: string;
+  agentId: string;
+  source: string;
+  status: TrajectoryStatus;
+  startTime: number;
+  endTime: number | null;
+  durationMs: number | null;
+  llmCallCount: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  createdAt: string;
+}
+
+interface TrajectoryLlmCall {
+  callId?: string;
+  timestamp?: number;
+  model?: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  response?: string;
+  temperature?: number;
+  maxTokens?: number;
+  purpose?: string;
+  actionType?: string;
+  latencyMs?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+}
+
+interface TrajectoryProviderAccess {
+  providerId?: string;
+  providerName?: string;
+  purpose?: string;
+  data?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+  timestamp?: number;
+}
+
+interface TrajectoryStep {
+  stepId?: string;
+  timestamp: number;
+  llmCalls?: TrajectoryLlmCall[];
+  providerAccesses?: TrajectoryProviderAccess[];
+}
+
+interface Trajectory {
+  trajectoryId: string;
+  agentId: string;
+  startTime: number;
+  endTime?: number;
+  durationMs?: number;
+  steps?: TrajectoryStep[];
+  metrics?: { finalStatus?: string };
+  metadata?: Record<string, unknown>;
+}
+
+interface TrajectoryListResult {
+  trajectories: TrajectoryListItem[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+type TrajectoryExportFormat = "json" | "csv" | "art";
+
+interface TrajectoryExportOptions {
+  format: TrajectoryExportFormat;
+  includePrompts?: boolean;
+  trajectoryIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  scenarioId?: string;
+  batchId?: string;
+}
+
+interface TrajectoryExportResult {
+  filename: string;
+  data: string | Uint8Array;
+  mimeType: string;
+}
+
+interface TrajectoryLoggerApi {
+  isEnabled(): boolean;
+  setEnabled(enabled: boolean): void;
+  listTrajectories(
+    options: TrajectoryListOptions,
+  ): Promise<TrajectoryListResult>;
+  getTrajectoryDetail(trajectoryId: string): Promise<Trajectory | null>;
+  getStats(): Promise<unknown>;
+  deleteTrajectories(trajectoryIds: string[]): Promise<number>;
+  clearAllTrajectories(): Promise<number>;
+  exportTrajectories(
+    options: TrajectoryExportOptions,
+  ): Promise<TrajectoryExportResult>;
   exportTrajectoriesZip?: (
     options: TrajectoryZipExportOptions,
   ) => Promise<TrajectoryZipExportResult>;
-};
+}
 
 type TrajectoryZipExportOptions = {
   includePrompts?: boolean;

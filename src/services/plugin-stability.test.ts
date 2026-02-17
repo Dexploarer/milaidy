@@ -924,8 +924,9 @@ describe("Version Skew Detection (issue #10)", () => {
       expect(ver).toBeDefined();
       // Plugins can use "next" dist-tag when core is pinned via pnpm overrides,
       // or they can be pinned to a specific alpha version.
+      // Workspace links are valid in monorepo development.
       // See docs/ELIZAOS_VERSIONING.md for details and update procedures
-      if (ver !== "next") {
+      if (ver !== "next" && !isWorkspaceDependency(ver)) {
         expect(ver).toMatch(/^\d+\.\d+\.\d+/);
       }
     }

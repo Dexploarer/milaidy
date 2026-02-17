@@ -48,6 +48,14 @@ function Modal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-md border border-[var(--border)] bg-[var(--card)] p-5 shadow-lg">
         <div className="flex items-center justify-between mb-4">

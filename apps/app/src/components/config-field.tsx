@@ -1157,7 +1157,10 @@ function KeyValueFieldInner({ fp: props }: { fp: FieldRenderProps }) {
       data-field-type="keyvalue"
     >
       {pairs.map((pair, index) => (
-        <div key={index} className="flex items-center gap-1">
+        <div
+          key={`${pair.key}:${pair.value}`}
+          className="flex items-center gap-1"
+        >
           <input
             className={`${inputCls(!!props.errors?.length)} flex-1`}
             type="text"
@@ -1295,7 +1298,7 @@ function renderMarkdown(text: string): React.ReactNode {
   const blocks = text.split(/\n\n+/);
   const elements: React.ReactNode[] = [];
 
-  blocks.forEach((block, blockIdx) => {
+  blocks.forEach((block) => {
     const trimmed = block.trim();
     if (!trimmed) return;
 
@@ -1305,7 +1308,7 @@ function renderMarkdown(text: string): React.ReactNode {
       const code = lines.slice(1, -1).join("\n");
       elements.push(
         <pre
-          key={blockIdx}
+          key={`code:${code}`}
           className="bg-[var(--bg-hover)] px-3 py-2 rounded-sm overflow-x-auto my-2"
         >
           <code className="font-mono text-[12px]">{code}</code>
@@ -1331,7 +1334,7 @@ function renderMarkdown(text: string): React.ReactNode {
       elements.push(
         React.createElement(
           `h${level}`,
-          { key: blockIdx, className: cls },
+          { key: `heading:${headingMatch[2]}`, className: cls },
           content,
         ),
       );
@@ -1342,9 +1345,9 @@ function renderMarkdown(text: string): React.ReactNode {
     if (/^[-*]\s/.test(trimmed)) {
       const items = trimmed.split("\n").filter((l) => /^[-*]\s/.test(l));
       elements.push(
-        <ul key={blockIdx} className="list-disc pl-4 my-2 space-y-1">
-          {items.map((item, i) => (
-            <li key={i}>{processInline(item.replace(/^[-*]\s/, ""))}</li>
+        <ul key={`list:${trimmed}`} className="list-disc pl-4 my-2 space-y-1">
+          {items.map((item) => (
+            <li key={item}>{processInline(item.replace(/^[-*]\s/, ""))}</li>
           ))}
         </ul>,
       );
@@ -1353,7 +1356,7 @@ function renderMarkdown(text: string): React.ReactNode {
 
     // Regular paragraph
     elements.push(
-      <p key={blockIdx} className="my-2">
+      <p key={`paragraph:${trimmed}`} className="my-2">
         {processInline(trimmed)}
       </p>,
     );
@@ -1686,7 +1689,7 @@ function TableFieldInner(props: FieldRenderProps) {
           <tbody>
             {rows.map((row, ri) => (
               <tr
-                key={ri}
+                key={JSON.stringify(row)}
                 className="border-b border-[var(--border)] last:border-b-0"
               >
                 {columns.map((col) => (
@@ -1842,9 +1845,9 @@ export function ConfigField({
         {/* Errors */}
         {hasError && (
           <div className="mt-1.5 flex flex-col gap-0.5">
-            {errors.map((err, i) => (
+            {errors.map((err) => (
               <div
-                key={i}
+                key={err}
                 className="leading-snug flex items-start gap-1"
                 style={{
                   fontSize: "var(--plugin-error-size)",
