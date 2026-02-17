@@ -44,7 +44,6 @@ export function ChatView() {
     setState,
     droppedFiles,
     shareIngestNotice,
-    chatMode,
     chatAvatarVisible: avatarVisible,
     chatAgentVoiceMuted: agentVoiceMuted,
     selectedVrmIndex,
@@ -180,7 +179,11 @@ export function ChatView() {
       .find((message) => message.role === "assistant");
     if (!latestAssistant || !latestAssistant.text.trim()) return;
 
-    queueAssistantSpeech(latestAssistant.id, latestAssistant.text, !chatSending);
+    queueAssistantSpeech(
+      latestAssistant.id,
+      latestAssistant.text,
+      !chatSending,
+    );
   }, [msgs, chatSending, agentVoiceMuted, queueAssistantSpeech]);
 
   useEffect(() => {
@@ -403,64 +406,103 @@ export function ChatView() {
 
       {/* Custom Actions / Avatar / Voice controls */}
       <div className="flex gap-1.5 relative" style={{ zIndex: 1 }}>
-          {/* Custom Actions panel toggle */}
-          <button
-            className="h-7 px-2 flex items-center gap-1 border rounded cursor-pointer transition-all bg-card border-border text-muted hover:border-accent hover:text-accent"
-            onClick={() => window.dispatchEvent(new Event("toggle-custom-actions-panel"))}
-            title="Custom Actions"
-            aria-label="Open custom actions panel"
+        {/* Custom Actions panel toggle */}
+        <button
+          type="button"
+          className="h-7 px-2 flex items-center gap-1 border rounded cursor-pointer transition-all bg-card border-border text-muted hover:border-accent hover:text-accent"
+          onClick={() =>
+            window.dispatchEvent(new Event("toggle-custom-actions-panel"))
+          }
+          title="Custom Actions"
+          aria-label="Open custom actions panel"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-            <span className="text-[10px] font-medium">Actions</span>
-          </button>
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          <span className="text-[10px] font-medium">Actions</span>
+        </button>
 
-          {/* Show / hide avatar */}
-          <button
-            className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card ${
-              avatarVisible
-                ? "border-accent text-accent"
-                : "border-border text-muted hover:border-accent hover:text-accent"
-            }`}
-            onClick={() => setState("chatAvatarVisible", !avatarVisible)}
-            title={avatarVisible ? "Hide avatar" : "Show avatar"}
+        {/* Show / hide avatar */}
+        <button
+          type="button"
+          className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card ${
+            avatarVisible
+              ? "border-accent text-accent"
+              : "border-border text-muted hover:border-accent hover:text-accent"
+          }`}
+          onClick={() => setState("chatAvatarVisible", !avatarVisible)}
+          title={avatarVisible ? "Hide avatar" : "Show avatar"}
+          aria-label={avatarVisible ? "Hide avatar" : "Show avatar"}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-              {!avatarVisible && <line x1="3" y1="3" x2="21" y2="21" />}
-            </svg>
-          </button>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+            {!avatarVisible && <line x1="3" y1="3" x2="21" y2="21" />}
+          </svg>
+        </button>
 
-          {/* Mute / unmute agent voice */}
-          <button
-            className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card ${
-              agentVoiceMuted
-                ? "border-border text-muted hover:border-accent hover:text-accent"
-                : "border-accent text-accent"
-            }`}
-            onClick={() => {
-              const muting = !agentVoiceMuted;
-              setState("chatAgentVoiceMuted", muting);
-              if (muting) voice.stopSpeaking();
-            }}
-            title={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
+        {/* Mute / unmute agent voice */}
+        <button
+          type="button"
+          className={`w-7 h-7 flex items-center justify-center border rounded cursor-pointer transition-all bg-card ${
+            agentVoiceMuted
+              ? "border-border text-muted hover:border-accent hover:text-accent"
+              : "border-accent text-accent"
+          }`}
+          onClick={() => {
+            const muting = !agentVoiceMuted;
+            setState("chatAgentVoiceMuted", muting);
+            if (muting) voice.stopSpeaking();
+          }}
+          title={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
+          aria-label={
+            agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"
+          }
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-              {agentVoiceMuted ? (
-                <line x1="23" y1="9" x2="17" y2="15" />
-              ) : (
-                <>
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </>
-              )}
-              {agentVoiceMuted && <line x1="17" y1="9" x2="23" y2="15" />}
-            </svg>
-          </button>
-        </div>
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            {agentVoiceMuted ? (
+              <line x1="23" y1="9" x2="17" y2="15" />
+            ) : (
+              <>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              </>
+            )}
+            {agentVoiceMuted && <line x1="17" y1="9" x2="23" y2="15" />}
+          </svg>
+        </button>
+      </div>
 
       {/* ── Input row: mic + textarea + send ───────────────────────── */}
       <div
@@ -478,6 +520,9 @@ export function ChatView() {
             }`}
             onClick={voice.toggleListening}
             title={voice.isListening ? "Stop listening" : "Voice input"}
+            aria-label={
+              voice.isListening ? "Stop listening" : "Start voice input"
+            }
           >
             <svg
               width="16"
@@ -486,6 +531,7 @@ export function ChatView() {
               fill={voice.isListening ? "currentColor" : "none"}
               stroke="currentColor"
               strokeWidth={voice.isListening ? "0" : "2"}
+              aria-hidden="true"
             >
               <title>
                 {voice.isListening ? "Stop listening" : "Voice input"}
@@ -520,6 +566,7 @@ export function ChatView() {
             placeholder={
               voice.isListening ? "Listening..." : "Type a message..."
             }
+            aria-label="Chat message"
             value={chatInput}
             onChange={(e) => setState("chatInput", e.target.value)}
             onKeyDown={handleKeyDown}
@@ -534,6 +581,7 @@ export function ChatView() {
             className="h-[38px] shrink-0 px-3 sm:px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 self-end"
             onClick={handleChatStop}
             title="Stop generation"
+            aria-label="Stop generation"
           >
             Stop
           </button>
@@ -543,6 +591,7 @@ export function ChatView() {
             className="h-[38px] shrink-0 px-3 sm:px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 self-end"
             onClick={stopSpeaking}
             title="Stop speaking"
+            aria-label="Stop speaking"
           >
             Stop Voice
           </button>
@@ -552,6 +601,7 @@ export function ChatView() {
             className="h-[38px] shrink-0 px-4 sm:px-6 py-2 border border-accent bg-accent text-accent-fg text-sm cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed self-end"
             onClick={() => void handleChatSend()}
             disabled={chatSending}
+            aria-label="Send message"
           >
             Send
           </button>
