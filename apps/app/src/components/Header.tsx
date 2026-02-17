@@ -34,10 +34,10 @@ export function Header() {
 
   return (
     <>
-      <header className="border-b border-border py-3 px-3 sm:py-4 sm:px-5">
+      <header className="border-b border-border py-2 px-3 sm:py-3 sm:px-4">
         <div className="flex items-center gap-2 min-w-0">
           <div className="shrink-0 min-w-0">
-            <span className="text-lg font-bold text-txt-strong truncate block" data-testid="agent-name">{name}</span>
+            <span className="text-base font-bold text-txt-strong truncate block" data-testid="agent-name">{name}</span>
           </div>
           <div className="flex-1 min-w-0 overflow-x-auto">
             <div className="flex items-center gap-1.5 w-max ml-auto pr-0.5">

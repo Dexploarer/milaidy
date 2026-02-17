@@ -86,7 +86,7 @@ export function ConversationsSidebar({ mobile = false, onClose }: ConversationsS
 
   return (
     <aside
-      className={`${mobile ? "w-full min-w-0 h-full" : "w-60 min-w-60 border-r"} border-border bg-bg flex flex-col overflow-y-auto text-[13px]`}
+      className={`${mobile ? "w-full min-w-0 h-full" : "w-48 min-w-48 xl:w-60 xl:min-w-60 border-r"} border-border bg-bg flex flex-col overflow-y-auto text-[13px]`}
       data-testid="conversations-sidebar"
     >
       {mobile && (
@@ -105,7 +105,7 @@ export function ConversationsSidebar({ mobile = false, onClose }: ConversationsS
       <div className="p-3 border-b border-border">
         <button
           type="button"
-          className="w-full px-3 py-2 border border-border rounded-md bg-accent text-accent-fg text-[13px] font-medium cursor-pointer transition-opacity hover:opacity-90"
+          className="w-full px-3 py-1.5 border border-accent rounded-md bg-transparent text-accent text-[12px] font-medium cursor-pointer transition-colors hover:bg-accent hover:text-accent-fg"
           onClick={() => {
             handleNewConversation();
             onClose?.();

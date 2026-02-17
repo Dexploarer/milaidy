@@ -42,7 +42,8 @@ export function ChatView() {
     droppedFiles,
     shareIngestNotice,
     chatMode,
-    chatAgentVoiceMuted,
+    chatAvatarVisible: avatarVisible,
+    chatAgentVoiceMuted: agentVoiceMuted,
     selectedVrmIndex,
   } = useApp();
 
@@ -157,7 +158,7 @@ export function ChatView() {
   const agentInitial = agentName.trim().charAt(0).toUpperCase() || "A";
 
   useEffect(() => {
-    if (chatAgentVoiceMuted) return;
+    if (agentVoiceMuted) return;
 
     const latestAssistant = [...msgs]
       .reverse()
@@ -165,12 +166,12 @@ export function ChatView() {
     if (!latestAssistant || !latestAssistant.text.trim()) return;
 
     queueAssistantSpeech(latestAssistant.id, latestAssistant.text, !chatSending);
-  }, [msgs, chatSending, chatAgentVoiceMuted, queueAssistantSpeech]);
+  }, [msgs, chatSending, agentVoiceMuted, queueAssistantSpeech]);
 
   useEffect(() => {
-    if (!chatAgentVoiceMuted) return;
+    if (!agentVoiceMuted) return;
     stopSpeaking();
-  }, [chatAgentVoiceMuted, stopSpeaking]);
+  }, [agentVoiceMuted, stopSpeaking]);
 
   useEffect(() => {
     setState("chatAvatarSpeaking", voice.isSpeaking && !voice.usingAudioAnalysis);
@@ -296,7 +297,7 @@ export function ChatView() {
                           typeof msg.source === "string" &&
                           msg.source &&
                           msg.source !== "client_chat" && (
-                            <span className="ml-1.5 text-[10px] font-normal text-muted">
+                            <span className="ml-1.5 text-[10px] font-normal text-muted opacity-40">
                               via {msg.source}
                             </span>
                           )}
@@ -385,7 +386,7 @@ export function ChatView() {
                 ? "border-accent text-accent"
                 : "border-border text-muted hover:border-accent hover:text-accent"
             }`}
-            onClick={() => setAvatarVisible((v) => !v)}
+            onClick={() => setState("chatAvatarVisible", !avatarVisible)}
             title={avatarVisible ? "Hide avatar" : "Show avatar"}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -404,7 +405,7 @@ export function ChatView() {
             }`}
             onClick={() => {
               const muting = !agentVoiceMuted;
-              setAgentVoiceMuted(muting);
+              setState("chatAgentVoiceMuted", muting);
               if (muting) voice.stopSpeaking();
             }}
             title={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}

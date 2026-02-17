@@ -94,7 +94,7 @@ export function AutonomousPanel({ mobile = false, onClose }: AutonomousPanelProp
 
   return (
     <aside
-      className={`${mobile ? "w-full min-w-0" : "w-[420px] min-w-[420px] border-l"} border-border bg-bg flex flex-col h-full font-body text-[13px]`}
+      className={`${mobile ? "w-full min-w-0" : "w-[280px] min-w-[280px] xl:w-[340px] xl:min-w-[340px] 2xl:w-[420px] 2xl:min-w-[420px] border-l"} border-border bg-bg flex flex-col h-full font-body text-[13px]`}
       data-testid="autonomous-panel"
     >
       <div className="px-3 py-2 border-b border-border flex items-start justify-between gap-2">
@@ -298,7 +298,7 @@ export function AutonomousPanel({ mobile = false, onClose }: AutonomousPanelProp
       <div className="border-t border-border px-3 py-2">
         <div className="text-xs uppercase tracking-wide text-muted mb-2">Chat Controls</div>
 
-        <div className={`${mobile ? "h-[300px]" : "h-[420px]"} border border-border bg-bg-hover/20 rounded overflow-hidden relative`}>
+        <div className={`${mobile ? "h-[300px]" : "h-[260px] xl:h-[320px] 2xl:h-[420px]"} border border-border bg-bg-hover/20 rounded overflow-hidden relative`}>
           {chatAvatarVisible ? (
             <ChatAvatar
               isSpeaking={chatAvatarSpeaking}
