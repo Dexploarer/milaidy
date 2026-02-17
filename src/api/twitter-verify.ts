@@ -41,12 +41,24 @@ export function generateVerificationMessage(
 
 // ── Tweet Verification ───────────────────────────────────────────────────
 
-function parseTweetUrl(
+export function parseTweetUrl(
   url: string,
 ): { screenName: string; tweetId: string } | null {
-  const match = url.match(/(?:twitter\.com|x\.com)\/(\w+)\/status\/(\d+)/);
-  if (!match) return null;
-  return { screenName: match[1], tweetId: match[2] };
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    const validHosts = ["twitter.com", "www.twitter.com", "x.com", "www.x.com"];
+
+    if (!validHosts.includes(hostname)) {
+      return null;
+    }
+
+    const match = parsed.pathname.match(/^\/(\w+)\/status\/(\d+)$/);
+    if (!match) return null;
+    return { screenName: match[1], tweetId: match[2] };
+  } catch {
+    return null;
+  }
 }
 
 export async function verifyTweet(
