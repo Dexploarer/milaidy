@@ -8,15 +8,26 @@
  */
 
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback, ActionResult, HandlerOptions } from "@elizaos/core";
-import { PTYService, type SessionInfo } from "../services/pty-service.js";
+import { PTYService, type SessionInfo, type CodingAgentType } from "../services/pty-service.js";
+import type { AgentCredentials } from "coding-agent-adapters";
 
-const AGENT_TYPE_MAP: Record<string, string> = {
-  claude: "claude-code",
-  "claude-code": "claude-code",
-  codex: "shell", // Codex runs as shell command
-  gemini: "shell",
-  aider: "shell",
-  shell: "shell",
+/** Normalize user-provided agent type to adapter type */
+const normalizeAgentType = (input: string): CodingAgentType => {
+  const normalized = input.toLowerCase().trim();
+  const mapping: Record<string, CodingAgentType> = {
+    "claude": "claude",
+    "claude-code": "claude",
+    "claudecode": "claude",
+    "codex": "codex",
+    "openai": "codex",
+    "openai-codex": "codex",
+    "gemini": "gemini",
+    "google": "gemini",
+    "aider": "aider",
+    "shell": "shell",
+    "bash": "shell",
+  };
+  return mapping[normalized] ?? "claude";
 };
 
 export const spawnAgentAction: Action = {
@@ -95,20 +106,44 @@ export const spawnAgentAction: Action = {
     const params = options?.parameters;
     const content = message.content as Record<string, unknown>;
 
-    const agentType = (params?.agentType as string) ?? (content.agentType as string) ?? "claude-code";
-    const mappedType = AGENT_TYPE_MAP[agentType.toLowerCase()] ?? "shell";
+    const rawAgentType = (params?.agentType as string) ?? (content.agentType as string) ?? "claude";
+    const agentType = normalizeAgentType(rawAgentType);
     const workdir = (params?.workdir as string) ?? (content.workdir as string) ?? process.cwd();
     const task = (params?.task as string) ?? (content.task as string);
 
+    // Build credentials from runtime settings if not provided
+    const credentials: AgentCredentials = {
+      anthropicKey: runtime.getSetting("ANTHROPIC_API_KEY") as string | undefined,
+      openaiKey: runtime.getSetting("OPENAI_API_KEY") as string | undefined,
+      googleKey: runtime.getSetting("GOOGLE_API_KEY") as string | undefined,
+      githubToken: runtime.getSetting("GITHUB_TOKEN") as string | undefined,
+    };
+
     try {
+      // Check if the agent CLI is installed (for non-shell agents)
+      if (agentType !== "shell") {
+        const [preflight] = await ptyService.checkAvailableAgents([agentType as Exclude<CodingAgentType, "shell">]);
+        if (preflight && !preflight.installed) {
+          if (callback) {
+            await callback({
+              text: `${preflight.adapter} CLI is not installed.\n` +
+                `Install with: ${preflight.installCommand}\n` +
+                `Docs: ${preflight.docsUrl}`,
+            });
+          }
+          return { success: false, error: "AGENT_NOT_INSTALLED" };
+        }
+      }
+
       // Spawn the PTY session
       const session: SessionInfo = await ptyService.spawnSession({
         name: `coding-${Date.now()}`,
-        agentType: mappedType,
+        agentType,
         workdir,
         initialTask: task,
+        credentials,
         metadata: {
-          requestedType: agentType,
+          requestedType: rawAgentType,
           messageId: message.id,
           userId: (message as unknown as Record<string, unknown>).userId,
         },

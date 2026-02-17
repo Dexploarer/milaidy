@@ -28,6 +28,14 @@ const mockManager = {
 vi.mock("pty-manager", () => ({
   PTYManager: function() { return mockManager; },
   ShellAdapter: function() {},
+  BunCompatiblePTYManager: function() { return mockManager; },
+  isBun: () => false,
+}));
+
+// Mock coding-agent-adapters
+vi.mock("coding-agent-adapters", () => ({
+  createAllAdapters: () => [],
+  checkAdapters: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock runtime

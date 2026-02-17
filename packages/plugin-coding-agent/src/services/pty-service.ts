@@ -3,7 +3,7 @@
  *
  * Wraps pty-manager to provide:
  * - Session lifecycle management (spawn, stop, list)
- * - Adapter registration for different agent types
+ * - Adapter registration for different agent types (shell, claude, gemini, codex, aider)
  * - Event forwarding to ElizaOS runtime
  *
  * Uses BunCompatiblePTYManager when running in Bun (spawns Node worker),
@@ -24,6 +24,13 @@ import {
   type PTYManagerConfig,
   type WorkerSessionHandle,
 } from "pty-manager";
+import {
+  createAllAdapters,
+  checkAdapters,
+  type AdapterType,
+  type PreflightResult,
+  type AgentCredentials,
+} from "coding-agent-adapters";
 import type { IAgentRuntime } from "@elizaos/core";
 
 export interface PTYServiceConfig {
@@ -31,13 +38,18 @@ export interface PTYServiceConfig {
   maxLogLines?: number;
   /** Enable debug logging */
   debug?: boolean;
+  /** Auto-register coding agent adapters (default: true) */
+  registerCodingAdapters?: boolean;
 }
+
+/** Available coding agent types */
+export type CodingAgentType = "shell" | AdapterType;
 
 export interface SpawnSessionOptions {
   /** Human-readable session name */
   name: string;
-  /** Adapter type: "shell" | custom */
-  agentType: string;
+  /** Adapter type: "shell" | "claude" | "gemini" | "codex" | "aider" */
+  agentType: CodingAgentType;
   /** Working directory for the session */
   workdir?: string;
   /** Initial command/task to send */
@@ -46,6 +58,8 @@ export interface SpawnSessionOptions {
   env?: Record<string, string>;
   /** Session metadata for tracking */
   metadata?: Record<string, unknown>;
+  /** Credentials for coding agents (API keys, tokens) */
+  credentials?: AgentCredentials;
 }
 
 export interface SessionInfo {
@@ -79,6 +93,7 @@ export class PTYService {
     this.serviceConfig = {
       maxLogLines: config.maxLogLines ?? 1000,
       debug: config.debug ?? false,
+      registerCodingAdapters: config.registerCodingAdapters ?? true,
     };
   }
 
@@ -130,6 +145,15 @@ export class PTYService {
 
       // Register built-in adapters
       nodeManager.registerAdapter(new ShellAdapter());
+
+      // Register coding agent adapters (claude, gemini, codex, aider)
+      if (this.serviceConfig.registerCodingAdapters) {
+        const codingAdapters = createAllAdapters();
+        for (const adapter of codingAdapters) {
+          nodeManager.registerAdapter(adapter);
+          this.log(`Registered ${adapter.adapterType} adapter`);
+        }
+      }
 
       // Set up event forwarding
       nodeManager.on("session_ready", (session: SessionHandle) => {
@@ -201,6 +225,7 @@ export class PTYService {
       type: options.agentType,
       workdir,
       env: options.env,
+      adapterConfig: options.credentials as Record<string, unknown> | undefined,
     };
 
     const session = await this.manager.spawn(spawnConfig);
@@ -380,6 +405,22 @@ export class PTYService {
   isSessionBlocked(sessionId: string): boolean {
     const session = this.getSession(sessionId);
     return session?.status === "authenticating";
+  }
+
+  /**
+   * Check which coding agents are installed and available
+   * Returns preflight results for each agent type
+   */
+  async checkAvailableAgents(types?: AdapterType[]): Promise<PreflightResult[]> {
+    const agentTypes = types ?? (["claude", "gemini", "codex", "aider"] as AdapterType[]);
+    return checkAdapters(agentTypes);
+  }
+
+  /**
+   * Get list of supported agent types
+   */
+  getSupportedAgentTypes(): CodingAgentType[] {
+    return ["shell", "claude", "gemini", "codex", "aider"];
   }
 
   /**

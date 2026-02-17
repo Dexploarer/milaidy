@@ -65,7 +65,15 @@ export type {
   PTYServiceConfig,
   SpawnSessionOptions,
   SessionInfo,
+  CodingAgentType,
 } from "./services/pty-service.js";
+
+// Re-export coding agent adapter types
+export type {
+  AdapterType,
+  AgentCredentials,
+  PreflightResult,
+} from "coding-agent-adapters";
 
 export type {
   CodingWorkspaceConfig,

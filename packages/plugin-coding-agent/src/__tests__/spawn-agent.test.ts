@@ -8,12 +8,14 @@ import { spawnAgentAction } from "../actions/spawn-agent.js";
 // Mock PTYService
 const mockSpawnSession = vi.fn();
 const mockOnSessionEvent = vi.fn();
+const mockCheckAvailableAgents = vi.fn();
 
 const createMockPTYService = () => ({
   spawnSession: mockSpawnSession,
   onSessionEvent: mockOnSessionEvent,
   getSession: vi.fn(),
   listSessions: vi.fn().mockReturnValue([]),
+  checkAvailableAgents: mockCheckAvailableAgents,
 });
 
 // Mock runtime
@@ -39,12 +41,16 @@ describe("spawnAgentAction", () => {
     vi.clearAllMocks();
     mockSpawnSession.mockResolvedValue({
       id: "session-123",
-      agentType: "claude-code",
+      agentType: "claude",
       workdir: "/test/path",
       status: "running",
       createdAt: new Date(),
       lastActivityAt: new Date(),
     });
+    // Default: agents are installed
+    mockCheckAvailableAgents.mockResolvedValue([
+      { adapter: "claude", installed: true, installCommand: "npm i -g @anthropic-ai/claude-code", docsUrl: "https://docs.anthropic.com" },
+    ]);
   });
 
   describe("action metadata", () => {
@@ -100,7 +106,7 @@ describe("spawnAgentAction", () => {
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
       const message = createMockMessage({
-        agentType: "claude-code",
+        agentType: "claude",
         workdir: "/test/path",
         task: "Fix the bug",
       });
@@ -117,11 +123,12 @@ describe("spawnAgentAction", () => {
       expect(result?.success).toBe(true);
       expect(mockSpawnSession).toHaveBeenCalledWith({
         name: expect.stringContaining("coding-"),
-        agentType: "claude-code",
+        agentType: "claude",
         workdir: "/test/path",
         initialTask: "Fix the bug",
+        credentials: expect.any(Object),
         metadata: expect.objectContaining({
-          requestedType: "claude-code",
+          requestedType: "claude",
           messageId: "msg-123",
         }),
       });
@@ -143,7 +150,7 @@ describe("spawnAgentAction", () => {
 
       expect(mockSpawnSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          agentType: "claude-code",
+          agentType: "claude",
         })
       );
     });
@@ -151,7 +158,7 @@ describe("spawnAgentAction", () => {
     it("should map agent type aliases", async () => {
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
-      const message = createMockMessage({ agentType: "claude" });
+      const message = createMockMessage({ agentType: "claude-code" });
       const callback = vi.fn();
 
       await spawnAgentAction.handler(
@@ -164,16 +171,19 @@ describe("spawnAgentAction", () => {
 
       expect(mockSpawnSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          agentType: "claude-code",
+          agentType: "claude",
         })
       );
     });
 
-    it("should map codex to shell adapter", async () => {
+    it("should use codex adapter for codex type", async () => {
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
       const message = createMockMessage({ agentType: "codex" });
       const callback = vi.fn();
+      mockCheckAvailableAgents.mockResolvedValue([
+        { adapter: "codex", installed: true, installCommand: "npm i -g @openai/codex", docsUrl: "https://openai.com" },
+      ]);
 
       await spawnAgentAction.handler(
         runtime as any,
@@ -185,7 +195,7 @@ describe("spawnAgentAction", () => {
 
       expect(mockSpawnSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          agentType: "shell",
+          agentType: "codex",
         })
       );
     });
@@ -215,7 +225,7 @@ describe("spawnAgentAction", () => {
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
       const message = createMockMessage({
-        agentType: "claude-code",
+        agentType: "claude",
         workdir: "/test",
       });
       const callback = vi.fn();
@@ -238,7 +248,7 @@ describe("spawnAgentAction", () => {
     it("should store session in state", async () => {
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
-      const message = createMockMessage({ agentType: "claude-code" });
+      const message = createMockMessage({ agentType: "claude" });
       const state: any = {};
       const callback = vi.fn();
 
@@ -257,7 +267,7 @@ describe("spawnAgentAction", () => {
     it("should register session event handler", async () => {
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
-      const message = createMockMessage({ agentType: "claude-code" });
+      const message = createMockMessage({ agentType: "claude" });
 
       await spawnAgentAction.handler(
         runtime as any,
@@ -268,6 +278,32 @@ describe("spawnAgentAction", () => {
       );
 
       expect(mockOnSessionEvent).toHaveBeenCalled();
+    });
+
+    it("should fail if agent CLI is not installed", async () => {
+      const ptyService = createMockPTYService();
+      const runtime = createMockRuntime(ptyService);
+      const message = createMockMessage({ agentType: "claude" });
+      const callback = vi.fn();
+      mockCheckAvailableAgents.mockResolvedValue([
+        { adapter: "claude", installed: false, installCommand: "npm i -g @anthropic-ai/claude-code", docsUrl: "https://docs.anthropic.com" },
+      ]);
+
+      const result = await spawnAgentAction.handler(
+        runtime as any,
+        message as any,
+        undefined,
+        {},
+        callback
+      );
+
+      expect(result?.success).toBe(false);
+      expect(result?.error).toBe("AGENT_NOT_INSTALLED");
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringContaining("not installed"),
+        })
+      );
     });
 
     it("should return false when PTYService not available", async () => {
@@ -295,7 +331,7 @@ describe("spawnAgentAction", () => {
       mockSpawnSession.mockRejectedValue(new Error("PTY spawn failed"));
       const ptyService = createMockPTYService();
       const runtime = createMockRuntime(ptyService);
-      const message = createMockMessage({ agentType: "claude-code" });
+      const message = createMockMessage({ agentType: "claude" });
       const callback = vi.fn();
 
       const result = await spawnAgentAction.handler(
@@ -310,6 +346,29 @@ describe("spawnAgentAction", () => {
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({
           text: expect.stringContaining("Failed"),
+        })
+      );
+    });
+
+    it("should skip preflight check for shell agent type", async () => {
+      const ptyService = createMockPTYService();
+      const runtime = createMockRuntime(ptyService);
+      const message = createMockMessage({ agentType: "shell" });
+      const callback = vi.fn();
+
+      await spawnAgentAction.handler(
+        runtime as any,
+        message as any,
+        undefined,
+        {},
+        callback
+      );
+
+      // checkAvailableAgents should not be called for shell
+      expect(mockCheckAvailableAgents).not.toHaveBeenCalled();
+      expect(mockSpawnSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentType: "shell",
         })
       );
     });
