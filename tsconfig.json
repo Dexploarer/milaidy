@@ -21,7 +21,8 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "es2023",
-    "useDefineForClassFields": false
+    "useDefineForClassFields": false,
+    "baseUrl": "."
   },
   "include": [
     "src/**/*"
@@ -31,6 +32,7 @@
     "dist",
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
-    "src/**/test-helpers.ts"
+    "src/**/test-helpers.ts",
+    "src/services/training-service.ts"
   ]
 }
