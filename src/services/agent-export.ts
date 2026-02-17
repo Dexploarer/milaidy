@@ -723,7 +723,11 @@ function resolveMemoryTableName(mem: Memory): string {
   // as a top-level field in the DB row, which the proto Memory type inherits).
   // Access via unknown to satisfy strict type checking.
   const memType = (mem as unknown as Record<string, unknown>).type;
-  if (typeof memType === "string" && memType.length > 0) return memType;
+  if (typeof memType === "string" && memType.length > 0) {
+    if ((MEMORY_TABLES as readonly string[]).includes(memType)) {
+      return memType;
+    }
+  }
 
   return "messages";
 }
