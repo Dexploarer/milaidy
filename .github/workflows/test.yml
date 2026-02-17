@@ -93,13 +93,12 @@ jobs:
         run: bun run postinstall
 
       - name: Run app startup/onboarding tests
-        run: |
-          cd apps/app
-          bunx --cwd ../.. vitest run --config vitest.config.ts \
-            test/electron/electron-startup.e2e.test.ts \
-            test/electron/electron-plugin-entrypoints.e2e.test.ts \
-            test/app/startup-chat.e2e.test.ts \
-            test/app/startup-onboarding.e2e.test.ts
+        run: >
+          bunx vitest run --config apps/app/vitest.config.ts
+          apps/app/test/electron/electron-startup.e2e.test.ts
+          apps/app/test/electron/electron-plugin-entrypoints.e2e.test.ts
+          apps/app/test/app/startup-chat.e2e.test.ts
+          apps/app/test/app/startup-onboarding.e2e.test.ts
 
   electron-ui-e2e:
     name: Electron Build (${{ matrix.os }})
