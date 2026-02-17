@@ -1,6 +1,6 @@
-import type http from "node:http";
 import type { AgentRuntime } from "@elizaos/core";
 import { getAutonomySvc } from "./autonomy-routes";
+import type { RouteHelpers, RouteRequestMeta } from "./route-helpers";
 
 type AgentStateStatus =
   | "not_started"
@@ -19,13 +19,10 @@ export interface AgentLifecycleRouteState {
   startedAt: number | undefined;
 }
 
-export interface AgentLifecycleRouteContext {
-  req: http.IncomingMessage;
-  res: http.ServerResponse;
-  method: string;
-  pathname: string;
+export interface AgentLifecycleRouteContext
+  extends RouteRequestMeta,
+    Pick<RouteHelpers, "json"> {
   state: AgentLifecycleRouteState;
-  json: (res: http.ServerResponse, data: object, status?: number) => void;
 }
 
 function detectModel(runtime: AgentRuntime | null): string {

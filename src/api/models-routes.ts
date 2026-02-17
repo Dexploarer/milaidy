@@ -1,12 +1,9 @@
-import type http from "node:http";
+import type { RouteHelpers, RouteRequestMeta } from "./route-helpers";
 
-export interface ModelsRouteContext {
-  req: http.IncomingMessage;
-  res: http.ServerResponse;
-  method: string;
-  pathname: string;
+export interface ModelsRouteContext
+  extends RouteRequestMeta,
+    Pick<RouteHelpers, "json"> {
   url: URL;
-  json: (res: http.ServerResponse, data: object, status?: number) => void;
   providerCachePath: (provider: string) => string;
   getOrFetchProvider: (provider: string, force: boolean) => Promise<unknown[]>;
   getOrFetchAllProviders: (

@@ -1,6 +1,6 @@
-import type http from "node:http";
 import type { AgentRuntime, UUID } from "@elizaos/core";
 import type { MiladyConfig } from "../config/config";
+import type { RouteHelpers, RouteRequestMeta } from "./route-helpers";
 
 type AgentStateStatus =
   | "not_started"
@@ -24,15 +24,11 @@ export interface AgentAdminRouteState {
   chatConnectionPromise: Promise<void> | null;
 }
 
-export interface AgentAdminRouteContext {
-  req: http.IncomingMessage;
-  res: http.ServerResponse;
-  method: string;
-  pathname: string;
+export interface AgentAdminRouteContext
+  extends RouteRequestMeta,
+    Pick<RouteHelpers, "json" | "error"> {
   state: AgentAdminRouteState;
   onRestart?: (() => Promise<AgentRuntime | null>) | undefined;
-  json: (res: http.ServerResponse, data: object, status?: number) => void;
-  error: (res: http.ServerResponse, message: string, status?: number) => void;
   resolveStateDir: () => string;
   resolvePath: (value: string) => string;
   getHomeDir: () => string;

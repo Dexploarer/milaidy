@@ -1,5 +1,5 @@
-import type http from "node:http";
 import type { AgentRuntime } from "@elizaos/core";
+import type { RouteHelpers, RouteRequestMeta } from "./route-helpers";
 
 export interface AutonomyServiceLike {
   enableAutonomy(): Promise<void>;
@@ -34,17 +34,10 @@ export function getAutonomyState(runtime: AgentRuntime | null): {
   };
 }
 
-export interface AutonomyRouteContext {
-  req: http.IncomingMessage;
-  res: http.ServerResponse;
-  method: string;
-  pathname: string;
+export interface AutonomyRouteContext
+  extends RouteRequestMeta,
+    Pick<RouteHelpers, "readJsonBody" | "json"> {
   runtime: AgentRuntime | null;
-  readJsonBody: <T extends object>(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-  ) => Promise<T | null>;
-  json: (res: http.ServerResponse, data: object, status?: number) => void;
 }
 
 export async function handleAutonomyRoutes(
