@@ -68,6 +68,7 @@ import {
   taskToTriggerSummary,
 } from "../triggers/runtime";
 import { parseClampedInteger } from "../utils/number-parsing";
+import { handleAgentAdminRoutes } from "./agent-admin-routes";
 import { handleAgentLifecycleRoutes } from "./agent-lifecycle-routes";
 import { handleAgentTransferRoutes } from "./agent-transfer-routes";
 import { handleAuthRoutes } from "./auth-routes";
@@ -4925,120 +4926,27 @@ async function handleRequest(
     if (knowledgeHandled) return;
   }
 
-  // ── POST /api/agent/restart ────────────────────────────────────────────
-  if (method === "POST" && pathname === "/api/agent/restart") {
-    if (!ctx?.onRestart) {
-      error(
-        res,
-        "Restart is not supported in this mode (no restart handler registered)",
-        501,
-      );
-      return;
-    }
-
-    // Reject if already mid-restart to prevent overlapping restarts.
-    if (state.agentState === "restarting") {
-      error(res, "A restart is already in progress", 409);
-      return;
-    }
-
-    const previousState = state.agentState;
-    state.agentState = "restarting";
-    try {
-      const newRuntime = await ctx.onRestart();
-      if (newRuntime) {
-        state.runtime = newRuntime;
-        state.chatConnectionReady = null;
-        state.chatConnectionPromise = null;
-        state.agentState = "running";
-        state.agentName = newRuntime.character.name ?? "Milady";
-        state.startedAt = Date.now();
-        json(res, {
-          ok: true,
-          status: {
-            state: state.agentState,
-            agentName: state.agentName,
-            startedAt: state.startedAt,
-          },
-        });
-      } else {
-        // Restore previous state instead of permanently stuck in "error"
-        state.agentState = previousState;
-        error(
-          res,
-          "Restart handler returned null — runtime failed to re-initialize",
-          500,
-        );
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Restore previous state so the UI can retry
-      state.agentState = previousState;
-      error(res, `Restart failed: ${msg}`, 500);
-    }
-    return;
-  }
-
-  // ── POST /api/agent/reset ──────────────────────────────────────────────
-  // Wipe config, workspace (memory), and return to onboarding.
-  if (method === "POST" && pathname === "/api/agent/reset") {
-    try {
-      // 1. Stop the runtime if it's running
-      if (state.runtime) {
-        try {
-          await state.runtime.stop();
-        } catch (stopErr) {
-          const msg =
-            stopErr instanceof Error ? stopErr.message : String(stopErr);
-          logger.warn(
-            `[milady-api] Error stopping runtime during reset: ${msg}`,
-          );
-        }
-        state.runtime = null;
-      }
-
-      // 2. Delete the state directory (~/.milady/) which contains
-      //    config, workspace, memory, oauth tokens, etc.
-      const stateDir = resolveStateDir();
-
-      // Safety: validate the resolved path before recursive deletion.
-      // MILADY_STATE_DIR can be overridden via env/config — if set to
-      // "/" or another sensitive path, rmSync would wipe the filesystem.
-      const resolvedState = path.resolve(stateDir);
-      const home = os.homedir();
-      const isSafe = isSafeResetStateDir(resolvedState, home);
-      if (!isSafe) {
-        logger.warn(
-          `[milady-api] Refusing to delete unsafe state dir: "${resolvedState}"`,
-        );
-        error(
-          res,
-          `Reset aborted: state directory "${resolvedState}" does not appear safe to delete`,
-          400,
-        );
-        return;
-      }
-
-      if (fs.existsSync(resolvedState)) {
+  if (
+    await handleAgentAdminRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      state,
+      onRestart: ctx?.onRestart,
+      json,
+      error,
+      resolveStateDir,
+      resolvePath: path.resolve,
+      getHomeDir: os.homedir,
+      isSafeResetStateDir,
+      stateDirExists: fs.existsSync,
+      removeStateDir: (resolvedState) => {
         fs.rmSync(resolvedState, { recursive: true, force: true });
-      }
-
-      // 3. Reset server state
-      state.agentState = "stopped";
-      state.agentName = "Milady";
-      state.model = undefined;
-      state.startedAt = undefined;
-      state.config = {} as MiladyConfig;
-      state.chatRoomId = null;
-      state.chatUserId = null;
-      state.chatConnectionReady = null;
-      state.chatConnectionPromise = null;
-
-      json(res, { ok: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      error(res, `Reset failed: ${msg}`, 500);
-    }
+      },
+      logWarn: (message) => logger.warn(message),
+    })
+  ) {
     return;
   }
 
