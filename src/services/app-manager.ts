@@ -9,9 +9,9 @@
  * @module services/app-manager
  */
 
-import { logger } from "@elizaos/core";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { logger } from "@elizaos/core";
 import type {
   AppLaunchResult,
   AppStopResult,

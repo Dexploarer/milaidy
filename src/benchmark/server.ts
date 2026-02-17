@@ -1,6 +1,5 @@
 import http from "node:http";
 import path from "node:path";
-import dotenv from "dotenv";
 import {
   AgentRuntime,
   ChannelType,
@@ -11,6 +10,7 @@ import {
   stringToUuid,
   type UUID,
 } from "@elizaos/core";
+import dotenv from "dotenv";
 import { CORE_PLUGINS } from "../runtime/core-plugins";
 import { createMiladyPlugin } from "../runtime/milady-plugin";
 
@@ -278,12 +278,15 @@ export async function startBenchmarkServer() {
   // Load all CORE_PLUGINS — these are what the production Milady runtime uses
   for (const pluginName of CORE_PLUGINS) {
     if (skipPlugins.has(pluginName)) {
-      elizaLogger.debug(`[bench] Skipping plugin (benchmark mode): ${pluginName}`);
+      elizaLogger.debug(
+        `[bench] Skipping plugin (benchmark mode): ${pluginName}`,
+      );
       continue;
     }
     try {
       const pluginModule = await import(pluginName);
-      const plugin = pluginModule.default ?? pluginModule[Object.keys(pluginModule)[0]];
+      const plugin =
+        pluginModule.default ?? pluginModule[Object.keys(pluginModule)[0]];
       if (plugin) {
         plugins.push(toPlugin(plugin, pluginName));
         loadedPlugins.push(pluginName);
@@ -301,7 +304,9 @@ export async function startBenchmarkServer() {
     `[bench] Loaded ${loadedPlugins.length}/${CORE_PLUGINS.length} core plugins`,
   );
   if (failedPlugins.length > 0) {
-    elizaLogger.debug(`[bench] Unavailable plugins: ${failedPlugins.join(", ")}`);
+    elizaLogger.debug(
+      `[bench] Unavailable plugins: ${failedPlugins.join(", ")}`,
+    );
   }
 
   // Load Milady plugin — provides workspace context, session keys, autonomous state,
@@ -446,8 +451,9 @@ export async function startBenchmarkServer() {
   });
 
   await runtime.initialize();
-  const modelHandlers = (runtime as unknown as { models?: Map<string, unknown[]> })
-    .models;
+  const modelHandlers = (
+    runtime as unknown as { models?: Map<string, unknown[]> }
+  ).models;
   const modelHandlerSummary = Object.fromEntries(
     [...(modelHandlers?.entries() ?? [])].map(([modelType, handlers]) => [
       modelType,

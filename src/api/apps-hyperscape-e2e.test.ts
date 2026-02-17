@@ -8,12 +8,12 @@
  * 4. Verify viewer config - Should have correct URLs
  */
 
-import { describe, expect, test, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { AppManager } from "../services/app-manager";
 import type {
   PluginManagerLike,
   RegistryPluginInfo,
 } from "../services/plugin-manager-types";
-import { AppManager } from "../services/app-manager";
 
 // Mock local Hyperscape plugin as it appears from local plugin scanning
 const HYPERSCAPE_LOCAL_PLUGIN: RegistryPluginInfo = {
@@ -70,21 +70,23 @@ const BOOTSTRAP_PLUGIN: RegistryPluginInfo = {
 };
 
 function createMockPluginManager(
-  plugins: RegistryPluginInfo[] = [HYPERSCAPE_LOCAL_PLUGIN, BOOTSTRAP_PLUGIN]
+  plugins: RegistryPluginInfo[] = [HYPERSCAPE_LOCAL_PLUGIN, BOOTSTRAP_PLUGIN],
 ): PluginManagerLike {
   const pluginMap = new Map(plugins.map((p) => [p.name, p]));
 
   return {
     refreshRegistry: vi.fn(async () => pluginMap),
     listInstalledPlugins: vi.fn(async () => []),
-    getRegistryPlugin: vi.fn(async (name: string) => pluginMap.get(name) ?? null),
+    getRegistryPlugin: vi.fn(
+      async (name: string) => pluginMap.get(name) ?? null,
+    ),
     searchRegistry: vi.fn(async (query: string) => {
       const lowerQuery = query.toLowerCase();
       return plugins
         .filter(
           (p) =>
             p.name.toLowerCase().includes(lowerQuery) ||
-            (p.description ?? "").toLowerCase().includes(lowerQuery)
+            (p.description ?? "").toLowerCase().includes(lowerQuery),
         )
         .map((p) => ({
           name: p.name,
@@ -138,7 +140,9 @@ describe("Hyperscape E2E Integration", () => {
     test("filters out non-app plugins", async () => {
       const apps = await appManager.listAvailable(pluginManager);
 
-      const hasBootstrap = apps.some((a) => a.name === "@elizaos/plugin-bootstrap");
+      const hasBootstrap = apps.some(
+        (a) => a.name === "@elizaos/plugin-bootstrap",
+      );
       expect(hasBootstrap).toBe(false);
     });
 
@@ -153,13 +157,18 @@ describe("Hyperscape E2E Integration", () => {
       const results = await appManager.search(pluginManager, "rpg");
 
       expect(results.length).toBeGreaterThan(0);
-      expect(results.some((r) => r.name === "@elizaos/app-hyperscape")).toBe(true);
+      expect(results.some((r) => r.name === "@elizaos/app-hyperscape")).toBe(
+        true,
+      );
     });
   });
 
   describe("App Info", () => {
     test("returns full Hyperscape metadata", async () => {
-      const info = await appManager.getInfo(pluginManager, "@elizaos/app-hyperscape");
+      const info = await appManager.getInfo(
+        pluginManager,
+        "@elizaos/app-hyperscape",
+      );
 
       expect(info).not.toBeNull();
       expect(info?.name).toBe("@elizaos/app-hyperscape");
@@ -170,10 +179,12 @@ describe("Hyperscape E2E Integration", () => {
     });
 
     test("returns viewer configuration", async () => {
-      const info = await appManager.getInfo(
+      const info = (await appManager.getInfo(
         pluginManager,
-        "@elizaos/app-hyperscape"
-      ) as RegistryPluginInfo & { viewer?: { url: string; postMessageAuth?: boolean } };
+        "@elizaos/app-hyperscape",
+      )) as RegistryPluginInfo & {
+        viewer?: { url: string; postMessageAuth?: boolean };
+      };
 
       expect(info?.viewer).toBeDefined();
       expect(info?.viewer?.url).toBe("http://localhost:3333");
@@ -181,7 +192,10 @@ describe("Hyperscape E2E Integration", () => {
     });
 
     test("returns null for non-existent app", async () => {
-      const info = await appManager.getInfo(pluginManager, "@elizaos/app-nonexistent");
+      const info = await appManager.getInfo(
+        pluginManager,
+        "@elizaos/app-nonexistent",
+      );
 
       expect(info).toBeNull();
     });
@@ -191,7 +205,7 @@ describe("Hyperscape E2E Integration", () => {
     test("launches Hyperscape successfully", async () => {
       const result = await appManager.launch(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
 
       expect(result.displayName).toBe("Hyperscape");
@@ -202,7 +216,7 @@ describe("Hyperscape E2E Integration", () => {
     test("returns viewer config with correct URL", async () => {
       const result = await appManager.launch(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
 
       expect(result.viewer).toBeDefined();
@@ -212,24 +226,26 @@ describe("Hyperscape E2E Integration", () => {
     test("returns viewer sandbox policy", async () => {
       const result = await appManager.launch(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
 
       expect(result.viewer?.sandbox).toBe(
-        "allow-scripts allow-same-origin allow-popups allow-forms"
+        "allow-scripts allow-same-origin allow-popups allow-forms",
       );
     });
 
     test("throws for non-existent app", async () => {
       await expect(
-        appManager.launch(pluginManager, "@elizaos/app-nonexistent")
-      ).rejects.toThrow('App "@elizaos/app-nonexistent" not found in the registry');
+        appManager.launch(pluginManager, "@elizaos/app-nonexistent"),
+      ).rejects.toThrow(
+        'App "@elizaos/app-nonexistent" not found in the registry',
+      );
     });
 
     test("does not require restart for local plugins", async () => {
       const result = await appManager.launch(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
 
       // Local plugins should already be available
@@ -241,7 +257,7 @@ describe("Hyperscape E2E Integration", () => {
     test("indicates postMessage auth is configured", async () => {
       const result = await appManager.launch(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
 
       // Without HYPERSCAPE_AUTH_TOKEN env var, postMessageAuth should be false
@@ -257,21 +273,24 @@ describe("Hyperscape E2E Integration", () => {
       expect(apps.some((a) => a.name === "@elizaos/app-hyperscape")).toBe(true);
 
       // Step 2: Get app info
-      const info = await appManager.getInfo(pluginManager, "@elizaos/app-hyperscape");
+      const info = await appManager.getInfo(
+        pluginManager,
+        "@elizaos/app-hyperscape",
+      );
       expect(info).not.toBeNull();
       expect(info?.displayName).toBe("Hyperscape");
 
       // Step 3: Launch app
       const launchResult = await appManager.launch(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
       expect(launchResult.viewer?.url).toBe("http://localhost:3333");
 
       // Step 4: Verify can stop
       const stopResult = await appManager.stop(
         pluginManager,
-        "@elizaos/app-hyperscape"
+        "@elizaos/app-hyperscape",
       );
       expect(stopResult.success).toBe(true);
     });
