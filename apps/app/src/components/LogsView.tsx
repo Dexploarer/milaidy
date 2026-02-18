@@ -2,7 +2,7 @@
  * Logs view component — logs viewer with filtering.
  */
 
-import { useEffect } from "react";
+import { useEffect, memo } from "react";
 import { useApp } from "../AppContext.js";
 import type { LogEntry } from "../api-client";
 
@@ -16,6 +16,79 @@ const TAG_COLORS: Record<string, { bg: string; fg: string }> = {
   autonomy: { bg: "rgba(245, 158, 11, 0.15)", fg: "rgb(245, 158, 11)" },
   websocket: { bg: "rgba(20, 184, 166, 0.15)", fg: "rgb(20, 184, 166)" },
 };
+
+function areArraysEqual(arr1?: string[], arr2?: string[]): boolean {
+  if (arr1 === arr2) return true;
+  if (!arr1 || !arr2) return false;
+  if (arr1.length !== arr2.length) return false;
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i]) return false;
+  }
+  return true;
+}
+
+const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
+  return (
+    <div
+      className="font-mono text-xs px-2 py-1 border-b border-border flex gap-2 items-baseline"
+      data-testid="log-entry"
+    >
+      {/* Timestamp */}
+      <span className="text-muted whitespace-nowrap">
+        {new Date(entry.timestamp).toLocaleTimeString()}
+      </span>
+
+      {/* Level */}
+      <span
+        className={`font-semibold w-[44px] uppercase text-[11px] ${
+          entry.level === "error"
+            ? "text-danger"
+            : entry.level === "warn"
+              ? "text-warn"
+              : "text-muted"
+        }`}
+      >
+        {entry.level}
+      </span>
+
+      {/* Source */}
+      <span className="text-muted w-16 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">
+        [{entry.source}]
+      </span>
+
+      {/* Tag badges */}
+      <span className="inline-flex gap-0.5 shrink-0">
+        {(entry.tags ?? []).map((t: string, ti: number) => {
+          const c = TAG_COLORS[t];
+          return (
+            <span
+              key={ti}
+              className="inline-block text-[10px] px-1.5 py-px rounded-lg mr-0.5"
+              style={{
+                background: c ? c.bg : "var(--bg-muted)",
+                color: c ? c.fg : "var(--muted)",
+                fontFamily: "var(--font-body, sans-serif)",
+              }}
+            >
+              {t}
+            </span>
+          );
+        })}
+      </span>
+
+      {/* Message */}
+      <span className="flex-1 break-all">{entry.message}</span>
+    </div>
+  );
+}, (prev, next) => {
+  return (
+    prev.entry.timestamp === next.entry.timestamp &&
+    prev.entry.level === next.entry.level &&
+    prev.entry.message === next.entry.message &&
+    prev.entry.source === next.entry.source &&
+    areArraysEqual(prev.entry.tags, next.entry.tags)
+  );
+});
 
 export function LogsView() {
   const {
@@ -128,57 +201,7 @@ export function LogsView() {
           </div>
         ) : (
           logs.map((entry: LogEntry, idx: number) => (
-            <div
-              key={idx}
-              className="font-mono text-xs px-2 py-1 border-b border-border flex gap-2 items-baseline"
-              data-testid="log-entry"
-            >
-              {/* Timestamp */}
-              <span className="text-muted whitespace-nowrap">
-                {new Date(entry.timestamp).toLocaleTimeString()}
-              </span>
-
-              {/* Level */}
-              <span
-                className={`font-semibold w-[44px] uppercase text-[11px] ${
-                  entry.level === "error"
-                    ? "text-danger"
-                    : entry.level === "warn"
-                      ? "text-warn"
-                      : "text-muted"
-                }`}
-              >
-                {entry.level}
-              </span>
-
-              {/* Source */}
-              <span className="text-muted w-16 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">
-                [{entry.source}]
-              </span>
-
-              {/* Tag badges */}
-              <span className="inline-flex gap-0.5 shrink-0">
-                {(entry.tags ?? []).map((t: string, ti: number) => {
-                  const c = TAG_COLORS[t];
-                  return (
-                    <span
-                      key={ti}
-                      className="inline-block text-[10px] px-1.5 py-px rounded-lg mr-0.5"
-                      style={{
-                        background: c ? c.bg : "var(--bg-muted)",
-                        color: c ? c.fg : "var(--muted)",
-                        fontFamily: "var(--font-body, sans-serif)",
-                      }}
-                    >
-                      {t}
-                    </span>
-                  );
-                })}
-              </span>
-
-              {/* Message */}
-              <span className="flex-1 break-all">{entry.message}</span>
-            </div>
+            <LogRow key={idx} entry={entry} />
           ))
         )}
       </div>
