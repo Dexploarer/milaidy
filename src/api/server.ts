@@ -128,6 +128,8 @@ interface ServerState {
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
+  /** Rate limiting map (ip -> { count, expiresAt }) */
+  rateLimitMap: Map<string, { count: number; expiresAt: number }>;
 }
 
 interface ShareIngestItem {
@@ -1599,6 +1601,24 @@ function applySecurityHeaders(res: http.ServerResponse): void {
   res.setHeader("Referrer-Policy", "no-referrer");
 }
 
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 600;
+
+function checkRateLimit(state: ServerState, ip: string): boolean {
+  const now = Date.now();
+  const record = state.rateLimitMap.get(ip);
+  if (!record || now > record.expiresAt) {
+    state.rateLimitMap.set(ip, {
+      count: 1,
+      expiresAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return true;
+  }
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) return false;
+  record.count += 1;
+  return true;
+}
+
 async function handleRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -1617,6 +1637,11 @@ async function handleRequest(
 
   if (!applyCors(req, res)) {
     json(res, { error: "Origin not allowed" }, 403);
+    return;
+  }
+
+  if (!checkRateLimit(state, req.socket.remoteAddress ?? "unknown")) {
+    error(res, "Too many requests. Please try again later.", 429);
     return;
   }
 
@@ -6015,6 +6040,7 @@ export async function startApiServer(opts?: {
     cloudManager: null,
     appManager: new AppManager(),
     shareIngestQueue: [],
+    rateLimitMap: new Map(),
   };
 
   // Wire the app manager to the runtime if already running
@@ -6318,6 +6344,16 @@ export async function startApiServer(opts?: {
   // Broadcast status every 5 seconds
   const statusInterval = setInterval(broadcastStatus, 5000);
 
+  // Clean up rate limit map every 5 minutes
+  const rateLimitCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, data] of state.rateLimitMap.entries()) {
+      if (now > data.expiresAt) {
+        state.rateLimitMap.delete(ip);
+      }
+    }
+  }, 5 * 60 * 1000);
+
   /**
    * Restore the in-memory conversation list from the database.
    * Web-chat rooms live in a deterministic world; we scan it for rooms
@@ -6426,6 +6462,7 @@ export async function startApiServer(opts?: {
         close: () =>
           new Promise<void>((r) => {
             clearInterval(statusInterval);
+            clearInterval(rateLimitCleanup);
             wss.close();
             server.close(() => r());
           }),
