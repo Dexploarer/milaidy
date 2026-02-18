@@ -252,6 +252,13 @@ jobs:
           node --version
           npm --version
 
+      - name: Setup Bun
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun --version
+
       - name: Prepare debian packaging
         run: |
           # Copy debian directory into project root

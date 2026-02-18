@@ -87,10 +87,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Retry bun install up to 3 times to handle flaky network issues
+          # Use --ignore-scripts to skip postinstall (submodule init) since we don't need plugins for npm publish
+          # Retry up to 3 times to handle flaky network issues
           for attempt in 1 2 3; do
             echo "Attempt $attempt of 3..."
-            if bun install --frozen-lockfile; then
+            if bun install --frozen-lockfile --ignore-scripts; then
               echo "Dependencies installed successfully"
               exit 0
             fi
