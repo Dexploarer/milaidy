@@ -1696,15 +1696,40 @@ function sendStaticResponse(
   res.end(body);
 }
 
+function streamStaticResponse(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  status: number,
+  headers: Record<string, string | number>,
+  stream: fs.ReadStream,
+): void {
+  res.writeHead(status, headers);
+  if (req.method === "HEAD") {
+    res.end();
+    stream.destroy();
+    return;
+  }
+  stream.pipe(res);
+  stream.on("error", (err) => {
+    logger.error(
+      `[milady-api] Static stream error: ${err instanceof Error ? err.message : err}`,
+    );
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.end("Internal Server Error");
+    }
+  });
+}
+
 /**
  * Serve built dashboard assets from apps/app/dist with SPA fallback.
  * Returns true when the request is handled.
  */
-function serveStaticUi(
+async function serveStaticUi(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   pathname: string,
-): boolean {
+): Promise<boolean> {
   const root = resolveUiDir();
   if (!root) return false;
 
@@ -1732,23 +1757,23 @@ function serveStaticUi(
   }
 
   try {
-    const stat = fs.statSync(candidatePath);
+    const stat = await fs.promises.stat(candidatePath);
     if (stat.isFile()) {
       const ext = path.extname(candidatePath).toLowerCase();
-      const body = fs.readFileSync(candidatePath);
+      const stream = fs.createReadStream(candidatePath);
       const cacheControl = relativePath.startsWith("assets/")
         ? "public, max-age=31536000, immutable"
         : "public, max-age=0, must-revalidate";
-      sendStaticResponse(
+      streamStaticResponse(
         req,
         res,
         200,
         {
           "Cache-Control": cacheControl,
-          "Content-Length": body.length,
+          "Content-Length": stat.size,
           "Content-Type": STATIC_MIME[ext] ?? "application/octet-stream",
         },
-        body,
+        stream,
       );
       return true;
     }
@@ -10607,7 +10632,7 @@ async function handleRequest(
 
   // ── Static UI serving (production) ──────────────────────────────────────
   if (method === "GET" || method === "HEAD") {
-    if (serveStaticUi(req, res, pathname)) return;
+    if (await serveStaticUi(req, res, pathname)) return;
   }
 
   // ── Fallback ────────────────────────────────────────────────────────────
