@@ -118,6 +118,7 @@ export function ConversationsSidebar({
             handleNewConversation();
             onClose?.();
           }}
+          aria-label="Start a new chat"
         >
           + New Chat
         </button>
@@ -153,6 +154,7 @@ export function ConversationsSidebar({
                     onBlur={() => void handleEditSubmit(conv.id)}
                     onKeyDown={(e) => handleEditKeyDown(e, conv.id)}
                     onClick={(e) => e.stopPropagation()}
+                    aria-label="Rename conversation"
                   />
                 ) : (
                   <>
@@ -180,12 +182,13 @@ export function ConversationsSidebar({
                     <button
                       type="button"
                       data-testid="conv-delete"
-                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
+                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleDeleteConversation(conv.id);
                       }}
                       title="Delete conversation"
+                      aria-label="Delete conversation"
                     >
                       ×
                     </button>
