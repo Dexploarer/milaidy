@@ -142,6 +142,12 @@ export interface ReadJsonBodyOptions extends ReadTextBodyOptions {
   nonObjectMessage?: string;
   /** Override for malformed JSON parse errors. */
   parseErrorMessage?: string;
+  /** Required Content-Type header (substring match). Defaults to "application/json". Set to null to disable. */
+  requireContentType?: string | null;
+  /** Response status used for invalid content type. */
+  contentTypeErrorStatus?: number;
+  /** Error message for invalid content type. */
+  contentTypeErrorMessage?: string;
 }
 
 export function isJsonObjectBody(
@@ -217,9 +223,24 @@ export async function readJsonBody<T = Record<string, unknown>>(
     nonObjectMessage = "Request body must be a JSON object",
     parseErrorMessage = "Invalid JSON in request body",
     requireObject = true,
+    requireContentType = "application/json",
+    contentTypeErrorStatus = 415,
+    contentTypeErrorMessage = "Unsupported Media Type: Content-Type must be application/json",
     ...readOptions
   }: ReadJsonBodyOptions = {},
 ): Promise<T | null> {
+  if (requireContentType) {
+    const contentType = req.headers["content-type"] || "";
+    if (!contentType.toLowerCase().includes(requireContentType.toLowerCase())) {
+      await writeJsonError(
+        res,
+        contentTypeErrorMessage,
+        contentTypeErrorStatus,
+      );
+      return null;
+    }
+  }
+
   let raw: string;
   try {
     const body = await readRequestBody(req, readOptions);

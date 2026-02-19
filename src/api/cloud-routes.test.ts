@@ -888,7 +888,7 @@ describe("handleCloudRoute", () => {
     const req = createMockIncomingMessage({
       method: "POST",
       url: "/api/cloud/agents",
-      headers: {},
+      headers: { "content-type": "application/json" },
       bodyChunks: [Buffer.from("{")],
     });
     const { res, getStatus, getJson } = createMockHttpResponse();
@@ -912,7 +912,7 @@ describe("handleCloudRoute", () => {
     const req = createMockIncomingMessage({
       method: "POST",
       url: "/api/cloud/agents",
-      headers: {},
+      headers: { "content-type": "application/json" },
       bodyChunks: [Buffer.alloc(1_048_577, "a")],
     });
     const { res, getStatus, getJson } = createMockHttpResponse();
@@ -936,7 +936,7 @@ describe("handleCloudRoute", () => {
     const req = createMockIncomingMessage({
       method: "POST",
       url: "/api/cloud/agents",
-      headers: {},
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         agentName: "My Agent",
         agentConfig: { modelProvider: "openai" },

@@ -9,9 +9,13 @@ import {
 } from "../../test-support/test-helpers";
 
 export function createMockReq(method: string, body?: string): IncomingMessage {
+  const headers: Record<string, string> = {};
+  if (body) {
+    headers["content-type"] = "application/json";
+  }
   return createMockIncomingMessage({
     method,
-    headers: {},
+    headers,
     body,
   }) as IncomingMessage;
 }
