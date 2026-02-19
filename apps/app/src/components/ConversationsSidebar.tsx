@@ -130,14 +130,15 @@ export function ConversationsSidebar() {
                     </div>
                     <button
                       data-testid="conv-delete"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleDeleteConversation(conv.id);
                       }}
+                      aria-label={`Delete conversation ${conv.title}`}
                       title="Delete conversation"
                     >
-                      ×
+                      <span aria-hidden="true">×</span>
                     </button>
                   </>
                 )}
