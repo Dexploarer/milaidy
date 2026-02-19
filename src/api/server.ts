@@ -128,6 +128,8 @@ interface ServerState {
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
+  /** Cached redacted configuration for /api/config. Invalidated on config updates. */
+  redactedConfig: Record<string, unknown> | null;
 }
 
 interface ShareIngestItem {
@@ -1771,6 +1773,7 @@ async function handleRequest(
       (state.config.env as Record<string, string>).ANTHROPIC_API_KEY =
         body.token.trim();
       saveMilaidyConfig(state.config);
+      state.redactedConfig = null;
       json(res, { success: true });
     } catch (err) {
       error(res, `Failed to save setup token: ${err}`, 500);
@@ -2197,6 +2200,7 @@ async function handleRequest(
     state.agentName = (body.name as string) ?? state.agentName;
     try {
       saveMilaidyConfig(config);
+      state.redactedConfig = null;
     } catch (err) {
       logger.error(
         `[milaidy-api] Failed to save config after onboarding: ${err}`,
@@ -2407,6 +2411,7 @@ async function handleRequest(
       state.model = undefined;
       state.startedAt = undefined;
       state.config = {} as MilaidyConfig;
+      state.redactedConfig = null;
       state.chatRoomId = null;
       state.chatUserId = null;
 
@@ -2982,6 +2987,7 @@ async function handleRequest(
       // Save updated config
       try {
         saveMilaidyConfig(state.config);
+        state.redactedConfig = null;
       } catch (err) {
         logger.warn(
           `[milaidy-api] Failed to save config: ${err instanceof Error ? err.message : err}`,
@@ -3379,6 +3385,7 @@ async function handleRequest(
 
     try {
       saveMilaidyConfig(state.config);
+      state.redactedConfig = null;
     } catch (err) {
       logger.warn(
         `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
@@ -4184,6 +4191,7 @@ async function handleRequest(
     if (!state.config.env) state.config.env = {};
     (state.config.env as Record<string, string>).SKILLSMP_API_KEY = apiKey;
     saveMilaidyConfig(state.config);
+    state.redactedConfig = null;
     json(res, { ok: true, keySet: true });
     return;
   }
@@ -4431,6 +4439,7 @@ async function handleRequest(
 
     try {
       saveMilaidyConfig(state.config);
+      state.redactedConfig = null;
     } catch (err) {
       logger.warn(
         `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
@@ -4488,6 +4497,7 @@ async function handleRequest(
 
     try {
       saveMilaidyConfig(state.config);
+      state.redactedConfig = null;
     } catch (err) {
       logger.warn(
         `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
@@ -4547,6 +4557,7 @@ async function handleRequest(
 
     try {
       saveMilaidyConfig(state.config);
+      state.redactedConfig = null;
     } catch (err) {
       logger.warn(
         `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
@@ -4639,13 +4650,17 @@ async function handleRequest(
       lastCheckVersion: undefined,
     };
     saveMilaidyConfig(state.config);
+    state.redactedConfig = null;
     json(res, { channel: ch });
     return;
   }
 
   // ── GET /api/config ──────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/config") {
-    json(res, redactConfigSecrets(state.config));
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
+    json(res, state.redactedConfig);
     return;
   }
 
@@ -5781,6 +5796,7 @@ async function handleRequest(
       delete state.config.mcp.servers[serverName];
       try {
         saveMilaidyConfig(state.config);
+        state.redactedConfig = null;
       } catch (err) {
         logger.warn(
           `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
@@ -5808,6 +5824,7 @@ async function handleRequest(
 
     try {
       saveMilaidyConfig(state.config);
+      state.redactedConfig = null;
     } catch (err) {
       logger.warn(
         `[api] Config save failed: ${err instanceof Error ? err.message : err}`,
@@ -6015,6 +6032,7 @@ export async function startApiServer(opts?: {
     cloudManager: null,
     appManager: new AppManager(),
     shareIngestQueue: [],
+    redactedConfig: null,
   };
 
   // Wire the app manager to the runtime if already running
