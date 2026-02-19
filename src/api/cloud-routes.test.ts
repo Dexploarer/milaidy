@@ -75,14 +75,22 @@ describe("handleCloudRoute", () => {
       json: async () => ({}),
     });
 
-    const handled = await handleCloudRoute(req, res, "/api/cloud/login", "POST", state);
+    const handled = await handleCloudRoute(
+      req,
+      res,
+      "/api/cloud/login",
+      "POST",
+      state,
+    );
 
     expect(handled).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/auth/cli-session"),
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({ method: "POST" }),
     );
-    expect(res.end).toHaveBeenCalledWith(expect.stringContaining('"sessionId"'));
+    expect(res.end).toHaveBeenCalledWith(
+      expect.stringContaining('"sessionId"'),
+    );
   });
 
   it("GET /api/cloud/login/status handles authenticated state", async () => {
@@ -99,7 +107,13 @@ describe("handleCloudRoute", () => {
       }),
     });
 
-    const handled = await handleCloudRoute(req, res, "/api/cloud/login/status", "GET", state);
+    const handled = await handleCloudRoute(
+      req,
+      res,
+      "/api/cloud/login/status",
+      "GET",
+      state,
+    );
 
     expect(handled).toBe(true);
     // Should save config
@@ -111,7 +125,9 @@ describe("handleCloudRoute", () => {
     // Should update agent DB
     expect(state.runtime?.updateAgent).toHaveBeenCalled();
 
-    expect(res.end).toHaveBeenCalledWith(expect.stringContaining('"authenticated"'));
+    expect(res.end).toHaveBeenCalledWith(
+      expect.stringContaining('"authenticated"'),
+    );
   });
 
   it("GET /api/cloud/agents lists agents", async () => {
@@ -124,7 +140,13 @@ describe("handleCloudRoute", () => {
     };
     (state.cloudManager!.getClient as any).mockReturnValue(mockClient);
 
-    const handled = await handleCloudRoute(req, res, "/api/cloud/agents", "GET", state);
+    const handled = await handleCloudRoute(
+      req,
+      res,
+      "/api/cloud/agents",
+      "GET",
+      state,
+    );
 
     expect(handled).toBe(true);
     expect(mockClient.listAgents).toHaveBeenCalled();
@@ -136,24 +158,34 @@ describe("handleCloudRoute", () => {
     req.method = "POST";
     const agentId = "00000000-0000-0000-0000-000000000001";
 
-    (state.cloudManager!.connect as any).mockResolvedValue({ agentName: "Remote Agent" });
+    (state.cloudManager!.connect as any).mockResolvedValue({
+      agentName: "Remote Agent",
+    });
 
     const handled = await handleCloudRoute(
       req,
       res,
       `/api/cloud/agents/${agentId}/provision`,
       "POST",
-      state
+      state,
     );
 
     expect(handled).toBe(true);
     expect(state.cloudManager!.connect).toHaveBeenCalledWith(agentId);
-    expect(res.end).toHaveBeenCalledWith(expect.stringContaining("Remote Agent"));
+    expect(res.end).toHaveBeenCalledWith(
+      expect.stringContaining("Remote Agent"),
+    );
   });
 
   it("returns false for unhandled routes", async () => {
     const { req, res } = createMocks();
-    const handled = await handleCloudRoute(req, res, "/api/cloud/unknown", "GET", state);
+    const handled = await handleCloudRoute(
+      req,
+      res,
+      "/api/cloud/unknown",
+      "GET",
+      state,
+    );
     expect(handled).toBe(false);
   });
 });
