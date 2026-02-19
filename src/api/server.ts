@@ -128,6 +128,13 @@ interface ServerState {
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
+  /** Rate limit state by IP + key. */
+  rateLimitMap: Map<string, RateLimitEntry>;
+}
+
+export interface RateLimitEntry {
+  count: number;
+  resetAt: number;
 }
 
 interface ShareIngestItem {
@@ -884,6 +891,35 @@ function scanSkillsDir(
 // Request helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Check if a request exceeds the rate limit for a given key.
+ * Uses a fixed window counter that resets after windowMs.
+ * Returns true if allowed, false if limit exceeded.
+ */
+export function checkRateLimit(
+  state: ServerState,
+  ip: string,
+  key: string,
+  limit: number,
+  windowMs: number,
+): boolean {
+  const fullKey = `${ip}:${key}`;
+  const now = Date.now();
+  const entry = state.rateLimitMap.get(fullKey);
+
+  if (!entry || now > entry.resetAt) {
+    state.rateLimitMap.set(fullKey, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (entry.count >= limit) {
+    return false;
+  }
+
+  entry.count += 1;
+  return true;
+}
+
 /** Maximum request body size (1 MB) — prevents memory-based DoS. */
 const MAX_BODY_BYTES = 1_048_576;
 const MAX_IMPORT_BYTES = 512 * 1_048_576; // 512 MB for agent imports
@@ -1514,7 +1550,6 @@ const PAIRING_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 let pairingCode: string | null = null;
 let pairingExpiresAt = 0;
-const pairingAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function pairingEnabled(): boolean {
   return (
@@ -1547,19 +1582,6 @@ function ensurePairingCode(): string | null {
     );
   }
   return pairingCode;
-}
-
-function rateLimitPairing(ip: string | null): boolean {
-  const key = ip ?? "unknown";
-  const now = Date.now();
-  const current = pairingAttempts.get(key);
-  if (!current || now > current.resetAt) {
-    pairingAttempts.set(key, { count: 1, resetAt: now + PAIRING_WINDOW_MS });
-    return true;
-  }
-  if (current.count >= PAIRING_MAX_ATTEMPTS) return false;
-  current.count += 1;
-  return true;
 }
 
 function extractAuthToken(req: http.IncomingMessage): string | null {
@@ -1659,7 +1681,15 @@ async function handleRequest(
       error(res, "Pairing disabled", 403);
       return;
     }
-    if (!rateLimitPairing(req.socket.remoteAddress ?? null)) {
+    if (
+      !checkRateLimit(
+        state,
+        req.socket.remoteAddress ?? "unknown",
+        "pairing",
+        PAIRING_MAX_ATTEMPTS,
+        PAIRING_WINDOW_MS,
+      )
+    ) {
       error(res, "Too many attempts. Try again later.", 429);
       return;
     }
@@ -2353,6 +2383,20 @@ async function handleRequest(
   // ── POST /api/agent/reset ──────────────────────────────────────────────
   // Wipe config, workspace (memory), and return to onboarding.
   if (method === "POST" && pathname === "/api/agent/reset") {
+    // Rate limit: 3 attempts per minute
+    if (
+      !checkRateLimit(
+        state,
+        req.socket.remoteAddress ?? "unknown",
+        "agent-reset",
+        3,
+        60 * 1000,
+      )
+    ) {
+      error(res, "Too many reset attempts. Try again later.", 429);
+      return;
+    }
+
     try {
       // 1. Stop the runtime if it's running
       if (state.runtime) {
@@ -4561,6 +4605,20 @@ async function handleRequest(
   // SECURITY: Requires { confirm: true } in the request body to prevent
   // accidental exposure of private keys.
   if (method === "POST" && pathname === "/api/wallet/export") {
+    // Rate limit: 3 attempts per minute
+    if (
+      !checkRateLimit(
+        state,
+        req.socket.remoteAddress ?? "unknown",
+        "wallet-export",
+        3,
+        60 * 1000,
+      )
+    ) {
+      error(res, "Too many export attempts. Try again later.", 429);
+      return;
+    }
+
     const body = await readJsonBody<{ confirm?: boolean }>(req, res);
     if (!body) return;
 
@@ -4754,6 +4812,22 @@ async function handleRequest(
 
   // ── Cloud routes (/api/cloud/*) ─────────────────────────────────────────
   if (pathname.startsWith("/api/cloud/")) {
+    // Rate limit cloud login: 5 attempts per minute
+    if (pathname === "/api/cloud/login" && method === "POST") {
+      if (
+        !checkRateLimit(
+          state,
+          req.socket.remoteAddress ?? "unknown",
+          "cloud-login",
+          5,
+          60 * 1000,
+        )
+      ) {
+        error(res, "Too many login attempts. Try again later.", 429);
+        return;
+      }
+    }
+
     const cloudState: CloudRouteState = {
       config: state.config,
       cloudManager: state.cloudManager,
@@ -6015,6 +6089,7 @@ export async function startApiServer(opts?: {
     cloudManager: null,
     appManager: new AppManager(),
     shareIngestQueue: [],
+    rateLimitMap: new Map(),
   };
 
   // Wire the app manager to the runtime if already running
@@ -6318,6 +6393,16 @@ export async function startApiServer(opts?: {
   // Broadcast status every 5 seconds
   const statusInterval = setInterval(broadcastStatus, 5000);
 
+  // Cleanup expired rate limit entries every 5 minutes
+  const rateLimitCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of state.rateLimitMap.entries()) {
+      if (now > entry.resetAt) {
+        state.rateLimitMap.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000);
+
   /**
    * Restore the in-memory conversation list from the database.
    * Web-chat rooms live in a deterministic world; we scan it for rooms
@@ -6426,6 +6511,7 @@ export async function startApiServer(opts?: {
         close: () =>
           new Promise<void>((r) => {
             clearInterval(statusInterval);
+            clearInterval(rateLimitCleanup);
             wss.close();
             server.close(() => r());
           }),
