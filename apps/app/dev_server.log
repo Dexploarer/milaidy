@@ -1,0 +1,38 @@
+$ vite
+
+  VITE v5.4.21  ready in 486 ms
+
+  ➜  Local:   http://localhost:2138/
+  ➜  Network: http://192.168.0.2:2138/
+10:55:17 PM [vite] http proxy error: /api/drop/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] http proxy error: /api/workbench/overview
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] http proxy error: /api/drop/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] http proxy error: /api/conversations/c1/messages
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] http proxy error: /api/workbench/overview
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+10:55:17 PM [vite] http proxy error: /api/agent/events?limit=300
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
