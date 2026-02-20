@@ -75,6 +75,29 @@ function fakeGeneratedRegistry() {
         stargazers_count: 50,
         language: "TypeScript",
       },
+      "@elizaos/plugin-obsidian": {
+        git: {
+          repo: "elizaos-plugins/plugin-obsidian",
+          v0: { version: null, branch: null },
+          v1: { version: null, branch: null },
+          v2: { version: "2.0.0", branch: "next" },
+        },
+        npm: {
+          repo: "@elizaos/plugin-obsidian",
+          v0: null,
+          v1: null,
+          v2: "2.0.0-alpha.3",
+          v0CoreRange: null,
+          v1CoreRange: null,
+          v2CoreRange: ">=2.0.0",
+        },
+        supports: { v0: false, v1: false, v2: true },
+        description: "Obsidian notes integration",
+        homepage: null,
+        topics: ["obsidian", "notes"],
+        stargazers_count: 10,
+        language: "TypeScript",
+      },
       "@thirdparty/plugin-weather": {
         git: {
           repo: "thirdparty/plugin-weather",
@@ -280,7 +303,7 @@ describe("registry-client", () => {
       const { getRegistryPlugins } = await loadModule();
       const registry = await getRegistryPlugins();
 
-      expect(registry.size).toBe(5);
+      expect(registry.size).toBe(6);
       const solana = registry.get("@elizaos/plugin-solana");
       expect(solana).toBeDefined();
       expect(solana?.description).toBe("Solana blockchain integration");
@@ -382,7 +405,7 @@ describe("registry-client", () => {
       const mod2 = await loadModule();
       const registry = await mod2.getRegistryPlugins();
       expect(mockFetch2).not.toHaveBeenCalled();
-      expect(registry.size).toBe(5);
+      expect(registry.size).toBe(6);
     });
   });
 
@@ -431,6 +454,20 @@ describe("registry-client", () => {
       const info = await getPluginInfo("plugin-solana");
       expect(info).not.toBeNull();
       expect(info?.name).toBe("@elizaos/plugin-solana");
+    });
+
+    it("resolves obsidan typo alias to @elizaos/plugin-obsidian", async () => {
+      const { getPluginInfo } = await loadModule();
+      const info = await getPluginInfo("obsidan");
+      expect(info).not.toBeNull();
+      expect(info?.name).toBe("@elizaos/plugin-obsidian");
+    });
+
+    it("resolves scoped obsidan typo alias", async () => {
+      const { getPluginInfo } = await loadModule();
+      const info = await getPluginInfo("@elizaos/plugin-obsidan");
+      expect(info).not.toBeNull();
+      expect(info?.name).toBe("@elizaos/plugin-obsidian");
     });
 
     it("finds plugin by scope-stripped name", async () => {

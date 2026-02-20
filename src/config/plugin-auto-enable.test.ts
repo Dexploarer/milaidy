@@ -226,6 +226,16 @@ describe("applyPluginAutoEnable — env vars", () => {
     expect(changes.some((c) => c.includes("ANTHROPIC_API_KEY"))).toBe(true);
   });
 
+  it("enables repoprompt plugin when REPOPROMPT_CLI_PATH is set", () => {
+    const params = makeParams({
+      env: { REPOPROMPT_CLI_PATH: "/usr/local/bin/rp-cli" },
+    });
+    const { config, changes } = applyPluginAutoEnable(params);
+
+    expect(config.plugins?.allow).toContain("repoprompt");
+    expect(changes.some((c) => c.includes("REPOPROMPT_CLI_PATH"))).toBe(true);
+  });
+
   it("skips env var with empty string value", () => {
     const params = makeParams({ env: { OPENAI_API_KEY: "" } });
     const { changes } = applyPluginAutoEnable(params);
@@ -268,6 +278,16 @@ describe("applyPluginAutoEnable — env vars", () => {
     expect(allow).toContain("xai");
   });
 
+  it("auto-enables obsidian plugin when OBSIDIAN_VAULT_PATH is set", () => {
+    const params = makeParams({
+      env: { OBSIDIAN_VAULT_PATH: "/tmp/vault" },
+    });
+    const { config, changes } = applyPluginAutoEnable(params);
+
+    expect(config.plugins?.allow).toContain("obsidian");
+    expect(changes.some((c) => c.includes("OBSIDIAN_VAULT_PATH"))).toBe(true);
+  });
+
   it("does not duplicate entries in allow list", () => {
     const params = makeParams({
       env: {
@@ -298,6 +318,16 @@ describe("applyPluginAutoEnable — features", () => {
     expect(changes.some((c) => c.includes("feature: browser"))).toBe(true);
   });
 
+  it("enables repoprompt plugin when feature flag is enabled", () => {
+    const params = makeParams({
+      config: { features: { repoprompt: true } },
+    });
+    const { config, changes } = applyPluginAutoEnable(params);
+
+    expect(config.plugins?.allow).toContain("repoprompt");
+    expect(changes.some((c) => c.includes("feature: repoprompt"))).toBe(true);
+  });
+
   it("enables plugin when feature is an object with enabled not false", () => {
     const params = makeParams({
       config: { features: { cron: { schedule: "* * * * *" } } },
@@ -323,6 +353,15 @@ describe("applyPluginAutoEnable — features", () => {
     const { changes } = applyPluginAutoEnable(params);
 
     expect(changes).toHaveLength(0);
+  });
+
+  it("enables obsidian plugin when features.obsidian = true", () => {
+    const params = makeParams({
+      config: { features: { obsidian: true } },
+    });
+    const { config } = applyPluginAutoEnable(params);
+
+    expect(config.plugins?.allow).toContain("obsidian");
   });
 });
 
@@ -454,6 +493,15 @@ describe("AUTH_PROVIDER_PLUGINS", () => {
     );
     expect(AUTH_PROVIDER_PLUGINS.CLAUDE_API_KEY).toBe(
       "@elizaos/plugin-anthropic",
+    );
+  });
+
+  it("maps OBSIDIAN_VAULT_PATH and OBSIDAN_VAULT_PATH to obsidian plugin", () => {
+    expect(AUTH_PROVIDER_PLUGINS.OBSIDIAN_VAULT_PATH).toBe(
+      "@elizaos/plugin-obsidian",
+    );
+    expect(AUTH_PROVIDER_PLUGINS.OBSIDAN_VAULT_PATH).toBe(
+      "@elizaos/plugin-obsidian",
     );
   });
 });

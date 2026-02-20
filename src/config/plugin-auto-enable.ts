@@ -72,10 +72,17 @@ export const AUTH_PROVIDER_PLUGINS: Record<string, string> = {
   PERPLEXITY_API_KEY: "@elizaos/plugin-perplexity",
   ELIZAOS_CLOUD_API_KEY: "@elizaos/plugin-elizacloud",
   ELIZAOS_CLOUD_ENABLED: "@elizaos/plugin-elizacloud",
+  CUA_API_KEY: "@elizaos/plugin-cua",
+  CUA_HOST: "@elizaos/plugin-cua",
+  OBSIDIAN_VAULT_PATH: "@elizaos/plugin-obsidian",
+  OBSIDAN_VAULT_PATH: "@elizaos/plugin-obsidian",
+  REPOPROMPT_CLI_PATH: "@elizaos/plugin-repoprompt",
 };
 
 const FEATURE_PLUGINS: Record<string, string> = {
   browser: "@elizaos/plugin-browser",
+  cua: "@elizaos/plugin-cua",
+  obsidian: "@elizaos/plugin-obsidian",
   cron: "@elizaos/plugin-cron",
   shell: "@elizaos/plugin-shell",
   imageGen: "@elizaos/plugin-image-generation",
@@ -96,6 +103,7 @@ const FEATURE_PLUGINS: Record<string, string> = {
   suno: "@elizaos/plugin-suno",
   vision: "@elizaos/plugin-vision",
   computeruse: "@elizaos/plugin-computeruse",
+  repoprompt: "@elizaos/plugin-repoprompt",
 };
 
 function isConnectorConfigured(

@@ -12,6 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { logger } from "@elizaos/core";
+import { loadMiladyConfig, saveMiladyConfig } from "../config/config.js";
+import type { RegistryEndpoint } from "../config/types.milady.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -573,6 +575,123 @@ async function discoverLocalWorkspaceApps(): Promise<
   return discovered;
 }
 
+/**
+ * Discover ElizaOS plugins installed in the workspace's node_modules.
+ *
+ * Scans `node_modules/@elizaos/plugin-*` for packages whose package.json
+ * declares `packageType: "plugin"`.  This allows locally linked or file-dep
+ * plugins (e.g. `@elizaos/plugin-cua`) to appear in the plugin store and
+ * be "installable" through milaidy's plugin management system even before
+ * they are published to the remote registry.
+ *
+ * Only returns entries for plugins NOT already present in the caller's map
+ * (the registry), so remote metadata always takes priority.
+ */
+async function discoverNodeModulePlugins(): Promise<
+  Map<string, RegistryPluginInfo>
+> {
+  const discovered = new Map<string, RegistryPluginInfo>();
+
+  for (const workspaceRoot of resolveWorkspaceRoots()) {
+    const elizaosDir = path.join(workspaceRoot, "node_modules", "@elizaos");
+    let entries: Array<import("node:fs").Dirent>;
+    try {
+      entries = await fs.readdir(elizaosDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      // Only scan plugin-* directories (skip core, tui, skills, etc.)
+      if (!entry.name.startsWith("plugin-")) continue;
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+
+      const packageDir = path.join(elizaosDir, entry.name);
+      const packageJson = await readJsonFile<
+        LocalPackageJson & {
+          packageType?: string;
+          keywords?: string[];
+          agentConfig?: Record<string, unknown>;
+        }
+      >(path.join(packageDir, "package.json"));
+      if (!packageJson?.name) continue;
+
+      // Only include packages that identify themselves as ElizaOS plugins
+      const isPlugin =
+        packageJson.packageType === "plugin" ||
+        packageJson.keywords?.includes("elizaos") ||
+        packageJson.elizaos !== undefined ||
+        packageJson.agentConfig !== undefined;
+      if (!isPlugin) continue;
+
+      // Skip app-kind packages (handled by discoverLocalWorkspaceApps)
+      if (packageJson.elizaos?.kind === "app") continue;
+
+      const repo = parseRepositoryMetadata(packageJson.repository);
+      const version = packageJson.version ?? null;
+
+      // Resolve localPath — follow symlinks to the real package source
+      let localPath = packageDir;
+      try {
+        const realPath = await fs.realpath(packageDir);
+        if (realPath !== packageDir) localPath = realPath;
+      } catch {
+        // Keep packageDir as fallback
+      }
+
+      discovered.set(packageJson.name, {
+        name: packageJson.name,
+        gitRepo: repo.gitRepo,
+        gitUrl: repo.gitUrl,
+        description: packageJson.description ?? "",
+        homepage: packageJson.homepage ?? null,
+        topics: [],
+        stars: 0,
+        language: "TypeScript",
+        npm: {
+          package: packageJson.name,
+          v0Version: null,
+          v1Version: null,
+          v2Version: version,
+        },
+        git: {
+          v0Branch: null,
+          v1Branch: null,
+          v2Branch: "main",
+        },
+        supports: { v0: false, v1: false, v2: true },
+        localPath,
+      });
+    }
+  }
+
+  return discovered;
+}
+
+/**
+ * Merge node_modules plugins into the registry map. Only adds entries
+ * that are not already present (remote registry takes precedence, but
+ * localPath is added to existing entries when discovered locally).
+ */
+async function applyNodeModulePlugins(
+  plugins: Map<string, RegistryPluginInfo>,
+): Promise<void> {
+  const localPlugins = await discoverNodeModulePlugins();
+  if (localPlugins.size === 0) return;
+
+  for (const [name, localInfo] of localPlugins.entries()) {
+    const existing = plugins.get(name);
+    if (!existing) {
+      // Not in remote registry — add as local-only entry
+      plugins.set(name, localInfo);
+    } else if (!existing.localPath) {
+      // In registry but no local path — annotate with local path so the
+      // installer can use the local copy instead of downloading.
+      plugins.set(name, { ...existing, localPath: localInfo.localPath });
+    }
+  }
+}
+
 async function applyLocalWorkspaceApps(
   plugins: Map<string, RegistryPluginInfo>,
 ): Promise<void> {
@@ -703,6 +822,7 @@ async function fetchFromNetwork(): Promise<Map<string, RegistryPluginInfo>> {
         plugins.set(name, info);
       }
       await applyLocalWorkspaceApps(plugins);
+      await applyNodeModulePlugins(plugins);
       return plugins;
     }
   } catch (err) {
@@ -734,6 +854,7 @@ async function fetchFromNetwork(): Promise<Map<string, RegistryPluginInfo>> {
     });
   }
   await applyLocalWorkspaceApps(plugins);
+  await applyNodeModulePlugins(plugins);
   return plugins;
 }
 
@@ -773,6 +894,181 @@ async function writeFileCache(
 }
 
 // ---------------------------------------------------------------------------
+// Multi-endpoint management
+// ---------------------------------------------------------------------------
+
+/** Normalise a URL for duplicate detection (strip trailing slashes). */
+function normaliseEndpointUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+/** Check whether the given URL is the built-in default endpoint. */
+export function isDefaultEndpoint(url: string): boolean {
+  return (
+    normaliseEndpointUrl(url) === normaliseEndpointUrl(GENERATED_REGISTRY_URL)
+  );
+}
+
+/** Return the list of custom registry endpoints from config. */
+export function getConfiguredEndpoints(): RegistryEndpoint[] {
+  try {
+    const cfg = loadMiladyConfig();
+    return cfg.plugins?.registryEndpoints ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Add a custom registry endpoint. Blocks duplicate URLs. */
+export function addRegistryEndpoint(label: string, url: string): void {
+  const normalised = normaliseEndpointUrl(url);
+  if (isDefaultEndpoint(normalised)) {
+    throw new Error("Cannot add the default registry as a custom endpoint.");
+  }
+  const cfg = loadMiladyConfig();
+  const endpoints = cfg.plugins?.registryEndpoints ?? [];
+  if (endpoints.some((ep) => normaliseEndpointUrl(ep.url) === normalised)) {
+    throw new Error(`Endpoint already exists: ${url}`);
+  }
+  if (!cfg.plugins) cfg.plugins = {};
+  cfg.plugins.registryEndpoints = [
+    ...endpoints,
+    { label, url: normalised, enabled: true },
+  ];
+  saveMiladyConfig(cfg);
+  memoryCache = null;
+}
+
+/** Remove a custom registry endpoint by URL. Cannot remove the default. */
+export function removeRegistryEndpoint(url: string): void {
+  const normalised = normaliseEndpointUrl(url);
+  if (isDefaultEndpoint(normalised)) {
+    throw new Error("Cannot remove the default ElizaOS registry.");
+  }
+  const cfg = loadMiladyConfig();
+  const endpoints = cfg.plugins?.registryEndpoints ?? [];
+  const updated = endpoints.filter(
+    (ep) => normaliseEndpointUrl(ep.url) !== normalised,
+  );
+  if (updated.length === endpoints.length) {
+    throw new Error(`Endpoint not found: ${url}`);
+  }
+  if (!cfg.plugins) cfg.plugins = {};
+  cfg.plugins.registryEndpoints = updated;
+  saveMiladyConfig(cfg);
+  memoryCache = null;
+}
+
+/** Toggle an endpoint's enabled status. */
+export function toggleRegistryEndpoint(url: string, enabled: boolean): void {
+  const normalised = normaliseEndpointUrl(url);
+  const cfg = loadMiladyConfig();
+  const endpoints = cfg.plugins?.registryEndpoints ?? [];
+  const ep = endpoints.find((e) => normaliseEndpointUrl(e.url) === normalised);
+  if (!ep) throw new Error(`Endpoint not found: ${url}`);
+  ep.enabled = enabled;
+  if (!cfg.plugins) cfg.plugins = {};
+  cfg.plugins.registryEndpoints = endpoints;
+  saveMiladyConfig(cfg);
+  memoryCache = null;
+}
+
+/**
+ * Fetch a single registry endpoint and parse it into RegistryPluginInfo entries.
+ * Returns null on failure (logged as warning).
+ */
+async function fetchSingleEndpoint(
+  url: string,
+  label: string,
+): Promise<Map<string, RegistryPluginInfo> | null> {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      logger.warn(
+        `[registry-client] Endpoint "${label}" (${url}): ${resp.status} ${resp.statusText}`,
+      );
+      return null;
+    }
+    const data = (await resp.json()) as {
+      registry?: Record<string, unknown>;
+    };
+    if (!data.registry || typeof data.registry !== "object") {
+      logger.warn(
+        `[registry-client] Endpoint "${label}" (${url}): missing registry field`,
+      );
+      return null;
+    }
+    const plugins = new Map<string, RegistryPluginInfo>();
+    for (const [name, raw] of Object.entries(data.registry)) {
+      const e = raw as Record<string, unknown>;
+      const git = (e.git ?? {}) as Record<string, unknown>;
+      const npm = (e.npm ?? {}) as Record<string, unknown>;
+      const supports = (e.supports ?? { v0: false, v1: false, v2: false }) as {
+        v0: boolean;
+        v1: boolean;
+        v2: boolean;
+      };
+      plugins.set(name, {
+        name,
+        gitRepo: (git.repo as string) ?? "unknown/unknown",
+        gitUrl: `https://github.com/${(git.repo as string) ?? "unknown/unknown"}.git`,
+        description: (e.description as string) ?? "",
+        homepage: (e.homepage as string) ?? null,
+        topics: (e.topics as string[]) ?? [],
+        stars: (e.stargazers_count as number) ?? 0,
+        language: (e.language as string) ?? "TypeScript",
+        npm: {
+          package: (npm.repo as string) ?? name,
+          v0Version: (npm.v0 as string) ?? null,
+          v1Version: (npm.v1 as string) ?? null,
+          v2Version: (npm.v2 as string) ?? null,
+        },
+        git: {
+          v0Branch:
+            ((git.v0 as Record<string, unknown>)?.branch as string) ?? null,
+          v1Branch:
+            ((git.v1 as Record<string, unknown>)?.branch as string) ?? null,
+          v2Branch:
+            ((git.v2 as Record<string, unknown>)?.branch as string) ?? null,
+        },
+        supports,
+      });
+    }
+    return plugins;
+  } catch (err) {
+    logger.warn(
+      `[registry-client] Endpoint "${label}" (${url}) failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Fetch all configured custom endpoints in parallel and merge their plugins
+ * into the base map. Custom endpoint plugins override/supplement the default.
+ */
+async function mergeCustomEndpoints(
+  plugins: Map<string, RegistryPluginInfo>,
+): Promise<void> {
+  const endpoints = getConfiguredEndpoints().filter(
+    (ep) => ep.enabled !== false,
+  );
+  if (endpoints.length === 0) return;
+
+  const results = await Promise.allSettled(
+    endpoints.map((ep) => fetchSingleEndpoint(ep.url, ep.label)),
+  );
+
+  for (const result of results) {
+    if (result.status === "fulfilled" && result.value) {
+      for (const [name, info] of result.value) {
+        plugins.set(name, info);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -787,12 +1083,15 @@ export async function getRegistryPlugins(): Promise<
   const fromFile = await readFileCache();
   if (fromFile) {
     await applyLocalWorkspaceApps(fromFile);
+    await applyNodeModulePlugins(fromFile);
+    await mergeCustomEndpoints(fromFile);
     memoryCache = { plugins: fromFile, fetchedAt: Date.now() };
     return fromFile;
   }
 
   logger.info("[registry-client] Fetching plugin registry from next branch...");
   const plugins = await fetchFromNetwork();
+  await mergeCustomEndpoints(plugins);
   logger.info(`[registry-client] Loaded ${plugins.size} plugins`);
 
   memoryCache = { plugins, fetchedAt: Date.now() };
@@ -818,17 +1117,31 @@ export async function refreshRegistry(): Promise<
   return getRegistryPlugins();
 }
 
-/** Look up a plugin by name (exact → @elizaos/ prefix → bare suffix). */
-export async function getPluginInfo(
-  name: string,
-): Promise<RegistryPluginInfo | null> {
-  const registry = await getRegistryPlugins();
+function normalizePluginLookupAlias(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
 
+  const lower = trimmed.toLowerCase();
+  if (lower === "obsidan") return "obsidian";
+  if (lower === "plugin-obsidan") return "plugin-obsidian";
+  if (lower === "@elizaos/plugin-obsidan") return "@elizaos/plugin-obsidian";
+
+  return trimmed;
+}
+
+function getPluginInfoFromRegistry(
+  registry: Map<string, RegistryPluginInfo>,
+  name: string,
+): RegistryPluginInfo | null {
   let p = registry.get(name);
   if (p) return p;
 
   if (!name.startsWith("@")) {
     p = registry.get(`@elizaos/${name}`);
+    if (p) return p;
+
+    // Try with plugin- prefix (allows "cua" → "@elizaos/plugin-cua")
+    p = registry.get(`@elizaos/plugin-${name}`);
     if (p) return p;
   }
 
@@ -836,6 +1149,23 @@ export async function getPluginInfo(
   for (const [key, value] of registry) {
     if (key.endsWith(`/${bare}`)) return value;
   }
+
+  return null;
+}
+
+/** Look up a plugin by name (exact → @elizaos/ prefix → bare suffix). */
+export async function getPluginInfo(
+  name: string,
+): Promise<RegistryPluginInfo | null> {
+  const registry = await getRegistryPlugins();
+  const normalizedName = normalizePluginLookupAlias(name);
+  const candidates = Array.from(new Set([normalizedName, name]));
+
+  for (const candidate of candidates) {
+    const info = getPluginInfoFromRegistry(registry, candidate);
+    if (info) return info;
+  }
+
   return null;
 }
 

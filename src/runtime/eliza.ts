@@ -429,15 +429,18 @@ const PROVIDER_PLUGIN_MAP: Readonly<Record<string, string>> = {
 /**
  * Optional feature plugins keyed by feature name.
  *
- * Currently empty — reserved for future feature→plugin mappings.
- * The lookup code in {@link collectPluginNames} is intentionally kept
- * so new entries work without additional wiring.
+ * Mappings here support short IDs in allow-lists and feature toggles.
+ * Keep this map in sync with optional plugin registration and tests.
  */
 const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   browser: "@elizaos/plugin-browser",
   vision: "@elizaos/plugin-vision",
   cron: "@elizaos/plugin-cron",
+  cua: "@elizaos/plugin-cua",
   computeruse: "@elizaos/plugin-computeruse",
+  obsidian: "@elizaos/plugin-obsidian",
+  repoprompt: "@elizaos/plugin-repoprompt",
+  repoPrompt: "@elizaos/plugin-repoprompt",
   x402: "@elizaos/plugin-x402",
 };
 
