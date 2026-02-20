@@ -1,3 +1,3 @@
-## 2026-02-15 - Determinism in Parallel Processing
-**Learning:** When using `Promise.all` to parallelize data fetching, ensure that the *processing* of the fetched data happens sequentially if the order matters (e.g., for file reproducibility or precedence rules). Direct side-effects inside `map` callbacks can lead to non-deterministic results.
-**Action:** Fetch data with `Promise.all`, then iterate over the results array synchronously to process them.
+## 2026-02-20 - Manual Config Invalidation
+**Learning:** `state.config` in `src/api/server.ts` is cached in memory but requires manual invalidation or reload when the underlying config file changes (e.g. via `installPlugin`). This was causing endpoints like `GET /api/plugins` to re-read the file on every request to be safe.
+**Action:** Centralized config reloading where possible, or use explicit reloads after mutation operations. Future refactor should consider a `ConfigService` that emits events on change.

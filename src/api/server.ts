@@ -2796,13 +2796,9 @@ async function handleRequest(
 
   // ── GET /api/plugins ────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/plugins") {
-    // Re-read config from disk so we pick up plugins installed since server start.
-    let freshConfig: MilaidyConfig;
-    try {
-      freshConfig = loadMilaidyConfig();
-    } catch {
-      freshConfig = state.config;
-    }
+    // Optimization: Use in-memory config instead of re-reading from disk on every request.
+    // The config is updated in memory whenever we modify it via the API.
+    const freshConfig = state.config;
 
     // Merge user-installed plugins into the list (they don't exist in plugins.json)
     const bundledIds = new Set(state.plugins.map((p) => p.id));
@@ -3026,7 +3022,7 @@ async function handleRequest(
     );
     try {
       const registry = await getRegistryPlugins();
-      const installed = await listInstalled();
+      const installed = listInstalled(state.config);
       const installedNames = new Set(installed.map((p) => p.name));
 
       // Also check which plugins are loaded in the runtime
@@ -3163,6 +3159,15 @@ async function handleRequest(
         return;
       }
 
+      // Reload config to sync state
+      try {
+        state.config = loadMilaidyConfig();
+      } catch (err) {
+        logger.warn(
+          `[milaidy-api] Failed to reload config after install: ${err}`,
+        );
+      }
+
       // If autoRestart is not explicitly false, restart the agent
       if (body.autoRestart !== false && result.requiresRestart) {
         const { requestRestart } = await import("../runtime/restart.js");
@@ -3222,6 +3227,15 @@ async function handleRequest(
       if (!result.success) {
         json(res, { ok: false, error: result.error }, 422);
         return;
+      }
+
+      // Reload config to sync state
+      try {
+        state.config = loadMilaidyConfig();
+      } catch (err) {
+        logger.warn(
+          `[milaidy-api] Failed to reload config after uninstall: ${err}`,
+        );
       }
 
       if (body.autoRestart !== false && result.requiresRestart) {
