@@ -56,6 +56,8 @@ export interface ProvisionWorkspaceOptions {
   repo: string;
   /** Base branch to create from (default: "main") */
   baseBranch?: string;
+  /** Exact branch name to use (overrides auto-generated name) */
+  branchName?: string;
   /** Use worktree instead of clone */
   useWorktree?: boolean;
   /** Parent workspace ID for worktree */
@@ -216,6 +218,7 @@ export class CodingWorkspaceService {
       strategy: options.useWorktree ? "worktree" : "clone",
       parentWorkspace: options.parentWorkspaceId,
       branchStrategy: "feature_branch",
+      branchName: options.branchName,
       baseBranch: options.baseBranch ?? "main",
       execution: {
         id: executionId,

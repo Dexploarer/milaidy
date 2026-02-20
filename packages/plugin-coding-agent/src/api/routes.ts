@@ -78,6 +78,16 @@ export async function handleCodingAgentRoutes(
     return true;
   }
 
+  // GET /api/coding-agents/metrics
+  if (method === "GET" && pathname === "/api/coding-agents/metrics") {
+    if (!ctx.ptyService) {
+      sendError(res, "PTY Service not available", 503);
+      return true;
+    }
+    sendJson(res, ctx.ptyService.getAgentMetrics() as unknown as JsonValue);
+    return true;
+  }
+
   // === Workspace Files ===
   // GET /api/coding-agents/workspace-files?agentType=claude
   if (method === "GET" && pathname === "/api/coding-agents/workspace-files") {
@@ -309,6 +319,7 @@ export async function handleCodingAgentRoutes(
       const workspace = await ctx.workspaceService.provisionWorkspace({
         repo: repo as string,
         baseBranch: baseBranch as string,
+        branchName: branchName as string | undefined,
         useWorktree: useWorktree as boolean,
         parentWorkspaceId: parentWorkspaceId as string,
       });
