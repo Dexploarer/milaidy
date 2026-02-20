@@ -33,7 +33,7 @@ function createEventStream(events: Array<Record<string, unknown>>) {
   })();
 }
 
-type LargeHandler = (
+type ModelHandler = (
   rt: IAgentRuntime,
   p: Record<string, unknown>,
 ) => Promise<unknown>;
@@ -49,6 +49,7 @@ function createModelRegistrationContext(): {
   runtime: IAgentRuntime;
   calls: ModelRegistrationCall[];
   getLargeHandler: () => unknown;
+  getObjectSmallHandler: () => unknown;
 } {
   const calls: ModelRegistrationCall[] = [];
 
@@ -71,11 +72,17 @@ function createModelRegistrationContext(): {
         (call) =>
           call.modelType === ModelType.TEXT_LARGE && call.provider === "pi-ai",
       )?.handler,
+    getObjectSmallHandler: () =>
+      calls.find(
+        (call) =>
+          call.modelType === ModelType.OBJECT_SMALL &&
+          call.provider === "pi-ai",
+      )?.handler,
   };
 }
 
 describe("registerPiAiModelHandler", () => {
-  it("registers handlers for TEXT_LARGE and TEXT_SMALL", () => {
+  it("registers handlers for text and object model types", () => {
     const modelContext = createModelRegistrationContext();
 
     registerPiAiModelHandler(modelContext.runtime as IAgentRuntime, {
@@ -91,6 +98,14 @@ describe("registerPiAiModelHandler", () => {
         }),
         expect.objectContaining({
           modelType: ModelType.TEXT_SMALL,
+          provider: "pi-ai",
+        }),
+        expect.objectContaining({
+          modelType: ModelType.OBJECT_LARGE,
+          provider: "pi-ai",
+        }),
+        expect.objectContaining({
+          modelType: ModelType.OBJECT_SMALL,
           provider: "pi-ai",
         }),
       ]),
@@ -118,7 +133,7 @@ describe("registerPiAiModelHandler", () => {
     expect(handler).toBeTypeOf("function");
     if (!handler) throw new Error("Expected TEXT_LARGE handler");
 
-    const out = await (handler as LargeHandler)(
+    const out = await (handler as ModelHandler)(
       modelContext.runtime as IAgentRuntime,
       { prompt: "hello" },
     );
@@ -146,7 +161,7 @@ describe("registerPiAiModelHandler", () => {
     expect(handler).toBeTypeOf("function");
     if (!handler) throw new Error("Expected TEXT_LARGE handler");
 
-    const out = await (handler as LargeHandler)(
+    const out = await (handler as ModelHandler)(
       modelContext.runtime as IAgentRuntime,
       {
         prompt: "hello",
@@ -158,5 +173,35 @@ describe("registerPiAiModelHandler", () => {
     expect(onStreamChunk).toHaveBeenCalledTimes(2);
     expect(onStreamChunk).toHaveBeenNthCalledWith(1, "a");
     expect(onStreamChunk).toHaveBeenNthCalledWith(2, "b");
+  });
+
+  it("parses fenced JSON for OBJECT_SMALL handlers", async () => {
+    streamMock.mockReset();
+
+    const modelContext = createModelRegistrationContext();
+    registerPiAiModelHandler(modelContext.runtime as IAgentRuntime, {
+      largeModel: createDummyModel(),
+      smallModel: createDummyModel(),
+    });
+
+    streamMock.mockReturnValueOnce(
+      createEventStream([
+        {
+          type: "text_delta",
+          delta: '```json\n{"relationships":[]}\n```',
+        },
+      ]),
+    );
+
+    const handler = modelContext.getObjectSmallHandler();
+    expect(handler).toBeTypeOf("function");
+    if (!handler) throw new Error("Expected OBJECT_SMALL handler");
+
+    const out = await (handler as ModelHandler)(
+      modelContext.runtime as IAgentRuntime,
+      { prompt: "return json" },
+    );
+
+    expect(out).toEqual({ relationships: [] });
   });
 });
