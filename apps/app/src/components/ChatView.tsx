@@ -325,8 +325,9 @@ export function ChatView() {
           }`}
           onClick={() => setAvatarVisible((v) => !v)}
           title={avatarVisible ? "Hide avatar" : "Show avatar"}
+          aria-label={avatarVisible ? "Hide avatar" : "Show avatar"}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
             {!avatarVisible && <line x1="3" y1="3" x2="21" y2="21" />}
@@ -346,8 +347,9 @@ export function ChatView() {
             if (muting) voice.stopSpeaking();
           }}
           title={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
+          aria-label={agentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
             {agentVoiceMuted ? (
               <line x1="23" y1="9" x2="17" y2="15" />
@@ -374,8 +376,9 @@ export function ChatView() {
             }`}
             onClick={voice.toggleListening}
             title={voice.isListening ? "Stop listening" : "Voice input"}
+            aria-label={voice.isListening ? "Stop listening" : "Voice input"}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill={voice.isListening ? "currentColor" : "none"} stroke="currentColor" strokeWidth={voice.isListening ? "0" : "2"}>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill={voice.isListening ? "currentColor" : "none"} stroke="currentColor" strokeWidth={voice.isListening ? "0" : "2"}>
               {voice.isListening ? (
                 <>
                   <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
@@ -408,6 +411,7 @@ export function ChatView() {
             onChange={(e) => setState("chatInput", e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={chatSending}
+            aria-label="Chat message"
           />
         )}
 
