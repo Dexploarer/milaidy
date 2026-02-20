@@ -34,6 +34,16 @@ export interface RegistryPluginInfo {
   npm: RegistryPluginNpmInfo;
   supports: RegistryVersionSupport;
   // App-specific metadata
+  kind?: string;
+  appMeta?: {
+    displayName: string;
+    category: string;
+    launchType: string;
+    launchUrl: string | null;
+    icon: string | null;
+    capabilities: string[];
+    viewer?: RegistryPluginViewerInfo;
+  };
   category?: string;
   capabilities?: string[];
   icon?: string | null;
