@@ -33,6 +33,12 @@ const cache = new Map<
   string,
   { files: WorkspaceBootstrapFile[]; at: number }
 >();
+
+/** @internal Exported for testing. */
+export function _resetCacheForTest() {
+  cache.clear();
+}
+
 /** Maximum number of workspace directories to cache simultaneously. */
 const MAX_CACHE_ENTRIES = 20;
 
