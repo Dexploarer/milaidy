@@ -128,6 +128,8 @@ interface ServerState {
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
+  /** Rate limit tracking map (key -> { count, resetAt }). */
+  rateLimitMap: Map<string, { count: number; resetAt: number }>;
 }
 
 interface ShareIngestItem {
@@ -1592,6 +1594,24 @@ function isAuthorized(req: http.IncomingMessage): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
+export function checkRateLimit(
+  state: ServerState,
+  key: string,
+  limit: number,
+  windowMs: number,
+): boolean {
+  if (!state.rateLimitMap) return true; // Safety check
+  const now = Date.now();
+  const entry = state.rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    state.rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) return false;
+  entry.count += 1;
+  return true;
+}
+
 function applySecurityHeaders(res: http.ServerResponse): void {
   res.setHeader("Content-Security-Policy", "default-src 'none'");
   res.setHeader("X-Frame-Options", "DENY");
@@ -2353,6 +2373,13 @@ async function handleRequest(
   // ── POST /api/agent/reset ──────────────────────────────────────────────
   // Wipe config, workspace (memory), and return to onboarding.
   if (method === "POST" && pathname === "/api/agent/reset") {
+    if (
+      !checkRateLimit(state, `reset:${req.socket.remoteAddress ?? "?"}`, 1, 60000)
+    ) {
+      error(res, "Reset limit exceeded. Try again later.", 429);
+      return;
+    }
+
     try {
       // 1. Stop the runtime if it's running
       if (state.runtime) {
@@ -2421,6 +2448,18 @@ async function handleRequest(
   // ── POST /api/agent/export ─────────────────────────────────────────────
   // Export the entire agent as a password-encrypted binary file.
   if (method === "POST" && pathname === "/api/agent/export") {
+    if (
+      !checkRateLimit(
+        state,
+        `export:${req.socket.remoteAddress ?? "?"}`,
+        5,
+        60000,
+      )
+    ) {
+      error(res, "Export limit exceeded. Try again later.", 429);
+      return;
+    }
+
     if (!state.runtime) {
       error(res, "Agent is not running — start it before exporting.", 503);
       return;
@@ -2495,6 +2534,18 @@ async function handleRequest(
   // ── POST /api/agent/import ─────────────────────────────────────────────
   // Import an agent from a password-encrypted .eliza-agent file.
   if (method === "POST" && pathname === "/api/agent/import") {
+    if (
+      !checkRateLimit(
+        state,
+        `import:${req.socket.remoteAddress ?? "?"}`,
+        5,
+        60000,
+      )
+    ) {
+      error(res, "Import limit exceeded. Try again later.", 429);
+      return;
+    }
+
     if (!state.runtime) {
       error(res, "Agent is not running — start it before importing.", 503);
       return;
@@ -4561,6 +4612,18 @@ async function handleRequest(
   // SECURITY: Requires { confirm: true } in the request body to prevent
   // accidental exposure of private keys.
   if (method === "POST" && pathname === "/api/wallet/export") {
+    if (
+      !checkRateLimit(
+        state,
+        `wallet_export:${req.socket.remoteAddress ?? "?"}`,
+        5,
+        60000,
+      )
+    ) {
+      error(res, "Wallet export limit exceeded. Try again later.", 429);
+      return;
+    }
+
     const body = await readJsonBody<{ confirm?: boolean }>(req, res);
     if (!body) return;
 
@@ -4754,6 +4817,20 @@ async function handleRequest(
 
   // ── Cloud routes (/api/cloud/*) ─────────────────────────────────────────
   if (pathname.startsWith("/api/cloud/")) {
+    if (pathname === "/api/cloud/login" && method === "POST") {
+      if (
+        !checkRateLimit(
+          state,
+          `cloud_login:${req.socket.remoteAddress ?? "?"}`,
+          5,
+          60000,
+        )
+      ) {
+        error(res, "Too many login attempts. Try again later.", 429);
+        return;
+      }
+    }
+
     const cloudState: CloudRouteState = {
       config: state.config,
       cloudManager: state.cloudManager,
@@ -6015,6 +6092,7 @@ export async function startApiServer(opts?: {
     cloudManager: null,
     appManager: new AppManager(),
     shareIngestQueue: [],
+    rateLimitMap: new Map(),
   };
 
   // Wire the app manager to the runtime if already running
@@ -6316,7 +6394,17 @@ export async function startApiServer(opts?: {
   };
 
   // Broadcast status every 5 seconds
-  const statusInterval = setInterval(broadcastStatus, 5000);
+  const statusInterval = setInterval(() => {
+    broadcastStatus();
+
+    // Cleanup expired rate limit entries
+    const now = Date.now();
+    for (const [key, entry] of state.rateLimitMap.entries()) {
+      if (now > entry.resetAt) {
+        state.rateLimitMap.delete(key);
+      }
+    }
+  }, 5000);
 
   /**
    * Restore the in-memory conversation list from the database.
