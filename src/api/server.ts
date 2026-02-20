@@ -11,6 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import {
   type AgentRuntime,
@@ -1649,6 +1650,12 @@ const STATIC_MIME: Record<string, string> = {
 let uiDir: string | null | undefined;
 let uiIndexHtml: Buffer | null = null;
 
+/** Reset the cached UI directory for testing. */
+export function _resetUiDirForTest(): void {
+  uiDir = undefined;
+  uiIndexHtml = null;
+}
+
 function resolveUiDir(): string | null {
   if (uiDir !== undefined) return uiDir;
   if (process.env.NODE_ENV !== "production") {
@@ -1700,11 +1707,11 @@ function sendStaticResponse(
  * Serve built dashboard assets from apps/app/dist with SPA fallback.
  * Returns true when the request is handled.
  */
-function serveStaticUi(
+export async function serveStaticUi(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   pathname: string,
-): boolean {
+): Promise<boolean> {
   const root = resolveUiDir();
   if (!root) return false;
 
@@ -1732,24 +1739,26 @@ function serveStaticUi(
   }
 
   try {
-    const stat = fs.statSync(candidatePath);
+    const stat = await fs.promises.stat(candidatePath);
     if (stat.isFile()) {
       const ext = path.extname(candidatePath).toLowerCase();
-      const body = fs.readFileSync(candidatePath);
       const cacheControl = relativePath.startsWith("assets/")
         ? "public, max-age=31536000, immutable"
         : "public, max-age=0, must-revalidate";
-      sendStaticResponse(
-        req,
-        res,
-        200,
-        {
-          "Cache-Control": cacheControl,
-          "Content-Length": body.length,
-          "Content-Type": STATIC_MIME[ext] ?? "application/octet-stream",
-        },
-        body,
-      );
+
+      res.writeHead(200, {
+        "Cache-Control": cacheControl,
+        "Content-Length": stat.size,
+        "Content-Type": STATIC_MIME[ext] ?? "application/octet-stream",
+      });
+
+      if (req.method === "HEAD") {
+        res.end();
+        return true;
+      }
+
+      const stream = fs.createReadStream(candidatePath);
+      await pipeline(stream, res);
       return true;
     }
   } catch {
@@ -10608,7 +10617,7 @@ async function handleRequest(
 
   // ── Static UI serving (production) ──────────────────────────────────────
   if (method === "GET" || method === "HEAD") {
-    if (serveStaticUi(req, res, pathname)) return;
+    if (await serveStaticUi(req, res, pathname)) return;
   }
 
   // ── Fallback ────────────────────────────────────────────────────────────
