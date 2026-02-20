@@ -18,6 +18,12 @@ interface MiladyApiProbe {
   authDenied: boolean;
 }
 
+interface ResolvedTuiApiBase {
+  baseUrl: string;
+  source: "cli" | "env" | "auto";
+  reachableCandidateCount: number;
+}
+
 async function fetchJsonWithTimeout(
   url: string,
   timeoutMs = 1200,
@@ -48,15 +54,22 @@ async function fetchJsonWithTimeout(
   }
 }
 
-function getMiladyApiProbeHeaders(): Record<string, string> | undefined {
+function getMiladyApiProbeHeaders(
+  includeAuth: boolean,
+): Record<string, string> | undefined {
+  if (!includeAuth) return undefined;
+
   const token = process.env.MILADY_API_TOKEN?.trim();
   if (!token) return undefined;
 
   return { Authorization: `Bearer ${token}` };
 }
 
-async function probeMiladyApi(baseUrl: string): Promise<MiladyApiProbe> {
-  const headers = getMiladyApiProbeHeaders();
+async function probeMiladyApi(
+  baseUrl: string,
+  includeAuth = false,
+): Promise<MiladyApiProbe> {
+  const headers = getMiladyApiProbeHeaders(includeAuth);
   const statusRes = await fetchJsonWithTimeout(
     `${baseUrl}/api/status`,
     1200,
@@ -129,14 +142,28 @@ async function probeMiladyApi(baseUrl: string): Promise<MiladyApiProbe> {
   };
 }
 
-async function resolveTuiApiBaseUrl(cliValue?: string): Promise<string | null> {
+async function resolveTuiApiBaseUrl(
+  cliValue?: string,
+): Promise<ResolvedTuiApiBase | null> {
   const explicit = cliValue?.trim();
-  if (explicit) return normalizeApiBaseUrl(explicit);
+  if (explicit) {
+    return {
+      baseUrl: normalizeApiBaseUrl(explicit),
+      source: "cli",
+      reachableCandidateCount: 1,
+    };
+  }
 
   const envValue =
     process.env.MILADY_API_BASE_URL?.trim() ||
     process.env.MILADY_API_BASE?.trim();
-  if (envValue) return normalizeApiBaseUrl(envValue);
+  if (envValue) {
+    return {
+      baseUrl: normalizeApiBaseUrl(envValue),
+      source: "env",
+      reachableCandidateCount: 1,
+    };
+  }
 
   const candidates = [
     process.env.MILADY_PORT?.trim()
@@ -157,8 +184,12 @@ async function resolveTuiApiBaseUrl(cliValue?: string): Promise<string | null> {
 
   const probes: MiladyApiProbe[] = [];
   for (const candidate of normalizedCandidates) {
-    probes.push(await probeMiladyApi(candidate));
+    probes.push(await probeMiladyApi(candidate, false));
   }
+
+  const reachableCandidateCount = probes.filter(
+    (probe) => probe.reachable,
+  ).length;
 
   const ready = probes.find(
     (probe) =>
@@ -168,7 +199,13 @@ async function resolveTuiApiBaseUrl(cliValue?: string): Promise<string | null> {
       probe.onboardingComplete === true &&
       (probe.pluginCount ?? 0) > 0,
   );
-  if (ready) return ready.baseUrl;
+  if (ready) {
+    return {
+      baseUrl: ready.baseUrl,
+      source: "auto",
+      reachableCandidateCount,
+    };
+  }
 
   const onboarded = probes.find(
     (probe) =>
@@ -177,10 +214,22 @@ async function resolveTuiApiBaseUrl(cliValue?: string): Promise<string | null> {
       probe.runtimeState === "running" &&
       probe.onboardingComplete === true,
   );
-  if (onboarded) return onboarded.baseUrl;
+  if (onboarded) {
+    return {
+      baseUrl: onboarded.baseUrl,
+      source: "auto",
+      reachableCandidateCount,
+    };
+  }
 
   const reachable = probes.find((probe) => probe.reachable);
-  if (reachable) return reachable.baseUrl;
+  if (reachable) {
+    return {
+      baseUrl: reachable.baseUrl,
+      source: "auto",
+      reachableCandidateCount,
+    };
+  }
 
   return null;
 }
@@ -202,14 +251,19 @@ async function tuiAction(options: {
       return;
     }
 
-    const apiBaseUrl = await resolveTuiApiBaseUrl(options.apiBaseUrl);
-    if (!apiBaseUrl) {
+    const resolvedApi = await resolveTuiApiBaseUrl(options.apiBaseUrl);
+    if (!resolvedApi) {
       throw new Error(
         "No Milady API runtime detected. Start frontend/API first, pass --api-base-url, or use --local-runtime.",
       );
     }
 
-    const probe = await probeMiladyApi(apiBaseUrl);
+    const apiBaseUrl = resolvedApi.baseUrl;
+    const includeAuthProbe =
+      resolvedApi.source !== "auto" ||
+      resolvedApi.reachableCandidateCount === 1;
+
+    const probe = await probeMiladyApi(apiBaseUrl, includeAuthProbe);
     if (!probe.reachable) {
       throw new Error(
         `Could not reach Milady API runtime at ${apiBaseUrl}. Check port and network connectivity.`,
@@ -221,6 +275,12 @@ async function tuiAction(options: {
       if (!hasToken) {
         throw new Error(
           `Milady API runtime at ${apiBaseUrl} requires authentication. Set MILADY_API_TOKEN and retry.`,
+        );
+      }
+
+      if (!includeAuthProbe) {
+        throw new Error(
+          `Milady API runtime at ${apiBaseUrl} requires authentication, but multiple local API candidates were detected. For token safety, auto-discovery does not send MILADY_API_TOKEN to all ports. Re-run with --api-base-url ${apiBaseUrl} to opt in explicitly.`,
         );
       }
 

@@ -75,18 +75,21 @@ class ControlledWsSocket implements WsSocketLike {
 
 describe("ApiModeWsClient", () => {
   let sockets: ControlledWsSocket[];
+  let socketUrls: string[];
 
   const socketFactory = (
-    _url: string,
+    url: string,
     _options: WsSocketFactoryOptions,
   ): WsSocketLike => {
     const socket = new ControlledWsSocket();
     sockets.push(socket);
+    socketUrls.push(url);
     return socket;
   };
 
   beforeEach(() => {
     sockets = [];
+    socketUrls = [];
   });
 
   afterEach(() => {
@@ -141,6 +144,20 @@ describe("ApiModeWsClient", () => {
     expect(sockets[1].sent).toEqual([
       JSON.stringify({ type: "active-conversation", conversationId: "conv-2" }),
     ]);
+
+    client.close();
+  });
+
+  it("preserves api base path prefix when constructing websocket url", () => {
+    const client = new ApiModeWsClient({
+      apiBaseUrl: "https://example.test/milady/runtime",
+      onMessage: vi.fn(),
+      socketFactory,
+    });
+
+    client.connect();
+
+    expect(socketUrls[0]).toBe("wss://example.test/milady/runtime/ws");
 
     client.close();
   });

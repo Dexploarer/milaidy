@@ -228,7 +228,10 @@ export class ApiModeWsClient {
 
   private buildWsUrl(apiBaseUrl: string): string {
     const base = new URL(apiBaseUrl);
-    const wsUrl = new URL("/ws", base);
+    const wsUrl = new URL(base.toString());
+    const basePath = wsUrl.pathname.replace(/\/+$/, "");
+
+    wsUrl.pathname = `${basePath}/ws`.replace(/\/+/g, "/");
     wsUrl.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     wsUrl.search = "";
     wsUrl.hash = "";
