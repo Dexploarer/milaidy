@@ -230,6 +230,15 @@ const LOCAL_APP_OVERRIDES: Readonly<Record<string, LocalAppOverride>> = {
       sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
     },
   },
+  "@lunchtable/plugin-ltcg": {
+    launchType: "connect",
+    launchUrl: "http://localhost:3334",
+    viewer: {
+      url: "http://localhost:3334",
+      postMessageAuth: true,
+      sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
+    },
+  },
 };
 
 function uniquePaths(paths: string[]): string[] {
@@ -568,6 +577,34 @@ async function discoverLocalWorkspaceApps(): Promise<
     }
   } catch {
     // installed dir may not exist
+  }
+
+  // 3. Scan custom drop-in plugins (~/.milady/plugins/custom/) for app overrides
+  const customBase = path.join(stateDir, "plugins", "custom");
+  try {
+    const customEntries = await fs.readdir(customBase, { withFileTypes: true });
+    for (const entry of customEntries) {
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+      const pkgDir = path.join(customBase, entry.name);
+      const pkgJson = await readJsonFile<LocalPackageJson>(
+        path.join(pkgDir, "package.json"),
+      );
+      if (!pkgJson?.name) continue;
+      // Only include if this package has an app override registered
+      if (!LOCAL_APP_OVERRIDES[pkgJson.name]) continue;
+      if (discovered.has(pkgJson.name)) continue;
+
+      const manifest = await readJsonFile<LocalPluginManifest>(
+        path.join(pkgDir, "elizaos.plugin.json"),
+      );
+      const dirName = pkgJson.name
+        .replace(/^@[^/]+\//, "")
+        .replace(/^plugin-/, "app-");
+      const info = buildDiscoveredEntry(pkgDir, dirName, pkgJson, manifest);
+      if (info) discovered.set(info.name, info);
+    }
+  } catch {
+    // custom dir may not exist
   }
 
   return discovered;

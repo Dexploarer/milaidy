@@ -42,6 +42,8 @@ const HYPERSCAPE_APP_NAME = "@elizaos/app-hyperscape";
 const HYPERSCAPE_AUTH_MESSAGE_TYPE = "HYPERSCAPE_AUTH";
 const RS_2004SCAPE_APP_NAME = "@elizaos/app-2004scape";
 const RS_2004SCAPE_AUTH_MESSAGE_TYPE = "RS_2004SCAPE_AUTH";
+const LTCG_APP_NAME = "@lunchtable/plugin-ltcg";
+const LTCG_AUTH_MESSAGE_TYPE = "LTCG_AUTH";
 const SAFE_APP_URL_PROTOCOLS = new Set(["http:", "https:"]);
 
 type AppViewerConfig = NonNullable<AppLaunchResult["viewer"]>;
@@ -198,6 +200,17 @@ function buildViewerAuthMessage(
       sessionToken:
         sessionToken && sessionToken.length > 0 ? sessionToken : undefined,
       agentId: agentId && agentId.length > 0 ? agentId : undefined,
+    };
+  }
+
+  // LTCG auth - uses API key and optional agent ID from environment
+  if (appName === LTCG_APP_NAME) {
+    const authToken = process.env.LTCG_API_KEY?.trim();
+    if (!authToken) return undefined;
+    return {
+      type: LTCG_AUTH_MESSAGE_TYPE,
+      authToken,
+      agentId: process.env.LTCG_AGENT_ID?.trim() || undefined,
     };
   }
 
@@ -444,11 +457,17 @@ export class AppManager {
     pluginManager: PluginManagerLike,
   ): Promise<RegistryPluginInfo[]> {
     const registry = await pluginManager.refreshRegistry();
-    // Filter to only include app packages (those with "/app-" in the name)
+    // Filter to include app packages: those with "/app-" in the name,
+    // or those with kind "app" / appMeta (e.g. plugins registered as apps via overrides)
     return Array.from(registry.values()).filter((plugin) => {
       const name = plugin.name.toLowerCase();
       const npmPackage = plugin.npm.package.toLowerCase();
-      return name.includes("/app-") || npmPackage.includes("/app-");
+      return (
+        name.includes("/app-") ||
+        npmPackage.includes("/app-") ||
+        plugin.kind === "app" ||
+        plugin.appMeta !== undefined
+      );
     });
   }
 

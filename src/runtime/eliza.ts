@@ -712,7 +712,7 @@ export async function scanDropInPlugins(
   }
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
 
     const pluginDir = path.join(dir, entry.name);
     let pluginName = entry.name;

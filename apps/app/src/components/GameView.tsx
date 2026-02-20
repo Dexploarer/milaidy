@@ -18,6 +18,7 @@ const DEFAULT_VIEWER_SANDBOX = "allow-scripts allow-same-origin allow-popups";
 const READY_EVENT_BY_AUTH_TYPE: Record<string, string> = {
   HYPERSCAPE_AUTH: "HYPERSCAPE_READY",
   RS_2004SCAPE_AUTH: "RS_2004SCAPE_READY",
+  LTCG_AUTH: "LTCG_READY",
 };
 
 function resolvePostMessageTargetOrigin(viewerUrl: string): string {
