@@ -27,7 +27,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { logger } from "@elizaos/core";
-import { loadMilaidyConfig, saveMilaidyConfig } from "../config/config.js";
+import { loadMilaidyConfig, saveMilaidyConfig, type MilaidyConfig } from "../config/config.js";
 import { requestRestart } from "../runtime/restart.js";
 import { getPluginInfo, type RegistryPluginInfo } from "./registry-client.js";
 
@@ -575,14 +575,14 @@ function recordInstallation(
 // ---------------------------------------------------------------------------
 
 /** List all user-installed plugins from the config. */
-export function listInstalledPlugins(): Array<{
+export function listInstalledPlugins(config?: MilaidyConfig): Array<{
   name: string;
   version: string;
   installPath: string;
   installedAt: string;
 }> {
-  const config = loadMilaidyConfig();
-  const installs = config.plugins?.installs ?? {};
+  const cfg = config ?? loadMilaidyConfig();
+  const installs = cfg.plugins?.installs ?? {};
 
   return Object.entries(installs).map(([name, record]) => ({
     name,
