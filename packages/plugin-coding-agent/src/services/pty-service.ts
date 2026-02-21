@@ -537,21 +537,62 @@ export class PTYService {
     if (options.initialTask) {
       const task = options.initialTask;
       const sid = session.id;
+      // Per-agent post-ready delay. Claude Code has a heavy TUI that
+      // renders update notices, shortcuts, and /ide hints in bursts after
+      // the initial ready pattern — 300ms isn't enough to clear them all.
+      const POST_READY_DELAY: Record<string, number> = {
+        claude: 800,
+        gemini: 300,
+        codex: 300,
+        aider: 200,
+      };
+      const settleMs =
+        POST_READY_DELAY[options.agentType] ?? 300;
+
+      const VERIFY_DELAY_MS = 5000; // how long to wait before checking acceptance
+      const MAX_RETRIES = 2;
+      const MIN_NEW_LINES = 15; // agent working produces significant output
+
+      const sendTaskWithRetry = (attempt: number) => {
+        const buffer = this.sessionOutputBuffers.get(sid);
+        const baselineLength = buffer?.length ?? 0;
+
+        this.log(
+          `Session ${sid} — sending task (attempt ${attempt + 1}, ${settleMs}ms settle, baseline ${baselineLength} lines)`,
+        );
+
+        this.sendToSession(sid, task).catch((err) =>
+          this.log(`Failed to send deferred task to ${sid}: ${err}`),
+        );
+
+        // After a delay, verify the agent actually started working.
+        // If the buffer barely grew, the TUI likely swallowed the input.
+        if (attempt < MAX_RETRIES) {
+          setTimeout(() => {
+            const currentLength = buffer?.length ?? 0;
+            const newLines = currentLength - baselineLength;
+            if (newLines < MIN_NEW_LINES) {
+              this.log(
+                `Session ${sid} — task may not have been accepted (only ${newLines} new lines after ${VERIFY_DELAY_MS}ms). Retrying (attempt ${attempt + 2}/${MAX_RETRIES + 1})`,
+              );
+              sendTaskWithRetry(attempt + 1);
+            } else {
+              this.log(
+                `Session ${sid} — task accepted (${newLines} new lines after ${VERIFY_DELAY_MS}ms)`,
+              );
+            }
+          }, VERIFY_DELAY_MS);
+        }
+      };
+
       let taskSent = false;
       const sendTask = () => {
         if (taskSent) return;
         taskSent = true;
-        this.log(
-          `Session ${sid} ready — sending deferred task (300ms settle delay)`,
-        );
         // Delay to let TUI finish rendering after ready detection.
         // Without this, Claude Code's TUI can swallow the Enter key
-        // if it arrives during a render cycle (50ms worker delay is too short).
-        setTimeout(() => {
-          this.sendToSession(sid, task).catch((err) =>
-            this.log(`Failed to send deferred task to ${sid}: ${err}`),
-          );
-        }, 300);
+        // if it arrives during a render cycle.
+        setTimeout(() => sendTaskWithRetry(0), settleMs);
         if (this.usingBunWorker) {
           (this.manager as BunCompatiblePTYManager).removeListener(
             "session_ready",
