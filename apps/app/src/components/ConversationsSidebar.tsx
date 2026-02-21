@@ -100,13 +100,26 @@ export function ConversationsSidebar() {
             return (
               <div
                 key={conv.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Select conversation: ${conv.title}`}
+                aria-current={isActive ? "true" : undefined}
                 data-testid="conv-item"
                 data-active={isActive || undefined}
-                className={`flex items-center px-3 py-2 gap-2 cursor-pointer transition-colors border-l-[3px] ${
-                  isActive ? "bg-bg-hover border-l-accent" : "border-l-transparent hover:bg-bg-hover"
+                className={`flex items-center px-3 py-2 gap-2 cursor-pointer transition-colors border-l-[3px] outline-none focus-visible:bg-bg-hover focus-visible:border-l-accent ${
+                  isActive
+                    ? "bg-bg-hover border-l-accent"
+                    : "border-l-transparent hover:bg-bg-hover"
                 } group`}
                 onClick={() => {
                   if (!isEditing) {
+                    void handleSelectConversation(conv.id);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if ((e.key === "Enter" || e.key === " ") && !isEditing) {
+                    e.preventDefault();
                     void handleSelectConversation(conv.id);
                   }
                 }}
@@ -115,6 +128,7 @@ export function ConversationsSidebar() {
                 {isEditing ? (
                   <input
                     ref={inputRef}
+                    aria-label="Rename conversation"
                     className="w-full px-1.5 py-1 border border-accent rounded bg-card text-txt text-[13px] outline-none"
                     value={editingTitle}
                     onChange={(e) => setEditingTitle(e.target.value)}
@@ -125,19 +139,24 @@ export function ConversationsSidebar() {
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate text-txt">{conv.title}</div>
-                      <div className="text-[11px] text-muted mt-0.5">{formatRelativeTime(conv.updatedAt)}</div>
+                      <div className="font-medium truncate text-txt">
+                        {conv.title}
+                      </div>
+                      <div className="text-[11px] text-muted mt-0.5">
+                        {formatRelativeTime(conv.updatedAt)}
+                      </div>
                     </div>
                     <button
                       data-testid="conv-delete"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleDeleteConversation(conv.id);
                       }}
                       title="Delete conversation"
+                      aria-label="Delete conversation"
                     >
-                      ×
+                      <span aria-hidden="true">×</span>
                     </button>
                   </>
                 )}
