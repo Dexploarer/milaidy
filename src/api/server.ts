@@ -1592,11 +1592,15 @@ function isAuthorized(req: http.IncomingMessage): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
-function applySecurityHeaders(res: http.ServerResponse): void {
+export function applySecurityHeaders(res: http.ServerResponse): void {
   res.setHeader("Content-Security-Policy", "default-src 'none'");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader(
+    "Permissions-Policy",
+    "interest-cohort=(), camera=(), microphone=(), geolocation=()",
+  );
 }
 
 async function handleRequest(

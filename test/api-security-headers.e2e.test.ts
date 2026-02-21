@@ -49,6 +49,9 @@ describe("API Security Headers", () => {
     expect(headers["x-frame-options"]).toBe("DENY");
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("no-referrer");
+    expect(headers["permissions-policy"]).toBe(
+      "interest-cohort=(), camera=(), microphone=(), geolocation=()",
+    );
   });
 
   it("GET /api/config includes security headers", async () => {
@@ -58,14 +61,20 @@ describe("API Security Headers", () => {
     expect(headers["x-frame-options"]).toBe("DENY");
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("no-referrer");
+    expect(headers["permissions-policy"]).toBe(
+      "interest-cohort=(), camera=(), microphone=(), geolocation=()",
+    );
   });
 
   it("404 response includes security headers", async () => {
-      const { headers } = await req(port, "GET", "/api/non-existent");
+    const { headers } = await req(port, "GET", "/api/non-existent");
 
-      expect(headers["content-security-policy"]).toBe("default-src 'none'");
-      expect(headers["x-frame-options"]).toBe("DENY");
-      expect(headers["x-content-type-options"]).toBe("nosniff");
-      expect(headers["referrer-policy"]).toBe("no-referrer");
-    });
+    expect(headers["content-security-policy"]).toBe("default-src 'none'");
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["referrer-policy"]).toBe("no-referrer");
+    expect(headers["permissions-policy"]).toBe(
+      "interest-cohort=(), camera=(), microphone=(), geolocation=()",
+    );
+  });
 });
