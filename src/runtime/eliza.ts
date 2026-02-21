@@ -714,7 +714,7 @@ export function collectPluginNames(config: MiladyConfig): Set<string> {
         const pluginName =
           CHANNEL_PLUGIN_MAP[key] ??
           OPTIONAL_PLUGIN_MAP[key] ??
-          `@elizaos/plugin-${key}`;
+          (key.includes("/") ? key : `@elizaos/plugin-${key}`);
         pluginsToLoad.add(pluginName);
       }
     }
@@ -1148,13 +1148,23 @@ async function resolvePlugins(
         }
       } else if (pluginName.startsWith("@milady/plugin-")) {
         // Local Milady plugin — resolve from the compiled dist directory.
+        // Import the index.js directly (importFromPath's resolvePackageEntry
+        // fails because there's no package.json and the extensionless
+        // fallback doesn't match the .js file on disk).
         const shortName = pluginName.replace("@milady/plugin-", "");
         const thisDir = path.dirname(fileURLToPath(import.meta.url));
         const distRoot = thisDir.endsWith("runtime")
           ? path.resolve(thisDir, "..")
           : thisDir;
-        const distDir = path.resolve(distRoot, "plugins", shortName);
-        mod = await importFromPath(distDir, pluginName);
+        const indexPath = path.resolve(
+          distRoot,
+          "plugins",
+          shortName,
+          "index.js",
+        );
+        mod = (await import(
+          pathToFileURL(indexPath).href
+        )) as PluginModuleShape;
       } else {
         // Built-in/npm plugin — import by package name from node_modules.
         mod = (await import(pluginName)) as PluginModuleShape;
@@ -2681,6 +2691,21 @@ export async function startEliza(
   // 2d. Propagate database config into process.env for plugin-sql
   applyDatabaseConfigToEnv(config);
 
+  // 2e. Propagate arbitrary env vars from config.env into process.env.
+  // Milady stores user-defined env vars (plugin settings, API URLs, etc.)
+  // in config.env; ElizaOS plugins read them via process.env / getSetting.
+  if (
+    config.env &&
+    typeof config.env === "object" &&
+    !Array.isArray(config.env)
+  ) {
+    for (const [key, value] of Object.entries(config.env)) {
+      if (typeof value === "string" && !process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  }
+
   // Log active database configuration for debugging persistence issues
   {
     const dbProvider = config.database?.provider ?? "pglite";
@@ -2939,12 +2964,32 @@ export async function startEliza(
   }
   // ── End sandbox setup ───────────────────────────────────────────────────
 
+  // ── Boost preferred model plugin priority ─────────────────────────────
+  // ElizaOS selects the model handler with the highest `priority` for each
+  // ModelType.  All provider plugins default to priority 0, so whichever
+  // registers first wins — essentially random when using Promise.all.
+  // When the user has explicitly chosen a primary model provider (via
+  // `model.primary` in config), we bump that plugin's priority so its
+  // handlers are always selected over other providers.
+  const pluginsForRuntime = otherPlugins.map((p) => p.plugin);
+  if (primaryModel) {
+    for (const plugin of pluginsForRuntime) {
+      if (plugin.name === primaryModel) {
+        plugin.priority = (plugin.priority ?? 0) + 10;
+        logger.info(
+          `[milady] Boosted plugin "${plugin.name}" priority to ${plugin.priority} (model.primary)`,
+        );
+        break;
+      }
+    }
+  }
+
   let runtime = new AgentRuntime({
     character,
     // advancedCapabilities: true,
     actionPlanning: true,
     // advancedMemory: true, // Not supported in this version of AgentRuntime
-    plugins: [miladyPlugin, ...otherPlugins.map((p) => p.plugin)],
+    plugins: [miladyPlugin, ...pluginsForRuntime],
     ...(runtimeLogLevel ? { logLevel: runtimeLogLevel } : {}),
     // Sandbox options — only active when mode != "off"
     ...(isSandboxActive
@@ -3309,12 +3354,19 @@ export async function startEliza(
           const freshOtherPlugins = resolvedPlugins.filter(
             (p) => !PREREGISTER_PLUGINS.has(p.name),
           );
+          // Boost preferred model plugin priority (same as initial startup)
+          const freshPluginsForRuntime = freshOtherPlugins.map((p) => p.plugin);
+          if (freshPrimaryModel) {
+            for (const plugin of freshPluginsForRuntime) {
+              if (plugin.name === freshPrimaryModel) {
+                plugin.priority = (plugin.priority ?? 0) + 10;
+                break;
+              }
+            }
+          }
           const newRuntime = new AgentRuntime({
             character: freshCharacter,
-            plugins: [
-              freshMiladyPlugin,
-              ...freshOtherPlugins.map((p) => p.plugin),
-            ],
+            plugins: [freshMiladyPlugin, ...freshPluginsForRuntime],
             ...(runtimeLogLevel ? { logLevel: runtimeLogLevel } : {}),
             settings: {
               ...(freshPrimaryModel

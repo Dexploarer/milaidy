@@ -2,7 +2,7 @@
  * Root App component — routing shell.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppContext";
 import { AdvancedPageView } from "./components/AdvancedPageView";
 import { AppsPageView } from "./components/AppsPageView";
@@ -15,6 +15,7 @@ import { ConversationsSidebar } from "./components/ConversationsSidebar";
 import { CustomActionEditor } from "./components/CustomActionEditor";
 import { CustomActionsPanel } from "./components/CustomActionsPanel";
 import { EmotePicker } from "./components/EmotePicker";
+import { GameViewOverlay } from "./components/GameViewOverlay";
 import { Header } from "./components/Header";
 import { InventoryView } from "./components/InventoryView";
 import { KnowledgeView } from "./components/KnowledgeView";
@@ -27,6 +28,7 @@ import { SaveCommandModal } from "./components/SaveCommandModal";
 import { SettingsView } from "./components/SettingsView";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { useContextMenu } from "./hooks/useContextMenu";
+import { useWhipStream } from "./hooks/useWhipStream";
 
 const CHAT_MOBILE_BREAKPOINT_PX = 1024;
 
@@ -75,8 +77,44 @@ export function App() {
     actionNotice,
     agentStatus,
     unreadConversations,
+    activeGameViewerUrl,
+    gameOverlayEnabled,
   } = useApp();
   const contextMenu = useContextMenu();
+  const whipStream = useWhipStream();
+  const startWhipStream = whipStream.start;
+
+  // Auto-start retake.tv WHIP stream + LTCG autonomy when game is active.
+  // Uses LiveKit WHIP (WebRTC) — pure browser streaming, no FFmpeg needed.
+  const streamAutoStarted = useRef(false);
+  useEffect(() => {
+    if (activeGameViewerUrl && !streamAutoStarted.current) {
+      streamAutoStarted.current = true;
+      const timer = setTimeout(async () => {
+        const apiBase = window.__MILADY_API_BASE__ || window.location.origin;
+        try {
+          // Get WHIP URL from backend (registers session + fetches RTMP creds + derives WHIP)
+          const whipRes = await fetch(`${apiBase}/api/retake/whip`);
+          if (whipRes.ok) {
+            const { whipUrl } = await whipRes.json();
+            await startWhipStream(whipUrl);
+            console.log("[App] WHIP stream started via LiveKit");
+          }
+        } catch (err) {
+          console.warn("[App] WHIP stream failed:", err);
+        }
+        try {
+          // Start LTCG PvP autonomy
+          await fetch(`${apiBase}/api/ltcg/autonomy/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "pvp", continuous: true }),
+          });
+        } catch {}
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeGameViewerUrl, startWhipStream]);
 
   const [customActionsPanelOpen, setCustomActionsPanelOpen] = useState(false);
   const [customActionsEditorOpen, setCustomActionsEditorOpen] = useState(false);
@@ -301,6 +339,10 @@ export function App() {
           </main>
           <TerminalPanel />
         </div>
+      )}
+      {/* Persistent game overlay — stays visible across all tabs */}
+      {activeGameViewerUrl && gameOverlayEnabled && tab !== "apps" && (
+        <GameViewOverlay />
       )}
       <CommandPalette />
       <EmotePicker />

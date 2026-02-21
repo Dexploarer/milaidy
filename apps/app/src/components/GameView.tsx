@@ -43,6 +43,7 @@ export function GameView() {
     activeGameSandbox,
     activeGamePostMessageAuth,
     activeGamePostMessagePayload,
+    gameOverlayEnabled,
     plugins,
     logs,
     loadLogs,
@@ -56,7 +57,7 @@ export function GameView() {
   >("connecting");
   const [chatInput, setChatInput] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
-  const [retakeCapture, setRetakeCapture] = useState(false);
+  const [retakeCapture, setRetakeCapture] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const authSentRef = useRef(false);
   const logsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -414,6 +415,22 @@ export function GameView() {
             {retakeCapture ? "Stop Capture" : "Retake Capture"}
           </button>
         )}
+        <button
+          type="button"
+          className={`text-xs px-3 py-1 border cursor-pointer hover:bg-accent-hover disabled:opacity-40 ${
+            gameOverlayEnabled
+              ? "bg-accent text-accent-fg border-accent"
+              : "bg-card text-txt border-border hover:border-accent"
+          }`}
+          onClick={() => setState("gameOverlayEnabled", !gameOverlayEnabled)}
+          title={
+            gameOverlayEnabled
+              ? "Disable floating overlay"
+              : "Keep game visible when switching tabs"
+          }
+        >
+          {gameOverlayEnabled ? "Unpin Overlay" : "Keep on Top"}
+        </button>
         <button
           type="button"
           className="text-xs px-3 py-1 bg-accent text-accent-fg border border-accent cursor-pointer hover:bg-accent-hover disabled:opacity-40"
