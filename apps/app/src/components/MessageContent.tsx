@@ -10,7 +10,7 @@
  *   3. Everything else → plain text
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../AppContext";
 import type { ConversationMessage, PluginInfo } from "../api-client";
 import { client } from "../api-client";
@@ -443,7 +443,9 @@ function UiSpecBlock({ spec, raw }: { spec: UiSpec; raw: string }) {
 
 // ── Main component ──────────────────────────────────────────────────
 
-export function MessageContent({ message }: MessageContentProps) {
+export const MessageContent = memo(function MessageContent({
+  message,
+}: MessageContentProps) {
   // Parse segments — memoize to avoid re-parsing on every render
   const segments = useMemo(() => {
     try {
@@ -501,4 +503,4 @@ export function MessageContent({ message }: MessageContentProps) {
       })()}
     </div>
   );
-}
+});

@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -157,14 +158,18 @@ export function ChatView() {
 
   const agentName = agentStatus?.agentName ?? "Agent";
   const msgs = conversationMessages;
-  const visibleMsgs = msgs.filter(
-    (msg) =>
-      !(
-        chatSending &&
-        !chatFirstTokenReceived &&
-        msg.role === "assistant" &&
-        !msg.text.trim()
+  const visibleMsgs = useMemo(
+    () =>
+      msgs.filter(
+        (msg) =>
+          !(
+            chatSending &&
+            !chatFirstTokenReceived &&
+            msg.role === "assistant" &&
+            !msg.text.trim()
+          ),
       ),
+    [msgs, chatSending, chatFirstTokenReceived],
   );
   const agentAvatarSrc =
     selectedVrmIndex > 0 ? getVrmPreviewUrl(selectedVrmIndex) : null;
