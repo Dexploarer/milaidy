@@ -234,3 +234,8 @@ export function createWorkspaceProvider(options?: {
     },
   };
 }
+
+/** @internal Exported for testing. */
+export function _resetCacheForTest() {
+  cache.clear();
+}
