@@ -3298,6 +3298,16 @@ function resolveCorsOrigin(origin?: string): string | null {
   return null;
 }
 
+export function applySecurityHeaders(res: http.ServerResponse): void {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "interest-cohort=(), camera=(), microphone=(), geolocation=()",
+  );
+}
+
 function applyCors(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -4474,6 +4484,8 @@ async function handleRequest(
     res.statusCode = upstreamResponse.status;
     res.end(responseText);
   };
+
+  applySecurityHeaders(res);
 
   if (!applyCors(req, res)) {
     json(res, { error: "Origin not allowed" }, 403);
