@@ -7,19 +7,37 @@
  * @module services/registry-client
  */
 
-import { lookup as dnsLookup } from "node:dns/promises";
 import fs from "node:fs/promises";
-import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { logger } from "@elizaos/core";
 import { loadMiladyConfig, saveMiladyConfig } from "../config/config.js";
 import type { RegistryEndpoint } from "../config/types.milady.js";
 import {
-  isBlockedPrivateOrLinkLocalIp,
-  normalizeHostLike,
-} from "../security/network-policy.js";
+  LOCAL_APP_DEFAULT_SANDBOX,
+  resolveAppOverride,
+  sanitizeSandbox,
+} from "./registry-client-app-meta.js";
+import {
+  isDefaultEndpoint as isDefaultEndpointForUrl,
+  mergeCustomEndpoints,
+  normaliseEndpointUrl,
+  parseRegistryEndpointUrl,
+} from "./registry-client-endpoints.js";
+import {
+  applyLocalWorkspaceApps,
+  applyNodeModulePlugins,
+} from "./registry-client-local.js";
+import { fetchFromNetwork as fetchRegistryFromNetwork } from "./registry-client-network.js";
+import {
+  getPluginInfoFromRegistry,
+  normalizePluginLookupAlias,
+  scoreEntries,
+  toAppEntry,
+  toAppInfo,
+  toPluginListItem,
+  toSearchResults,
+} from "./registry-client-queries.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -30,58 +48,6 @@ const GENERATED_REGISTRY_URL =
 const INDEX_REGISTRY_URL =
   "https://raw.githubusercontent.com/elizaos-plugins/registry/next/index.json";
 const CACHE_TTL_MS = 3_600_000; // 1 hour
-
-const LOCAL_APP_DEFAULT_SANDBOX =
-  "allow-scripts allow-same-origin allow-popups";
-
-const ALLOWED_SANDBOX_TOKENS = new Set([
-  "allow-downloads",
-  "allow-forms",
-  "allow-modals",
-  "allow-orientation-lock",
-  "allow-pointer-lock",
-  "allow-popups",
-  "allow-popups-to-escape-sandbox",
-  "allow-presentation",
-  "allow-same-origin",
-  "allow-scripts",
-  "allow-storage-access-by-user-activation",
-  "allow-top-navigation-by-user-activation",
-]);
-
-const BLOCKED_REGISTRY_HOST_LITERALS = new Set([
-  "localhost",
-  "127.0.0.1",
-  "::1",
-  "0.0.0.0",
-  "169.254.169.254",
-]);
-
-function sanitizeSandbox(rawSandbox?: string): string {
-  if (!rawSandbox || !rawSandbox.trim()) {
-    return LOCAL_APP_DEFAULT_SANDBOX;
-  }
-
-  const tokens = rawSandbox
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
-
-  if (tokens.length === 0) {
-    return LOCAL_APP_DEFAULT_SANDBOX;
-  }
-
-  for (const token of tokens) {
-    if (!ALLOWED_SANDBOX_TOKENS.has(token)) {
-      logger.warn(
-        `[registry-client] rejecting untrusted sandbox token: ${token}`,
-      );
-      return LOCAL_APP_DEFAULT_SANDBOX;
-    }
-  }
-
-  return Array.from(new Set(tokens)).join(" ");
-}
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -184,753 +150,36 @@ let memoryCache: {
   fetchedAt: number;
 } | null = null;
 
-interface LocalPackageAppMeta {
-  displayName?: string;
-  category?: string;
-  launchType?: string;
-  launchUrl?: string | null;
-  icon?: string | null;
-  capabilities?: string[];
-  minPlayers?: number | null;
-  maxPlayers?: number | null;
-  viewer?: RegistryAppViewerMeta;
-}
+// ---------------------------------------------------------------------------
+// Network fetch + parse (inlined wire types — not exported)
+// ---------------------------------------------------------------------------
 
-interface LocalPackageElizaConfig {
-  kind?: string;
-  app?: LocalPackageAppMeta;
-}
-
-interface LocalPackageJson {
-  name?: string;
-  version?: string;
-  description?: string;
-  homepage?: string;
-  repository?: string | { type?: string; url?: string };
-  elizaos?: LocalPackageElizaConfig;
-}
-
-interface LocalPluginManifest {
-  id?: string;
-  name?: string;
-  version?: string;
-  description?: string;
-  homepage?: string;
-  repository?: string | { type?: string; url?: string };
-  kind?: string;
-  app?: LocalPackageAppMeta;
-}
-
-interface LocalAppOverride {
-  displayName?: string;
-  category?: string;
-  launchType?: string;
-  launchUrl?: string | null;
-  capabilities?: string[];
-  viewer?: RegistryAppViewerMeta;
-}
-
-const LOCAL_APP_OVERRIDES: Readonly<Record<string, LocalAppOverride>> = {
-  "@elizaos/app-babylon": {
-    launchType: "url",
-    launchUrl: "http://localhost:3000",
-    viewer: {
-      url: "http://localhost:3000",
-      sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
-    },
-  },
-  "@elizaos/app-hyperscape": {
-    launchType: "connect",
-    launchUrl: "http://localhost:3333",
-    viewer: {
-      url: "http://localhost:3333",
-      embedParams: {
-        embedded: "true",
-        mode: "spectator",
-        quality: "medium",
-      },
-      postMessageAuth: true,
-      sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
-    },
-  },
-  "@elizaos/app-hyperfy": {
-    launchType: "connect",
-    launchUrl: "http://localhost:3003",
-    viewer: {
-      url: "http://localhost:3003",
-      sandbox: LOCAL_APP_DEFAULT_SANDBOX,
-    },
-  },
-  "@elizaos/app-2004scape": {
-    launchType: "connect",
-    launchUrl: "http://localhost:8880",
-    viewer: {
-      url: "http://localhost:8880",
-      embedParams: { bot: "{RS_SDK_BOT_NAME}" },
-      postMessageAuth: true,
-      sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
-    },
-  },
-  "@elizaos/app-agent-town": {
-    launchType: "url",
-    launchUrl: "http://localhost:5173/ai-town/index.html",
-    viewer: {
-      url: "http://localhost:5173/ai-town/index.html",
-      sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
-    },
-  },
-  "@elizaos/app-dungeons": {
-    launchType: "local",
-    launchUrl: "http://localhost:3345",
-    viewer: {
-      url: "http://localhost:3345",
-      sandbox: "allow-scripts allow-same-origin allow-popups allow-forms",
-    },
-  },
-};
-
-function uniquePaths(paths: string[]): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-  for (const p of paths) {
-    const resolved = path.resolve(p);
-    if (!seen.has(resolved)) {
-      seen.add(resolved);
-      ordered.push(resolved);
-    }
+async function fetchFromNetwork(): Promise<Map<string, RegistryPluginInfo>> {
+  try {
+    return await fetchRegistryFromNetwork({
+      generatedRegistryUrl: GENERATED_REGISTRY_URL,
+      indexRegistryUrl: INDEX_REGISTRY_URL,
+      applyLocalWorkspaceApps,
+      applyNodeModulePlugins,
+      sanitizeSandbox,
+    });
+  } catch (err) {
+    logger.warn(
+      `[registry-client] generated-registry/index fallback failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    throw err;
   }
-  return ordered;
 }
 
-function resolveWorkspaceRoots(): string[] {
-  const envRoot = process.env.MILADY_WORKSPACE_ROOT?.trim();
-  if (envRoot) return uniquePaths([envRoot]);
-  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-  const packageRoot = path.resolve(moduleDir, "..", "..");
-  const cwd = process.cwd();
-  const roots = [
-    packageRoot,
-    cwd,
-    path.resolve(cwd, ".."),
-    path.resolve(cwd, "..", ".."),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-  return uniquePaths(roots);
-}
-
-function repoString(
-  repo: LocalPackageJson["repository"] | LocalPluginManifest["repository"],
-): string | null {
-  if (!repo) return null;
-  if (typeof repo === "string") return repo;
-  if (typeof repo.url === "string" && repo.url.length > 0) return repo.url;
-  return null;
-}
-
-function normaliseGitHubRepo(repo: string | null): string | null {
-  if (!repo) return null;
-  const cleaned = repo
-    .replace(/^git\+/, "")
-    .replace(/\.git$/, "")
-    .replace(/^https?:\/\/github\.com\//, "")
-    .replace(/^git@github\.com:/, "")
-    .trim();
-  if (!cleaned.includes("/")) return null;
-  return cleaned;
-}
-
-function normalizeViewer(
-  viewer: RegistryAppViewerMeta | undefined,
-): RegistryAppViewerMeta | undefined {
-  if (!viewer) return undefined;
-  return {
-    ...viewer,
-    sandbox: sanitizeSandbox(viewer.sandbox),
-  };
-}
-
-function mergeViewer(
-  base: RegistryAppViewerMeta | undefined,
-  patch: RegistryAppViewerMeta | undefined,
-): RegistryAppViewerMeta | undefined {
-  if (!base && !patch) return undefined;
-  if (!base) return normalizeViewer(patch);
-  if (!patch) return normalizeViewer(base);
-  return normalizeViewer({
-    ...base,
-    ...patch,
-    embedParams: {
-      ...(base.embedParams ?? {}),
-      ...(patch.embedParams ?? {}),
-    },
-  });
-}
-
-function mergeAppMeta(
-  base: RegistryAppMeta | undefined,
-  patch: RegistryAppMeta | undefined,
-): RegistryAppMeta | undefined {
-  if (!base && !patch) return undefined;
-  if (!base) return patch;
-  if (!patch) return base;
-  return {
-    ...base,
-    ...patch,
-    capabilities:
-      patch.capabilities.length > 0 ? patch.capabilities : base.capabilities,
-    viewer: mergeViewer(base.viewer, patch.viewer),
-  };
-}
+// ---------------------------------------------------------------------------
+// File cache
+// ---------------------------------------------------------------------------
 
 function cacheFilePath(): string {
   const base =
     process.env.MILADY_STATE_DIR?.trim() || path.join(os.homedir(), ".milady");
   return path.join(base, "cache", "registry.json");
 }
-
-async function readJsonFile<T>(filePath: string): Promise<T | null> {
-  try {
-    const raw = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function toLocalAppMeta(
-  app: LocalPackageAppMeta | undefined,
-  fallbackDisplayName: string,
-): RegistryAppMeta | undefined {
-  if (!app) return undefined;
-  const launchType = app.launchType ?? "url";
-  return {
-    displayName: app.displayName ?? fallbackDisplayName,
-    category: app.category ?? "game",
-    launchType,
-    launchUrl: app.launchUrl ?? null,
-    icon: app.icon ?? null,
-    capabilities: app.capabilities ?? [],
-    minPlayers: app.minPlayers ?? null,
-    maxPlayers: app.maxPlayers ?? null,
-    viewer: app.viewer,
-  };
-}
-
-function toDisplayNameFromDirName(dirName: string): string {
-  return dirName
-    .replace(/^app-/, "")
-    .split("-")
-    .filter((part) => part.length > 0)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function parseRepositoryMetadata(
-  repository:
-    | LocalPackageJson["repository"]
-    | LocalPluginManifest["repository"]
-    | undefined,
-): { gitRepo: string; gitUrl: string } {
-  const repoValue = repoString(repository);
-  const gitRepo = normaliseGitHubRepo(repoValue) ?? "local/workspace";
-  return {
-    gitRepo,
-    gitUrl: `https://github.com/${gitRepo}.git`,
-  };
-}
-
-function resolveAppOverride(
-  packageName: string,
-  appMeta: RegistryAppMeta | undefined,
-): RegistryAppMeta | undefined {
-  const override = LOCAL_APP_OVERRIDES[packageName];
-  if (!override) return appMeta;
-  const base: RegistryAppMeta = appMeta ?? {
-    displayName:
-      override.displayName ?? packageName.replace(/^@elizaos\/app-/, ""),
-    category: override.category ?? "game",
-    launchType: override.launchType ?? "url",
-    launchUrl: override.launchUrl ?? null,
-    icon: null,
-    capabilities: override.capabilities ?? [],
-    minPlayers: null,
-    maxPlayers: null,
-    viewer: override.viewer,
-  };
-  return {
-    ...base,
-    displayName: override.displayName ?? base.displayName,
-    category: override.category ?? base.category,
-    launchType: override.launchType ?? base.launchType,
-    launchUrl:
-      override.launchUrl !== undefined ? override.launchUrl : base.launchUrl,
-    capabilities:
-      override.capabilities !== undefined
-        ? override.capabilities
-        : base.capabilities,
-    viewer: mergeViewer(base.viewer, override.viewer),
-  };
-}
-
-function buildDiscoveredEntry(
-  packageDir: string,
-  dirName: string,
-  packageJson: LocalPackageJson,
-  manifest: LocalPluginManifest | null,
-): RegistryPluginInfo | null {
-  if (!packageJson?.name || packageJson.name.length === 0) return null;
-
-  const packageAppMeta = toLocalAppMeta(
-    packageJson.elizaos?.app,
-    toDisplayNameFromDirName(dirName),
-  );
-  const manifestAppMeta = toLocalAppMeta(
-    manifest?.app,
-    toDisplayNameFromDirName(dirName),
-  );
-  const mergedMeta = mergeAppMeta(manifestAppMeta, packageAppMeta);
-  const overriddenMeta = resolveAppOverride(packageJson.name, mergedMeta);
-
-  const kind =
-    packageJson.elizaos?.kind === "app" || manifest?.kind === "app"
-      ? "app"
-      : overriddenMeta
-        ? "app"
-        : undefined;
-
-  const repo = parseRepositoryMetadata(
-    packageJson.repository ?? manifest?.repository,
-  );
-  const description = packageJson.description ?? manifest?.description ?? "";
-  const homepage =
-    packageJson.homepage ??
-    manifest?.homepage ??
-    overriddenMeta?.launchUrl ??
-    null;
-  const version = packageJson.version ?? manifest?.version ?? null;
-
-  return {
-    name: packageJson.name,
-    gitRepo: repo.gitRepo,
-    gitUrl: repo.gitUrl,
-    description,
-    homepage,
-    topics: [],
-    stars: 0,
-    language: "TypeScript",
-    npm: {
-      package: packageJson.name,
-      v0Version: null,
-      v1Version: null,
-      v2Version: version,
-    },
-    git: {
-      v0Branch: null,
-      v1Branch: null,
-      v2Branch: "main",
-    },
-    supports: { v0: false, v1: false, v2: true },
-    localPath: packageDir,
-    kind,
-    appMeta: overriddenMeta ?? undefined,
-  };
-}
-
-async function discoverLocalWorkspaceApps(): Promise<
-  Map<string, RegistryPluginInfo>
-> {
-  const discovered = new Map<string, RegistryPluginInfo>();
-
-  // 1. Scan workspace plugins/ directories for app-* folders
-  for (const workspaceRoot of resolveWorkspaceRoots()) {
-    const pluginsDir = path.join(workspaceRoot, "plugins");
-    let entries: Array<import("node:fs").Dirent>;
-    try {
-      entries = await fs.readdir(pluginsDir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      if (
-        (!entry.isDirectory() && !entry.isSymbolicLink()) ||
-        !entry.name.startsWith("app-")
-      )
-        continue;
-      const packageDir = path.join(pluginsDir, entry.name);
-      const packageJson = await readJsonFile<LocalPackageJson>(
-        path.join(packageDir, "package.json"),
-      );
-      if (!packageJson) continue;
-
-      const manifest = await readJsonFile<LocalPluginManifest>(
-        path.join(packageDir, "elizaos.plugin.json"),
-      );
-      const info = buildDiscoveredEntry(
-        packageDir,
-        entry.name,
-        packageJson,
-        manifest,
-      );
-      if (info) discovered.set(info.name, info);
-    }
-  }
-
-  // 2. Scan user-installed plugins (~/.milady/plugins/installed/) for kind: "app"
-  const stateDir =
-    process.env.MILADY_STATE_DIR?.trim() || path.join(os.homedir(), ".milady");
-  const installedBase = path.join(stateDir, "plugins", "installed");
-  try {
-    const installedEntries = await fs.readdir(installedBase, {
-      withFileTypes: true,
-    });
-    for (const entry of installedEntries) {
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-      const installDir = path.join(installedBase, entry.name);
-      // Installed plugins nest inside node_modules — find the actual package
-      const nmDir = path.join(installDir, "node_modules");
-      const pkgDirs: string[] = [];
-      try {
-        const nmEntries = await fs.readdir(nmDir, { withFileTypes: true });
-        for (const nm of nmEntries) {
-          if (nm.name.startsWith("@")) {
-            // Scoped package — read one level deeper
-            const scopeDir = path.join(nmDir, nm.name);
-            try {
-              const scopeEntries = await fs.readdir(scopeDir, {
-                withFileTypes: true,
-              });
-              for (const se of scopeEntries) {
-                pkgDirs.push(path.join(scopeDir, se.name));
-              }
-            } catch {
-              /* skip */
-            }
-          } else if (nm.isDirectory() || nm.isSymbolicLink()) {
-            pkgDirs.push(path.join(nmDir, nm.name));
-          }
-        }
-      } catch {
-        continue;
-      }
-
-      for (const pkgDir of pkgDirs) {
-        const pkgJson = await readJsonFile<LocalPackageJson>(
-          path.join(pkgDir, "package.json"),
-        );
-        if (!pkgJson?.name) continue;
-        // Only include if this is an app-kind plugin
-        if (pkgJson.elizaos?.kind !== "app") continue;
-        // Skip if already discovered from workspace
-        if (discovered.has(pkgJson.name)) continue;
-
-        const manifest = await readJsonFile<LocalPluginManifest>(
-          path.join(pkgDir, "elizaos.plugin.json"),
-        );
-        const dirName = pkgJson.name
-          .replace(/^@[^/]+\//, "")
-          .replace(/^plugin-/, "app-");
-        const info = buildDiscoveredEntry(pkgDir, dirName, pkgJson, manifest);
-        if (info) discovered.set(info.name, info);
-      }
-    }
-  } catch {
-    // installed dir may not exist
-  }
-
-  return discovered;
-}
-
-/**
- * Discover ElizaOS plugins installed in the workspace's node_modules.
- *
- * Scans `node_modules/@elizaos/plugin-*` for packages whose package.json
- * declares `packageType: "plugin"`.  This allows locally linked or file-dep
- * plugins (e.g. `@elizaos/plugin-cua`) to appear in the plugin store and
- * be "installable" through milaidy's plugin management system even before
- * they are published to the remote registry.
- *
- * Only returns entries for plugins NOT already present in the caller's map
- * (the registry), so remote metadata always takes priority.
- */
-async function discoverNodeModulePlugins(): Promise<
-  Map<string, RegistryPluginInfo>
-> {
-  const discovered = new Map<string, RegistryPluginInfo>();
-
-  for (const workspaceRoot of resolveWorkspaceRoots()) {
-    const elizaosDir = path.join(workspaceRoot, "node_modules", "@elizaos");
-    let entries: Array<import("node:fs").Dirent>;
-    try {
-      entries = await fs.readdir(elizaosDir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      // Only scan plugin-* directories (skip core, tui, skills, etc.)
-      if (!entry.name.startsWith("plugin-")) continue;
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-
-      const packageDir = path.join(elizaosDir, entry.name);
-      const packageJson = await readJsonFile<
-        LocalPackageJson & {
-          packageType?: string;
-          keywords?: string[];
-          agentConfig?: Record<string, unknown>;
-        }
-      >(path.join(packageDir, "package.json"));
-      if (!packageJson?.name) continue;
-
-      // Only include packages that identify themselves as ElizaOS plugins
-      const isPlugin =
-        packageJson.packageType === "plugin" ||
-        packageJson.keywords?.includes("elizaos") ||
-        packageJson.elizaos !== undefined ||
-        packageJson.agentConfig !== undefined;
-      if (!isPlugin) continue;
-
-      // Skip app-kind packages (handled by discoverLocalWorkspaceApps)
-      if (packageJson.elizaos?.kind === "app") continue;
-
-      const repo = parseRepositoryMetadata(packageJson.repository);
-      const version = packageJson.version ?? null;
-
-      // Resolve localPath — follow symlinks to the real package source
-      let localPath = packageDir;
-      try {
-        const realPath = await fs.realpath(packageDir);
-        if (realPath !== packageDir) localPath = realPath;
-      } catch {
-        // Keep packageDir as fallback
-      }
-
-      discovered.set(packageJson.name, {
-        name: packageJson.name,
-        gitRepo: repo.gitRepo,
-        gitUrl: repo.gitUrl,
-        description: packageJson.description ?? "",
-        homepage: packageJson.homepage ?? null,
-        topics: [],
-        stars: 0,
-        language: "TypeScript",
-        npm: {
-          package: packageJson.name,
-          v0Version: null,
-          v1Version: null,
-          v2Version: version,
-        },
-        git: {
-          v0Branch: null,
-          v1Branch: null,
-          v2Branch: "main",
-        },
-        supports: { v0: false, v1: false, v2: true },
-        localPath,
-      });
-    }
-  }
-
-  return discovered;
-}
-
-/**
- * Merge node_modules plugins into the registry map. Only adds entries
- * that are not already present (remote registry takes precedence, but
- * localPath is added to existing entries when discovered locally).
- */
-async function applyNodeModulePlugins(
-  plugins: Map<string, RegistryPluginInfo>,
-): Promise<void> {
-  const localPlugins = await discoverNodeModulePlugins();
-  if (localPlugins.size === 0) return;
-
-  for (const [name, localInfo] of localPlugins.entries()) {
-    const existing = plugins.get(name);
-    if (!existing) {
-      // Not in remote registry — add as local-only entry
-      plugins.set(name, localInfo);
-    } else if (!existing.localPath) {
-      // In registry but no local path — annotate with local path so the
-      // installer can use the local copy instead of downloading.
-      plugins.set(name, { ...existing, localPath: localInfo.localPath });
-    }
-  }
-}
-
-async function applyLocalWorkspaceApps(
-  plugins: Map<string, RegistryPluginInfo>,
-): Promise<void> {
-  const localApps = await discoverLocalWorkspaceApps();
-  if (localApps.size === 0) return;
-
-  for (const [name, localInfo] of localApps.entries()) {
-    const existing = plugins.get(name);
-    if (!existing) {
-      plugins.set(name, localInfo);
-      continue;
-    }
-
-    plugins.set(name, {
-      ...existing,
-      localPath: localInfo.localPath,
-      kind: localInfo.kind ?? existing.kind,
-      appMeta: mergeAppMeta(existing.appMeta, localInfo.appMeta),
-      description: localInfo.description || existing.description,
-      homepage: localInfo.homepage ?? existing.homepage,
-      npm: {
-        ...existing.npm,
-        package: existing.npm.package || localInfo.npm.package,
-        v2Version: existing.npm.v2Version ?? localInfo.npm.v2Version,
-      },
-      git: {
-        v0Branch: existing.git.v0Branch ?? localInfo.git.v0Branch,
-        v1Branch: existing.git.v1Branch ?? localInfo.git.v1Branch,
-        v2Branch: existing.git.v2Branch ?? localInfo.git.v2Branch,
-      },
-    });
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Network fetch + parse (inlined wire types — not exported)
-// ---------------------------------------------------------------------------
-
-async function fetchFromNetwork(): Promise<Map<string, RegistryPluginInfo>> {
-  // Try enriched registry first
-  try {
-    const resp = await fetch(GENERATED_REGISTRY_URL, { redirect: "error" });
-    if (resp.ok) {
-      const data = (await resp.json()) as {
-        registry: Record<
-          string,
-          {
-            git: {
-              repo: string;
-              v0: { branch: string | null };
-              v1: { branch: string | null };
-              v2: { branch: string | null };
-            };
-            npm: {
-              repo: string;
-              v0: string | null;
-              v1: string | null;
-              v2: string | null;
-            };
-            supports: { v0: boolean; v1: boolean; v2: boolean };
-            description: string;
-            homepage: string | null;
-            topics: string[];
-            stargazers_count: number;
-            language: string;
-            kind?: string;
-            app?: {
-              displayName: string;
-              category: string;
-              launchType: string;
-              launchUrl: string | null;
-              icon: string | null;
-              capabilities: string[];
-              minPlayers: number | null;
-              maxPlayers: number | null;
-              viewer?: {
-                url: string;
-                embedParams?: Record<string, string>;
-                postMessageAuth?: boolean;
-                sandbox?: string;
-              };
-            };
-          }
-        >;
-      };
-      const plugins = new Map<string, RegistryPluginInfo>();
-      for (const [name, e] of Object.entries(data.registry)) {
-        const info: RegistryPluginInfo = {
-          name,
-          gitRepo: e.git.repo,
-          gitUrl: `https://github.com/${e.git.repo}.git`,
-          description: e.description || "",
-          homepage: e.homepage,
-          topics: e.topics || [],
-          stars: e.stargazers_count || 0,
-          language: e.language || "TypeScript",
-          npm: {
-            package: e.npm.repo,
-            v0Version: e.npm.v0,
-            v1Version: e.npm.v1,
-            v2Version: e.npm.v2,
-          },
-          git: {
-            v0Branch: e.git.v0?.branch ?? null,
-            v1Branch: e.git.v1?.branch ?? null,
-            v2Branch: e.git.v2?.branch ?? null,
-          },
-          supports: e.supports,
-        };
-
-        if (e.kind === "app" || e.app) {
-          info.kind = "app";
-        }
-        if (e.app) {
-          info.appMeta = {
-            displayName: e.app.displayName,
-            category: e.app.category,
-            launchType: e.app.launchType,
-            launchUrl: e.app.launchUrl,
-            icon: e.app.icon,
-            capabilities: e.app.capabilities || [],
-            minPlayers: e.app.minPlayers ?? null,
-            maxPlayers: e.app.maxPlayers ?? null,
-            viewer: e.app.viewer
-              ? {
-                  ...e.app.viewer,
-                  sandbox: sanitizeSandbox(e.app.viewer.sandbox),
-                }
-              : undefined,
-          };
-        }
-
-        plugins.set(name, info);
-      }
-      await applyLocalWorkspaceApps(plugins);
-      await applyNodeModulePlugins(plugins);
-      return plugins;
-    }
-  } catch (err) {
-    logger.warn(
-      `[registry-client] generated-registry.json unavailable: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Fallback to index.json
-  const resp = await fetch(INDEX_REGISTRY_URL, { redirect: "error" });
-  if (!resp.ok)
-    throw new Error(`index.json: ${resp.status} ${resp.statusText}`);
-  const data = (await resp.json()) as Record<string, string>;
-  const plugins = new Map<string, RegistryPluginInfo>();
-  for (const [name, gitRef] of Object.entries(data)) {
-    const repo = gitRef.replace(/^github:/, "");
-    plugins.set(name, {
-      name,
-      gitRepo: repo,
-      gitUrl: `https://github.com/${repo}.git`,
-      description: "",
-      homepage: null,
-      topics: [],
-      stars: 0,
-      language: "TypeScript",
-      npm: { package: name, v0Version: null, v1Version: null, v2Version: null },
-      git: { v0Branch: null, v1Branch: null, v2Branch: "next" },
-      supports: { v0: false, v1: false, v2: false },
-    });
-  }
-  await applyLocalWorkspaceApps(plugins);
-  await applyNodeModulePlugins(plugins);
-  return plugins;
-}
-
-// ---------------------------------------------------------------------------
-// File cache
-// ---------------------------------------------------------------------------
 
 async function readFileCache(): Promise<Map<
   string,
@@ -966,120 +215,6 @@ async function writeFileCache(
 // ---------------------------------------------------------------------------
 // Multi-endpoint management
 // ---------------------------------------------------------------------------
-
-/** Normalise a URL for duplicate detection (strip trailing slashes). */
-function normaliseEndpointUrl(url: string): string {
-  return url.replace(/\/+$/, "");
-}
-
-/** Check whether the given URL is the built-in default endpoint. */
-export function isDefaultEndpoint(url: string): boolean {
-  return (
-    normaliseEndpointUrl(url) === normaliseEndpointUrl(GENERATED_REGISTRY_URL)
-  );
-}
-
-function parseRegistryEndpointUrl(rawUrl: string): URL {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new Error("Endpoint URL must be a valid absolute URL");
-  }
-
-  if (parsed.protocol !== "https:") {
-    throw new Error("Endpoint URL must use https://");
-  }
-
-  const hostname = normalizeHostLike(parsed.hostname);
-  if (!hostname) throw new Error("Endpoint URL hostname is required");
-
-  if (
-    BLOCKED_REGISTRY_HOST_LITERALS.has(hostname) ||
-    hostname.endsWith(".localhost") ||
-    hostname.endsWith(".local")
-  ) {
-    throw new Error(`Endpoint host "${hostname}" is blocked`);
-  }
-
-  if (net.isIP(hostname) && isBlockedPrivateOrLinkLocalIp(hostname)) {
-    throw new Error(`Endpoint host "${hostname}" is blocked`);
-  }
-
-  return parsed;
-}
-
-type ResolvedRegistryEndpoint = {
-  parsed: URL;
-  hostname: string;
-  pinnedAddress: string | null;
-};
-
-async function resolveRegistryEndpointUrlRejection(rawUrl: string): Promise<{
-  rejection: string | null;
-  endpoint: ResolvedRegistryEndpoint | null;
-}> {
-  let parsed: URL;
-  try {
-    parsed = parseRegistryEndpointUrl(rawUrl);
-  } catch (error) {
-    return {
-      rejection: error instanceof Error ? error.message : String(error),
-      endpoint: null,
-    };
-  }
-
-  const hostname = normalizeHostLike(parsed.hostname);
-  if (!hostname) {
-    return {
-      rejection: "Endpoint URL hostname is required",
-      endpoint: null,
-    };
-  }
-
-  if (net.isIP(hostname)) {
-    return {
-      rejection: null,
-      endpoint: { parsed, hostname, pinnedAddress: hostname },
-    };
-  }
-
-  let addresses: Array<{ address: string }>;
-  try {
-    const resolved = await dnsLookup(hostname, { all: true });
-    addresses = Array.isArray(resolved) ? resolved : [resolved];
-  } catch {
-    return {
-      rejection: `Could not resolve endpoint host "${hostname}"`,
-      endpoint: null,
-    };
-  }
-
-  if (addresses.length === 0) {
-    return {
-      rejection: `Could not resolve endpoint host "${hostname}"`,
-      endpoint: null,
-    };
-  }
-
-  for (const entry of addresses) {
-    if (isBlockedPrivateOrLinkLocalIp(entry.address)) {
-      return {
-        rejection: `Endpoint host "${hostname}" resolves to blocked address ${entry.address}`,
-        endpoint: null,
-      };
-    }
-  }
-
-  return {
-    rejection: null,
-    endpoint: {
-      parsed,
-      hostname,
-      pinnedAddress: addresses[0]?.address ?? null,
-    },
-  };
-}
 
 /** Return the list of custom registry endpoints from config. */
 export function getConfiguredEndpoints(): RegistryEndpoint[] {
@@ -1146,139 +281,8 @@ export function toggleRegistryEndpoint(url: string, enabled: boolean): void {
   memoryCache = null;
 }
 
-/**
- * Fetch a single registry endpoint and parse it into RegistryPluginInfo entries.
- * Returns null on failure (logged as warning).
- */
-async function fetchSingleEndpoint(
-  url: string,
-  label: string,
-): Promise<Map<string, RegistryPluginInfo> | null> {
-  const { rejection, endpoint } =
-    await resolveRegistryEndpointUrlRejection(url);
-  if (rejection || !endpoint) {
-    logger.warn(
-      `[registry-client] Endpoint "${label}" (${url}) blocked: ${rejection ?? "validation failed"}`,
-    );
-    return null;
-  }
-
-  try {
-    if (endpoint.pinnedAddress && !net.isIP(endpoint.hostname)) {
-      const refreshed = await dnsLookup(endpoint.hostname, { all: true });
-      const refreshedAddresses = new Set(
-        (Array.isArray(refreshed) ? refreshed : [refreshed]).map((entry) =>
-          normalizeHostLike(entry.address),
-        ),
-      );
-
-      if (!refreshedAddresses.has(normalizeHostLike(endpoint.pinnedAddress))) {
-        logger.warn(
-          `[registry-client] Endpoint "${label}" (${url}) blocked: host resolution changed before fetch`,
-        );
-        return null;
-      }
-
-      for (const address of refreshedAddresses) {
-        if (isBlockedPrivateOrLinkLocalIp(address)) {
-          logger.warn(
-            `[registry-client] Endpoint "${label}" (${url}) blocked: host resolves to blocked address ${address}`,
-          );
-          return null;
-        }
-      }
-    }
-
-    const resp = await fetch(url, { redirect: "error" });
-    if (!resp.ok) {
-      logger.warn(
-        `[registry-client] Endpoint "${label}" (${url}): ${resp.status} ${resp.statusText}`,
-      );
-      return null;
-    }
-    const data = (await resp.json()) as {
-      registry?: Record<string, unknown>;
-    };
-    if (!data.registry || typeof data.registry !== "object") {
-      logger.warn(
-        `[registry-client] Endpoint "${label}" (${url}): missing registry field`,
-      );
-      return null;
-    }
-    const plugins = new Map<string, RegistryPluginInfo>();
-    for (const [name, raw] of Object.entries(data.registry)) {
-      const e = raw as Record<string, unknown>;
-      const git = (e.git ?? {}) as Record<string, unknown>;
-      const npm = (e.npm ?? {}) as Record<string, unknown>;
-      const supports = (e.supports ?? { v0: false, v1: false, v2: false }) as {
-        v0: boolean;
-        v1: boolean;
-        v2: boolean;
-      };
-      plugins.set(name, {
-        name,
-        gitRepo: (git.repo as string) ?? "unknown/unknown",
-        gitUrl: `https://github.com/${(git.repo as string) ?? "unknown/unknown"}.git`,
-        description: (e.description as string) ?? "",
-        homepage: (e.homepage as string) ?? null,
-        topics: (e.topics as string[]) ?? [],
-        stars: (e.stargazers_count as number) ?? 0,
-        language: (e.language as string) ?? "TypeScript",
-        npm: {
-          package: (npm.repo as string) ?? name,
-          v0Version: (npm.v0 as string) ?? null,
-          v1Version: (npm.v1 as string) ?? null,
-          v2Version: (npm.v2 as string) ?? null,
-        },
-        git: {
-          v0Branch:
-            ((git.v0 as Record<string, unknown>)?.branch as string) ?? null,
-          v1Branch:
-            ((git.v1 as Record<string, unknown>)?.branch as string) ?? null,
-          v2Branch:
-            ((git.v2 as Record<string, unknown>)?.branch as string) ?? null,
-        },
-        supports,
-      });
-    }
-    return plugins;
-  } catch (err) {
-    logger.warn(
-      `[registry-client] Endpoint "${label}" (${url}) failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return null;
-  }
-}
-
-/**
- * Fetch all configured custom endpoints in parallel and merge their plugins
- * into the base map. Custom endpoint plugins override/supplement the default.
- */
-async function mergeCustomEndpoints(
-  plugins: Map<string, RegistryPluginInfo>,
-): Promise<void> {
-  const endpoints = getConfiguredEndpoints().filter(
-    (ep) => ep.enabled !== false,
-  );
-  if (endpoints.length === 0) return;
-
-  const results = await Promise.allSettled(
-    endpoints.map((ep) => fetchSingleEndpoint(ep.url, ep.label)),
-  );
-
-  for (const result of results) {
-    if (result.status === "fulfilled" && result.value) {
-      for (const [name, info] of result.value) {
-        if (plugins.has(name)) {
-          logger.warn(
-            `[registry-client] Ignoring custom endpoint override for ${name}`,
-          );
-          continue;
-        }
-        plugins.set(name, info);
-      }
-    }
-  }
+export function isDefaultEndpoint(url: string): boolean {
+  return isDefaultEndpointForUrl(url, GENERATED_REGISTRY_URL);
 }
 
 // ---------------------------------------------------------------------------
@@ -1297,14 +301,14 @@ export async function getRegistryPlugins(): Promise<
   if (fromFile) {
     await applyLocalWorkspaceApps(fromFile);
     await applyNodeModulePlugins(fromFile);
-    await mergeCustomEndpoints(fromFile);
+    await mergeCustomEndpoints(fromFile, getConfiguredEndpoints());
     memoryCache = { plugins: fromFile, fetchedAt: Date.now() };
     return fromFile;
   }
 
   logger.info("[registry-client] Fetching plugin registry from next branch...");
   const plugins = await fetchFromNetwork();
-  await mergeCustomEndpoints(plugins);
+  await mergeCustomEndpoints(plugins, getConfiguredEndpoints());
   logger.info(`[registry-client] Loaded ${plugins.size} plugins`);
 
   memoryCache = { plugins, fetchedAt: Date.now() };
@@ -1330,42 +334,6 @@ export async function refreshRegistry(): Promise<
   return getRegistryPlugins();
 }
 
-function normalizePluginLookupAlias(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return trimmed;
-
-  const lower = trimmed.toLowerCase();
-  if (lower === "obsidan") return "obsidian";
-  if (lower === "plugin-obsidan") return "plugin-obsidian";
-  if (lower === "@elizaos/plugin-obsidan") return "@elizaos/plugin-obsidian";
-
-  return trimmed;
-}
-
-function getPluginInfoFromRegistry(
-  registry: Map<string, RegistryPluginInfo>,
-  name: string,
-): RegistryPluginInfo | null {
-  let p = registry.get(name);
-  if (p) return p;
-
-  if (!name.startsWith("@")) {
-    p = registry.get(`@elizaos/${name}`);
-    if (p) return p;
-
-    // Try with plugin- prefix (allows "cua" → "@elizaos/plugin-cua")
-    p = registry.get(`@elizaos/plugin-${name}`);
-    if (p) return p;
-  }
-
-  const bare = name.replace(/^@[^/]+\//, "");
-  for (const [key, value] of registry) {
-    if (key.endsWith(`/${bare}`)) return value;
-  }
-
-  return null;
-}
-
 /** Look up a plugin by name (exact → @elizaos/ prefix → bare suffix). */
 export async function getPluginInfo(
   name: string,
@@ -1382,53 +350,6 @@ export async function getPluginInfo(
   return null;
 }
 
-/**
- * Score registry entries against a query. Shared by searchPlugins and searchApps.
- * Returns entries sorted by score descending, limited to `limit` results.
- */
-function scoreEntries(
-  entries: Iterable<RegistryPluginInfo>,
-  query: string,
-  limit: number,
-  extraNames?: (p: RegistryPluginInfo) => string[],
-  extraTerms?: (p: RegistryPluginInfo) => string[],
-): Array<{ p: RegistryPluginInfo; s: number }> {
-  const lq = query.toLowerCase();
-  const terms = lq.split(/\s+/).filter((t) => t.length > 1);
-  const scored: Array<{ p: RegistryPluginInfo; s: number }> = [];
-
-  for (const p of entries) {
-    const ln = p.name.toLowerCase();
-    const ld = p.description.toLowerCase();
-    const aliases = extraNames?.(p) ?? [];
-    let s = 0;
-
-    // Exact match on name or aliases
-    if (ln === lq || ln === `@elizaos/${lq}` || aliases.some((a) => a === lq))
-      s += 100;
-    else if (ln.includes(lq) || aliases.some((a) => a.includes(lq))) s += 50;
-    if (ld.includes(lq)) s += 30;
-    // Topics + extra terms (capabilities for apps)
-    for (const t of p.topics) if (t.toLowerCase().includes(lq)) s += 25;
-    for (const t of extraTerms?.(p) ?? [])
-      if (t.toLowerCase().includes(lq)) s += 25;
-    for (const term of terms) {
-      if (ln.includes(term) || aliases.some((a) => a.includes(term))) s += 15;
-      if (ld.includes(term)) s += 10;
-      for (const t of p.topics) if (t.toLowerCase().includes(term)) s += 8;
-    }
-    if (s > 0) {
-      if (p.stars > 100) s += 3;
-      if (p.stars > 500) s += 3;
-      if (p.stars > 1000) s += 4;
-      scored.push({ p, s });
-    }
-  }
-
-  scored.sort((a, b) => b.s - a.s || b.p.stars - a.p.stars);
-  return scored.slice(0, limit);
-}
-
 /** Search plugins by query (local fuzzy match on name/description/topics). */
 export async function searchPlugins(
   query: string,
@@ -1436,74 +357,7 @@ export async function searchPlugins(
 ): Promise<RegistrySearchResult[]> {
   const registry = await getRegistryPlugins();
   const results = scoreEntries(registry.values(), query, limit);
-  const max = results[0]?.s || 1;
-
-  return results.map(({ p, s }) => ({
-    name: p.name,
-    description: p.description,
-    score: s / max,
-    tags: p.topics,
-    latestVersion: p.npm.v2Version || p.npm.v1Version || p.npm.v0Version,
-    stars: p.stars,
-    supports: p.supports,
-    repository: `https://github.com/${p.gitRepo}`,
-  }));
-}
-
-// ---------------------------------------------------------------------------
-// App-specific queries
-// ---------------------------------------------------------------------------
-
-function toAppInfo(p: RegistryPluginInfo): RegistryAppInfo {
-  const meta = p.appMeta;
-  const viewer = meta?.viewer
-    ? {
-        url: meta.viewer.url,
-        embedParams: meta.viewer.embedParams,
-        postMessageAuth: meta.viewer.postMessageAuth,
-        sandbox: sanitizeSandbox(meta.viewer.sandbox),
-      }
-    : meta?.launchType === "connect" || meta?.launchType === "local"
-      ? {
-          url: meta?.launchUrl ?? "",
-          sandbox: LOCAL_APP_DEFAULT_SANDBOX,
-        }
-      : undefined;
-
-  return {
-    name: p.name,
-    displayName: meta?.displayName ?? p.name.replace(/^@elizaos\/app-/, ""),
-    description: p.description,
-    category: meta?.category ?? "game",
-    launchType: meta?.launchType ?? "url",
-    launchUrl: meta?.launchUrl ?? p.homepage,
-    icon: meta?.icon ?? null,
-    capabilities: meta?.capabilities ?? [],
-    stars: p.stars,
-    repository: `https://github.com/${p.gitRepo}`,
-    latestVersion: p.npm.v2Version || p.npm.v1Version || p.npm.v0Version,
-    supports: p.supports,
-    npm: p.npm,
-    viewer,
-  };
-}
-
-function toAppEntry(p: RegistryPluginInfo): RegistryPluginInfo | null {
-  if (p.kind === "app" || p.appMeta) {
-    return {
-      ...p,
-      kind: "app",
-      appMeta: p.appMeta,
-    };
-  }
-
-  const appMeta = resolveAppOverride(p.name, undefined);
-  if (!appMeta) return null;
-  return {
-    ...p,
-    kind: "app",
-    appMeta,
-  };
+  return toSearchResults(results);
 }
 
 /** List all registered apps. */
@@ -1512,9 +366,9 @@ export async function listApps(): Promise<RegistryAppInfo[]> {
   const apps: RegistryAppInfo[] = [];
 
   for (const p of registry.values()) {
-    const appEntry = toAppEntry(p);
+    const appEntry = toAppEntry(p, resolveAppOverride);
     if (!appEntry) continue;
-    apps.push(toAppInfo(appEntry));
+    apps.push(toAppInfo(appEntry, sanitizeSandbox, LOCAL_APP_DEFAULT_SANDBOX));
   }
 
   apps.sort((a, b) => b.stars - a.stars);
@@ -1527,9 +381,9 @@ export async function getAppInfo(
 ): Promise<RegistryAppInfo | null> {
   const info = await getPluginInfo(name);
   if (!info) return null;
-  const appEntry = toAppEntry(info);
+  const appEntry = toAppEntry(info, resolveAppOverride);
   if (!appEntry) return null;
-  return toAppInfo(appEntry);
+  return toAppInfo(appEntry, sanitizeSandbox, LOCAL_APP_DEFAULT_SANDBOX);
 }
 
 /** Search apps by query. */
@@ -1540,7 +394,7 @@ export async function searchApps(
   const registry = await getRegistryPlugins();
   const appEntries: RegistryPluginInfo[] = [];
   for (const p of registry.values()) {
-    const appEntry = toAppEntry(p);
+    const appEntry = toAppEntry(p, resolveAppOverride);
     if (appEntry) appEntries.push(appEntry);
   }
 
@@ -1552,12 +406,10 @@ export async function searchApps(
     (p) => p.appMeta?.capabilities ?? [],
   );
 
-  return results.map(({ p }) => toAppInfo(p));
+  return results.map(({ p }) =>
+    toAppInfo(p, sanitizeSandbox, LOCAL_APP_DEFAULT_SANDBOX),
+  );
 }
-
-// ---------------------------------------------------------------------------
-// Non-app plugin queries (for unified Apps & Plugins view)
-// ---------------------------------------------------------------------------
 
 /** Slim plugin info returned by listNonAppPlugins / searchNonAppPlugins. */
 export interface RegistryPluginListItem {
@@ -1573,19 +425,6 @@ export interface RegistryPluginListItem {
     v0Version: string | null;
     v1Version: string | null;
     v2Version: string | null;
-  };
-}
-
-function toPluginListItem(p: RegistryPluginInfo): RegistryPluginListItem {
-  return {
-    name: p.name,
-    description: p.description,
-    stars: p.stars,
-    repository: `https://github.com/${p.gitRepo}`,
-    topics: p.topics,
-    latestVersion: p.npm.v2Version || p.npm.v1Version || p.npm.v0Version,
-    supports: p.supports,
-    npm: p.npm,
   };
 }
 
