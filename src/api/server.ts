@@ -128,6 +128,8 @@ interface ServerState {
   _anthropicFlow?: import("../auth/anthropic.js").AnthropicFlow;
   _codexFlow?: import("../auth/openai-codex.js").CodexFlow;
   _codexFlowTimer?: ReturnType<typeof setTimeout>;
+  /** Cached redacted config to avoid re-walking the tree on every poll. */
+  redactedConfig?: Record<string, unknown>;
 }
 
 interface ShareIngestItem {
@@ -1770,6 +1772,7 @@ async function handleRequest(
       if (!state.config.env) state.config.env = {};
       (state.config.env as Record<string, string>).ANTHROPIC_API_KEY =
         body.token.trim();
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
       json(res, { success: true });
     } catch (err) {
@@ -2196,6 +2199,7 @@ async function handleRequest(
     state.config = config;
     state.agentName = (body.name as string) ?? state.agentName;
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(config);
     } catch (err) {
       logger.error(
@@ -2981,6 +2985,7 @@ async function handleRequest(
 
       // Save updated config
       try {
+        state.redactedConfig = undefined;
         saveMilaidyConfig(state.config);
       } catch (err) {
         logger.warn(
@@ -3378,6 +3383,7 @@ async function handleRequest(
     }
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -4183,6 +4189,7 @@ async function handleRequest(
     process.env.SKILLSMP_API_KEY = apiKey;
     if (!state.config.env) state.config.env = {};
     (state.config.env as Record<string, string>).SKILLSMP_API_KEY = apiKey;
+    state.redactedConfig = undefined;
     saveMilaidyConfig(state.config);
     json(res, { ok: true, keySet: true });
     return;
@@ -4430,6 +4437,7 @@ async function handleRequest(
       process.env[envKey] ?? "";
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -4487,6 +4495,7 @@ async function handleRequest(
     }
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -4546,6 +4555,7 @@ async function handleRequest(
     }
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -4638,6 +4648,7 @@ async function handleRequest(
       lastCheckAt: undefined,
       lastCheckVersion: undefined,
     };
+    state.redactedConfig = undefined;
     saveMilaidyConfig(state.config);
     json(res, { channel: ch });
     return;
@@ -4645,7 +4656,10 @@ async function handleRequest(
 
   // ── GET /api/config ──────────────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/config") {
-    json(res, redactConfigSecrets(state.config));
+    if (!state.redactedConfig) {
+      state.redactedConfig = redactConfigSecrets(state.config);
+    }
+    json(res, state.redactedConfig);
     return;
   }
 
@@ -4742,6 +4756,7 @@ async function handleRequest(
     safeMerge(state.config as Record<string, unknown>, filtered);
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -5760,6 +5775,7 @@ async function handleRequest(
     >[string];
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
@@ -5780,6 +5796,7 @@ async function handleRequest(
     if (state.config.mcp?.servers?.[serverName]) {
       delete state.config.mcp.servers[serverName];
       try {
+        state.redactedConfig = undefined;
         saveMilaidyConfig(state.config);
       } catch (err) {
         logger.warn(
@@ -5807,6 +5824,7 @@ async function handleRequest(
     }
 
     try {
+      state.redactedConfig = undefined;
       saveMilaidyConfig(state.config);
     } catch (err) {
       logger.warn(
