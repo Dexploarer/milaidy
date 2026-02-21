@@ -3299,7 +3299,7 @@ const PROVIDER_ENV_KEYS: Record<
   },
   "google-genai": {
     envKey: "GOOGLE_GENERATIVE_AI_API_KEY",
-    altEnvKeys: ["GOOGLE_API_KEY"],
+    altEnvKeys: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
   },
   ollama: { envKey: "OLLAMA_BASE_URL" },
   "vercel-ai-gateway": {
