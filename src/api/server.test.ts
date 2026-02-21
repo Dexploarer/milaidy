@@ -122,3 +122,32 @@ describe("captureEarlyLogs", () => {
     expect(logger.info).toBe(patchedInfo);
   });
 });
+
+describe("applySecurityHeaders", () => {
+  it("sets security headers including Permissions-Policy", async () => {
+    const { applySecurityHeaders } = await import("./server.js");
+    const res = {
+      setHeader: vi.fn(),
+    };
+
+    applySecurityHeaders(res as any);
+
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "Content-Security-Policy",
+      "default-src 'none'",
+    );
+    expect(res.setHeader).toHaveBeenCalledWith("X-Frame-Options", "DENY");
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "X-Content-Type-Options",
+      "nosniff",
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "Referrer-Policy",
+      "no-referrer",
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "Permissions-Policy",
+      "interest-cohort=(), camera=(), microphone=(), geolocation=()",
+    );
+  });
+});
