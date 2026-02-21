@@ -1678,10 +1678,14 @@ export function OnboardingWizard() {
               </div>
 
               {/* GitHub */}
-              <div className={`px-4 py-3 border rounded-lg bg-card transition-colors min-w-0 ${onboardingGithubToken.trim() ? "border-accent" : "border-border"}`}>
+              <div
+                className={`px-4 py-3 border rounded-lg bg-card transition-colors min-w-0 ${(onboardingGithubToken ?? "").trim() ? "border-accent" : "border-border"}`}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="font-bold text-sm text-txt-strong">GitHub</div>
-                  {onboardingGithubToken.trim() && (
+                  <div className="font-bold text-sm text-txt-strong">
+                    GitHub
+                  </div>
+                  {(onboardingGithubToken ?? "").trim() && (
                     <span className="text-[10px] text-accent border border-accent px-1.5 py-0.5 rounded">
                       Configured
                     </span>
@@ -1689,7 +1693,12 @@ export function OnboardingWizard() {
                 </div>
                 <p className="text-xs text-muted mb-3 mt-1">
                   For coding agents, PRs, and issue management.{" "}
-                  <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-accent underline">
+                  <a
+                    href="https://github.com/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent underline"
+                  >
                     Create a token
                   </a>
                 </p>
@@ -1702,11 +1711,13 @@ export function OnboardingWizard() {
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                   className="w-full px-3 py-2 border border-border bg-card text-sm focus:border-accent focus:outline-none rounded"
                 />
-                {onboardingOptions?.githubOAuthAvailable && !onboardingGithubToken.trim() && (
-                  <p className="text-[11px] text-muted mt-2">
-                    Or skip this — you'll be prompted to authorize via GitHub OAuth when needed.
-                  </p>
-                )}
+                {onboardingOptions?.githubOAuthAvailable &&
+                  !(onboardingGithubToken ?? "").trim() && (
+                    <p className="text-[11px] text-muted mt-2">
+                      Or skip this — you'll be prompted to authorize via GitHub
+                      OAuth when needed.
+                    </p>
+                  )}
               </div>
             </div>
           </div>
