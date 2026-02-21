@@ -44,6 +44,7 @@ import {
   type MiladyConfig,
   saveMiladyConfig,
 } from "../config/config";
+import { collectConfigEnvVars } from "../config/env-vars";
 import { resolveStateDir, resolveUserPath } from "../config/paths";
 import {
   type ApplyPluginAutoEnableParams,
@@ -171,6 +172,22 @@ function configureLocalEmbeddingPlugin(
 
   // Set default models directory if not present
   setEnvIfMissing("MODELS_DIR", path.join(os.homedir(), ".eliza", "models"));
+
+  // Normalize Google AI API key aliases — the ElizaOS plugin and @google/genai
+  // SDK expect different env var names. Canonicalize to the long form that
+  // @elizaos/plugin-google-genai reads via runtime.getSetting(). Users can set
+  // any of: GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY.
+  setEnvIfMissing(
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+  );
+
+  // Default Google model names — the Google GenAI plugin's getSetting() returns
+  // null (not undefined) for missing keys, but the plugin checks !== undefined
+  // causing String(null) = "null" to be sent as the model name. Set sensible
+  // defaults so the plugin always has valid model names.
+  setEnvIfMissing("GOOGLE_SMALL_MODEL", "gemini-3-flash-preview");
+  setEnvIfMissing("GOOGLE_LARGE_MODEL", "gemini-3.1-pro-preview");
 
   logger.info(
     `[milady] Configured local embedding env: ${process.env.LOCAL_EMBEDDING_MODEL} (repo: ${process.env.LOCAL_EMBEDDING_MODEL_REPO ?? "auto"}, dims: ${process.env.LOCAL_EMBEDDING_DIMENSIONS ?? "auto"}, ctx: ${process.env.LOCAL_EMBEDDING_CONTEXT_SIZE ?? "auto"}, GPU: ${process.env.LOCAL_EMBEDDING_GPU_LAYERS}, mmap: ${process.env.LOCAL_EMBEDDING_USE_MMAP})`,
@@ -420,6 +437,7 @@ function isPiAiEnabledFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
 const PROVIDER_PLUGIN_MAP: Readonly<Record<string, string>> = {
   ANTHROPIC_API_KEY: "@elizaos/plugin-anthropic",
   OPENAI_API_KEY: "@elizaos/plugin-openai",
+  GEMINI_API_KEY: "@elizaos/plugin-google-genai",
   GOOGLE_API_KEY: "@elizaos/plugin-google-genai",
   GOOGLE_GENERATIVE_AI_API_KEY: "@elizaos/plugin-google-genai",
   GROQ_API_KEY: "@elizaos/plugin-groq",
@@ -453,6 +471,7 @@ const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   "pi-ai": PI_AI_PLUGIN_PACKAGE,
   piAi: PI_AI_PLUGIN_PACKAGE,
   x402: "@elizaos/plugin-x402",
+  "coding-agent": "@milaidy/plugin-coding-agent",
 };
 
 function looksLikePlugin(value: unknown): value is Plugin {
@@ -740,9 +759,12 @@ export function collectPluginNames(config: MiladyConfig): Set<string> {
   // installs) cannot accidentally re-introduce suppressed providers.
   applyProviderPrecedence();
 
-  // Enforce shell feature gating last so allow-list entries cannot bypass it.
+  // Enforce feature gating last so allow-list entries cannot bypass it.
   if (shellPluginDisabled) {
     pluginsToLoad.delete("@elizaos/plugin-shell");
+  }
+  if (isPluginExplicitlyDisabled("@milaidy/plugin-coding-agent")) {
+    pluginsToLoad.delete("@milaidy/plugin-coding-agent");
   }
 
   return pluginsToLoad;
@@ -1781,6 +1803,54 @@ function installRuntimeMethodBindings(runtime: AgentRuntime): void {
   // Some plugin builds store this method and invoke it later without the
   // runtime receiver, which breaks private-field access in AgentRuntime.
   runtime.getConversationLength = runtime.getConversationLength.bind(runtime);
+
+  // Wrap getSetting() to fall back to process.env for known keys when the
+  // core returns null. ElizaOS core returns null for missing keys, but some
+  // plugins (e.g. @elizaos/plugin-google-genai) check `!== undefined` and
+  // convert null to the string "null", causing API calls like `models/null`.
+  // Scoped to an allowlist to avoid leaking arbitrary env vars to plugins.
+  const GETSETTING_ENV_ALLOWLIST = new Set([
+    // Model provider API keys
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+    "GROQ_API_KEY",
+    "XAI_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "OPENROUTER_API_KEY",
+    // Google model defaults
+    "GOOGLE_SMALL_MODEL",
+    "GOOGLE_LARGE_MODEL",
+    // GitHub
+    "GITHUB_TOKEN",
+    "GITHUB_OAUTH_CLIENT_ID",
+    // Coding agent model preferences
+    "PARALLAX_CLAUDE_MODEL_POWERFUL",
+    "PARALLAX_CLAUDE_MODEL_FAST",
+    "PARALLAX_GEMINI_MODEL_POWERFUL",
+    "PARALLAX_GEMINI_MODEL_FAST",
+    "PARALLAX_CODEX_MODEL_POWERFUL",
+    "PARALLAX_CODEX_MODEL_FAST",
+    "PARALLAX_AIDER_PROVIDER",
+    "PARALLAX_AIDER_MODEL_POWERFUL",
+    "PARALLAX_AIDER_MODEL_FAST",
+    // Custom credential forwarding — intentionally broad: users configure which env vars
+    // to forward to coding agents via this comma-separated key list (e.g. MCP server tokens).
+    "CUSTOM_CREDENTIAL_KEYS",
+  ]);
+  const originalGetSetting = runtime.getSetting.bind(runtime);
+  runtime.getSetting = (key: string) => {
+    const result = originalGetSetting(key);
+    if (result !== null && result !== undefined) return result;
+    if (GETSETTING_ENV_ALLOWLIST.has(key)) {
+      const envVal = process.env[key];
+      if (envVal !== undefined && envVal.trim() !== "") return envVal;
+    }
+    return result;
+  };
+
   runtimeWithBindings.__miladyMethodBindingsInstalled = true;
 }
 
@@ -1889,6 +1959,7 @@ export function buildCharacterFromConfig(config: MiladyConfig): Character {
   const secretKeys = [
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
     "GOOGLE_GENERATIVE_AI_API_KEY",
     "GROQ_API_KEY",
@@ -1935,6 +2006,9 @@ export function buildCharacterFromConfig(config: MiladyConfig): Character {
     "X402_MAX_TOTAL_USD",
     "X402_ENABLED",
     "X402_DB_PATH",
+    // GitHub access for coding agent plugin
+    "GITHUB_TOKEN",
+    "GITHUB_OAUTH_CLIENT_ID",
   ];
 
   const secrets: Record<string, string> = {};
@@ -2103,8 +2177,12 @@ async function runFirstTimeSetup(config: MiladyConfig): Promise<MiladyConfig> {
     {
       id: "gemini",
       label: "Google Gemini",
-      envKey: "GOOGLE_API_KEY",
-      detectKeys: ["GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+      envKey: "GOOGLE_GENERATIVE_AI_API_KEY",
+      detectKeys: [
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
+      ],
       hint: "AI...",
     },
     {
@@ -2303,7 +2381,48 @@ async function runFirstTimeSetup(config: MiladyConfig): Promise<MiladyConfig> {
     process.env.SKILLS_REGISTRY = "https://clawhub.ai";
   }
 
-  // ── Step 7: Persist agent + style + provider + embedding config ─────────
+  // ── Step 7: GitHub access (for coding agents, issue management) ─────────
+  const hasGithubToken = Boolean(process.env.GITHUB_TOKEN?.trim());
+  const hasGithubOAuth = Boolean(process.env.GITHUB_OAUTH_CLIENT_ID?.trim());
+  if (!hasGithubToken) {
+    const options: Array<{ value: string; label: string; hint?: string }> = [
+      { value: "skip", label: "Skip for now", hint: "you can add this later" },
+      {
+        value: "pat",
+        label: "Paste a Personal Access Token",
+        hint: "github.com/settings/tokens",
+      },
+    ];
+    if (hasGithubOAuth) {
+      options.push({
+        value: "oauth",
+        label: "Use OAuth (authorize in browser)",
+        hint: "recommended",
+      });
+    }
+
+    const githubChoice = await clack.select({
+      message:
+        "Configure GitHub access? (needed for coding agents, issue management, PRs)",
+      options,
+    });
+
+    if (!clack.isCancel(githubChoice) && githubChoice === "pat") {
+      const tokenInput = await clack.password({
+        message: "Paste your GitHub token (or skip):",
+      });
+      if (!clack.isCancel(tokenInput) && tokenInput.trim()) {
+        process.env.GITHUB_TOKEN = tokenInput.trim();
+        clack.log.success("GitHub token configured.");
+      }
+    } else if (!clack.isCancel(githubChoice) && githubChoice === "oauth") {
+      clack.log.info(
+        "GitHub OAuth will activate when coding agents need access.",
+      );
+    }
+  }
+
+  // ── Step 8: Persist agent + style + provider + embedding config ─────────
   // Save the agent name and chosen personality template into config so that
   // the same character data is used regardless of whether the user onboarded
   // via CLI or GUI.  This ensures full parity between onboarding surfaces.
@@ -2361,6 +2480,12 @@ async function runFirstTimeSetup(config: MiladyConfig): Promise<MiladyConfig> {
   }
   if (process.env.SKILLSMP_API_KEY && !hasSkillsmpKey) {
     envBucket.SKILLSMP_API_KEY = process.env.SKILLSMP_API_KEY;
+  }
+  if (process.env.GITHUB_TOKEN && !hasGithubToken) {
+    envBucket.GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+  }
+  if (process.env.GITHUB_OAUTH_CLIENT_ID && !hasGithubOAuth) {
+    envBucket.GITHUB_OAUTH_CLIENT_ID = process.env.GITHUB_OAUTH_CLIENT_ID;
   }
 
   try {
@@ -2820,6 +2945,28 @@ export async function startEliza(
       : {}),
     settings: {
       VALIDATION_LEVEL: "fast",
+      // Forward non-sensitive Milady config.env vars as runtime settings so
+      // plugins can access them via runtime.getSetting(). This fixes a bug where
+      // plugins (e.g. @elizaos/plugin-google-genai) call runtime.getSetting()
+      // which returns null for keys not in settings, but the plugin checks
+      // !== undefined causing it to use "null" as the model name.
+      //
+      // Security: Filter out blockchain private keys and secrets. API keys are
+      // allowed since plugins need them via runtime.getSetting(). Private keys
+      // should only be accessed via process.env by signing services.
+      ...Object.fromEntries(
+        Object.entries(collectConfigEnvVars(config)).filter(([key]) => {
+          const upper = key.toUpperCase();
+          // Block blockchain private keys
+          if (upper.includes("PRIVATE_KEY")) return false;
+          if (upper.startsWith("EVM_") || upper.startsWith("SOLANA_"))
+            return false;
+          // Block secrets, passwords, auth tokens (but not API_KEY which plugins need)
+          if (/(SECRET|PASSWORD|AUTH_TOKEN|CREDENTIAL)$/i.test(key))
+            return false;
+          return true;
+        }),
+      ),
       // Forward Milady config env vars as runtime settings
       ...(primaryModel ? { MODEL_PROVIDER: primaryModel } : {}),
       // Forward skills config so plugin-agent-skills can apply allow/deny filtering
