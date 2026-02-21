@@ -26,8 +26,15 @@ import { listAgentsAction } from "./actions/list-agents.js";
 import { provisionWorkspaceAction } from "./actions/provision-workspace.js";
 import { finalizeWorkspaceAction } from "./actions/finalize-workspace.js";
 
+// Actions - Unified task launcher
+import { startCodingTaskAction } from "./actions/start-coding-task.js";
+
 // Actions - Issue management
 import { manageIssuesAction } from "./actions/manage-issues.js";
+
+// Providers
+import { codingAgentExamplesProvider } from "./providers/action-examples.js";
+import { activeWorkspaceContextProvider } from "./providers/active-workspace-context.js";
 
 /**
  * Wire the auth prompt callback so the workspace service can surface
@@ -81,7 +88,9 @@ export const codingAgentPlugin: Plugin = {
 
   // Actions expose capabilities to the agent
   actions: [
-    // PTY session management
+    // Unified task launcher (provision + spawn in one step)
+    startCodingTaskAction,
+    // PTY session management (for direct control)
     spawnAgentAction,
     sendToAgentAction,
     stopAgentAction,
@@ -96,8 +105,11 @@ export const codingAgentPlugin: Plugin = {
   // No evaluators needed for now
   evaluators: [],
 
-  // No providers needed for now
-  providers: [],
+  // Providers inject context into the prompt
+  providers: [
+    activeWorkspaceContextProvider,  // Live workspace/session state
+    codingAgentExamplesProvider,     // Structured action call examples
+  ],
 };
 
 export default codingAgentPlugin;
@@ -138,6 +150,7 @@ export type {
 } from "./services/workspace-service.js";
 
 // Re-export actions
+export { startCodingTaskAction } from "./actions/start-coding-task.js";
 export { spawnAgentAction } from "./actions/spawn-agent.js";
 export { sendToAgentAction } from "./actions/send-to-agent.js";
 export { stopAgentAction } from "./actions/stop-agent.js";
