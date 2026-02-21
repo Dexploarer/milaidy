@@ -127,6 +127,9 @@ const BLOCKED_IMAGE_HOST_LITERALS = new Set([
   "169.254.169.254",
 ]);
 
+const DEFAULT_DNS_TIMEOUT_MS = 5_000;
+const MAX_IMAGE_FETCH_BYTES = 50 * 1024 * 1024;
+
 function normalizeHostLike(value: string): string {
   return value
     .trim()
@@ -136,6 +139,22 @@ function normalizeHostLike(value: string): string {
 
 function isBlockedPrivateOrLinkLocalIp(ip: string): boolean {
   const normalized = normalizeHostLike(ip).split("%")[0];
+  const mappedIpv4 = normalized.match(/^::ffff:(.+)$/i)?.[1];
+
+  if (mappedIpv4) {
+    if (net.isIP(mappedIpv4) === 4) {
+      return isBlockedPrivateOrLinkLocalIp(mappedIpv4);
+    }
+
+    const hexMapped = mappedIpv4.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+    if (hexMapped) {
+      const high = Number.parseInt(hexMapped[1], 16);
+      const low = Number.parseInt(hexMapped[2], 16);
+      const ipv4 = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+      return isBlockedPrivateOrLinkLocalIp(ipv4);
+    }
+  }
+
   return (
     /^0\./.test(normalized) ||
     /^10\./.test(normalized) ||
@@ -150,7 +169,40 @@ function isBlockedPrivateOrLinkLocalIp(ip: string): boolean {
   );
 }
 
-export async function validatePublicImageUrl(rawUrl: string): Promise<URL> {
+type DnsLookupResult = Awaited<ReturnType<typeof dnsLookup>>;
+type DnsLookupFn = (
+  hostname: string,
+  options: { all: true },
+) => Promise<DnsLookupResult>;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`operation timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+export async function validatePublicImageUrl(
+  rawUrl: string,
+  options?: {
+    dnsLookupFn?: DnsLookupFn;
+    dnsTimeoutMs?: number;
+  },
+): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -180,9 +232,15 @@ export async function validatePublicImageUrl(rawUrl: string): Promise<URL> {
   }
 
   if (!net.isIP(hostname)) {
+    const lookup = options?.dnsLookupFn ?? dnsLookup;
+    const dnsTimeoutMs = options?.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS;
+
     let addresses: Array<{ address: string }>;
     try {
-      const resolved = await dnsLookup(hostname, { all: true });
+      const resolved = await withTimeout(
+        lookup(hostname, { all: true }),
+        dnsTimeoutMs,
+      );
       addresses = Array.isArray(resolved) ? resolved : [resolved];
     } catch {
       throw new Error(`IMAGE_DESCRIPTION could not resolve host: ${hostname}`);
@@ -204,11 +262,24 @@ export async function validatePublicImageUrl(rawUrl: string): Promise<URL> {
   return parsed;
 }
 
-async function fetchImageWithValidation(imageUrl: string): Promise<Response> {
-  let currentUrl = await validatePublicImageUrl(imageUrl);
+async function fetchImageWithValidation(
+  imageUrl: string,
+  options?: {
+    fetchImpl?: typeof fetch;
+    maxImageBytes?: number;
+    dnsLookupFn?: DnsLookupFn;
+    dnsTimeoutMs?: number;
+  },
+): Promise<Response> {
+  const fetchImpl = options?.fetchImpl ?? fetch;
+  const maxImageBytes = options?.maxImageBytes ?? MAX_IMAGE_FETCH_BYTES;
+  let currentUrl = await validatePublicImageUrl(imageUrl, {
+    dnsLookupFn: options?.dnsLookupFn,
+    dnsTimeoutMs: options?.dnsTimeoutMs,
+  });
 
   for (let redirectCount = 0; redirectCount <= 5; redirectCount++) {
-    const resp = await fetch(currentUrl.toString(), { redirect: "manual" });
+    const resp = await fetchImpl(currentUrl.toString(), { redirect: "manual" });
     if (resp.status >= 300 && resp.status < 400) {
       const location = resp.headers.get("location");
       if (!location) {
@@ -216,8 +287,22 @@ async function fetchImageWithValidation(imageUrl: string): Promise<Response> {
       }
       currentUrl = await validatePublicImageUrl(
         new URL(location, currentUrl).toString(),
+        {
+          dnsLookupFn: options?.dnsLookupFn,
+          dnsTimeoutMs: options?.dnsTimeoutMs,
+        },
       );
       continue;
+    }
+
+    const contentLengthHeader = resp.headers.get("content-length");
+    if (contentLengthHeader) {
+      const contentLength = Number.parseInt(contentLengthHeader, 10);
+      if (Number.isFinite(contentLength) && contentLength > maxImageBytes) {
+        throw new Error(
+          `Image too large: ${contentLength} bytes exceeds ${maxImageBytes} byte limit`,
+        );
+      }
     }
 
     return resp;
@@ -239,9 +324,16 @@ function parseImageUrl(imageUrl: string): {
   return { data: imageUrl, mimeType: "image/png" };
 }
 
-function createPiAiImageDescriptionHandler(
+export function createPiAiImageDescriptionHandler(
   getModel: () => Model<Api>,
   config: PiAiHandlerConfig,
+  options?: {
+    fetchImpl?: typeof fetch;
+    streamImpl?: typeof stream;
+    maxImageBytes?: number;
+    dnsLookupFn?: DnsLookupFn;
+    dnsTimeoutMs?: number;
+  },
 ): (
   runtime: IAgentRuntime,
   params: Record<string, JsonValue | object>,
@@ -251,6 +343,7 @@ function createPiAiImageDescriptionHandler(
     params: Record<string, JsonValue | object>,
   ): Promise<JsonValue | object> => {
     const model = getModel();
+    const streamImpl = options?.streamImpl ?? stream;
 
     let imageUrl: string;
     let prompt: string;
@@ -272,11 +365,31 @@ function createPiAiImageDescriptionHandler(
     let imgData: { data: string; mimeType: string };
 
     if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
-      const resp = await fetchImageWithValidation(imageUrl);
+      const maxImageBytes = options?.maxImageBytes ?? MAX_IMAGE_FETCH_BYTES;
+      const resp = await fetchImageWithValidation(imageUrl, {
+        fetchImpl: options?.fetchImpl,
+        maxImageBytes,
+        dnsLookupFn: options?.dnsLookupFn,
+        dnsTimeoutMs: options?.dnsTimeoutMs,
+      });
       if (!resp.ok) throw new Error(`Failed to fetch image: ${resp.status}`);
+
+      const ct = resp.headers.get("content-type") ?? "";
+      const normalizedCt = ct.toLowerCase();
+      if (!normalizedCt.startsWith("image/")) {
+        throw new Error(
+          `Invalid content-type for image fetch: ${ct || "missing"}`,
+        );
+      }
+
       const buf = Buffer.from(await resp.arrayBuffer());
-      const ct = resp.headers.get("content-type") ?? "image/png";
-      imgData = { data: buf.toString("base64"), mimeType: ct };
+      if (buf.byteLength > maxImageBytes) {
+        throw new Error(
+          `Image too large: ${buf.byteLength} bytes exceeds ${maxImageBytes} byte limit`,
+        );
+      }
+
+      imgData = { data: buf.toString("base64"), mimeType: ct || "image/png" };
     } else {
       imgData = parseImageUrl(imageUrl);
     }
@@ -303,7 +416,7 @@ function createPiAiImageDescriptionHandler(
 
     let fullText = "";
     try {
-      for await (const event of stream(model, context, {
+      for await (const event of streamImpl(model, context, {
         maxTokens: 4096,
         ...(apiKey ? { apiKey } : {}),
       })) {

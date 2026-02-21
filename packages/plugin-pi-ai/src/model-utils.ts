@@ -23,9 +23,19 @@ export function parseModelSpec(spec: string): ModelSpecParts {
  * so we expose a safe wrapper for dynamic string lookups.
  */
 export function getPiModel(provider: string, modelId: string): Model<Api> {
+  // SAFETY: pi-ai's getModel() is generically typed for literal providers,
+  // but this plugin intentionally resolves providers dynamically at runtime.
   const getModelUnsafe = getModel as unknown as (
     p: string,
     m: string,
   ) => Model<Api>;
-  return getModelUnsafe(provider, modelId);
+  const model = getModelUnsafe(provider, modelId);
+  if (
+    !model ||
+    typeof model.provider !== "string" ||
+    typeof model.id !== "string"
+  ) {
+    throw new Error(`Invalid model returned for ${provider}/${modelId}`);
+  }
+  return model;
 }

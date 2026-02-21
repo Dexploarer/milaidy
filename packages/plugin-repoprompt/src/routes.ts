@@ -1,22 +1,25 @@
 import {
   type IAgentRuntime,
+  logger,
   type Route,
   type RouteRequest,
   type RouteResponse,
-  logger,
-} from '@elizaos/core';
-import { type RepoPromptRunInput, RepoPromptService } from './services/repoprompt-service.ts';
+} from "@elizaos/core";
+import type {
+  RepoPromptRunInput,
+  RepoPromptService,
+} from "./services/repoprompt-service.ts";
 
 function getService(runtime: IAgentRuntime): RepoPromptService {
-  const service = runtime.getService('repoprompt') as RepoPromptService | null;
+  const service = runtime.getService("repoprompt") as RepoPromptService | null;
   if (!service) {
-    throw new Error('RepoPrompt service not available');
+    throw new Error("RepoPrompt service not available");
   }
   return service;
 }
 
 function toStringOrUndefined(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     return undefined;
   }
   const normalized = value.trim();
@@ -27,7 +30,7 @@ function toArgs(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     return value.map((item) => String(item));
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed.split(/\s+/) : undefined;
   }
@@ -35,7 +38,7 @@ function toArgs(value: unknown): string[] | undefined {
 }
 
 function parseRunInput(body: unknown): RepoPromptRunInput | null {
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== "object") {
     return null;
   }
 
@@ -51,7 +54,7 @@ function parseRunInput(body: unknown): RepoPromptRunInput | null {
     command,
     args,
     window:
-      typeof record.window === 'number' || typeof record.window === 'string'
+      typeof record.window === "number" || typeof record.window === "string"
         ? record.window
         : undefined,
     tab: toStringOrUndefined(record.tab),
@@ -61,10 +64,15 @@ function parseRunInput(body: unknown): RepoPromptRunInput | null {
 }
 
 const statusRoute: Route = {
-  name: 'repoprompt-status',
-  path: '/status',
-  type: 'GET',
-  handler: async (_req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
+  name: "repoprompt-status",
+  public: false,
+  path: "/status",
+  type: "GET",
+  handler: async (
+    _req: RouteRequest,
+    res: RouteResponse,
+    runtime: IAgentRuntime,
+  ) => {
     try {
       const service = getService(runtime);
       res.json({ ok: true, status: service.getStatus() });
@@ -78,17 +86,22 @@ const statusRoute: Route = {
 };
 
 const runRoute: Route = {
-  name: 'repoprompt-run',
-  path: '/run',
-  type: 'POST',
-  handler: async (req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
+  name: "repoprompt-run",
+  public: false,
+  path: "/run",
+  type: "POST",
+  handler: async (
+    req: RouteRequest,
+    res: RouteResponse,
+    runtime: IAgentRuntime,
+  ) => {
     try {
       const input = parseRunInput(req.body);
       if (!input) {
         res.status(400).json({
           ok: false,
           error:
-            'Invalid run request. Provide `command` or a non-empty `args` array in request body.',
+            "Invalid run request. Provide `command` or a non-empty `args` array in request body.",
         });
         return;
       }
