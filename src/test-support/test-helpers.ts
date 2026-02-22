@@ -237,6 +237,13 @@ export function createMockIncomingMessage({
 
   req.method = method;
   req.url = url;
+
+  // Auto-inject Content-Type for JSON requests if missing, to satisfy CSRF protection in readJsonBody.
+  if (json && !headers["content-type"] && !headers["Content-Type"]) {
+    headers["content-type"] = "application/json";
+  }
+
+  // console.log('[test-helper] Request headers:', headers);
   req.headers = headers;
   req.destroy = vi.fn();
 
