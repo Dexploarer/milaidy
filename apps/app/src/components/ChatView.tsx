@@ -6,11 +6,11 @@
  * Input row at bottom with mic + textarea + send button.
  */
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, memo } from "react";
 import { useApp } from "../AppContext.js";
 import { ChatAvatar } from "./ChatAvatar.js";
 import { useVoiceChat } from "../hooks/useVoiceChat.js";
-import { client, type VoiceConfig } from "../api-client.js";
+import { client, type VoiceConfig, type ConversationMessage } from "../api-client.js";
 
 // ── Typewriter streaming component ────────────────────────────────────
 // Reveals text progressively using direct DOM manipulation (no React
@@ -70,6 +70,58 @@ function StreamingText({ text, onComplete, onProgress }: StreamingTextProps) {
     </>
   );
 }
+
+// ── Memoized Message List ─────────────────────────────────────────────
+// Prevents re-rendering the entire message list when the parent ChatView
+// re-renders frequently (e.g. during voice animation at 60fps).
+
+interface MessageListProps {
+  messages: ConversationMessage[];
+  agentName: string;
+  streamingMsgId: string | null;
+  onStreamComplete: () => void;
+  onStreamProgress: () => void;
+}
+
+const MessageList = memo(function MessageList({
+  messages,
+  agentName,
+  streamingMsgId,
+  onStreamComplete,
+  onStreamProgress
+}: MessageListProps) {
+  return (
+    <>
+      {messages.map((msg) => (
+        <div
+          key={msg.id}
+          className="mb-4 leading-relaxed max-w-[65%]"
+          data-testid="chat-message"
+          data-role={msg.role}
+        >
+          <div
+            className={`font-bold text-[13px] mb-0.5 ${
+              msg.role === "user" ? "text-txt-strong" : "text-accent"
+            }`}
+          >
+            {msg.role === "user" ? "You" : agentName}
+          </div>
+          <div className="text-txt">
+            {msg.id === streamingMsgId ? (
+              <StreamingText
+                text={msg.text}
+                onComplete={onStreamComplete}
+                onProgress={onStreamProgress}
+              />
+            ) : (
+              msg.text
+            )}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+});
 
 export function ChatView() {
   const {
@@ -259,33 +311,13 @@ export function ChatView() {
             Send a message to start chatting.
           </div>
         ) : (
-          msgs.map((msg) => (
-            <div
-              key={msg.id}
-              className="mb-4 leading-relaxed max-w-[65%]"
-              data-testid="chat-message"
-              data-role={msg.role}
-            >
-              <div
-                className={`font-bold text-[13px] mb-0.5 ${
-                  msg.role === "user" ? "text-txt-strong" : "text-accent"
-                }`}
-              >
-                {msg.role === "user" ? "You" : agentName}
-              </div>
-              <div className="text-txt">
-                {msg.id === streamingMsgId ? (
-                  <StreamingText
-                    text={msg.text}
-                    onComplete={handleStreamComplete}
-                    onProgress={handleStreamProgress}
-                  />
-                ) : (
-                  msg.text
-                )}
-              </div>
-            </div>
-          ))
+          <MessageList
+            messages={msgs}
+            agentName={agentName}
+            streamingMsgId={streamingMsgId}
+            onStreamComplete={handleStreamComplete}
+            onStreamProgress={handleStreamProgress}
+          />
         )}
 
         {chatSending && (
