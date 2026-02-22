@@ -1,0 +1,135 @@
+
+> @milady/app@2.0.0-alpha.26 dev /app/apps/app
+> vite
+
+
+  VITE v5.4.21  ready in 448 ms
+
+  ➜  Local:   http://localhost:2138/
+  ➜  Network: http://192.168.0.2:2138/
+11:04:14 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:14 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:15 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:16 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:17 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:18 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:19 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:20 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:21 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:22 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:23 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:24 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:25 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:26 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:27 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:28 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:29 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:30 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:31 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:32 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:33 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:34 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:35 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:36 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:37 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:38 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:39 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:40 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:41 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:42 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:04:43 PM [vite] http proxy error: /api/onboarding/status
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+11:05:02 PM [vite] page reload test/frontend-verification.py
+11:05:31 PM [vite] page reload test/app/conversations-sidebar.test.tsx
