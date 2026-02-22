@@ -4063,6 +4063,13 @@ function resolveCorsOrigin(origin?: string): string | null {
   return null;
 }
 
+export function applySecurityHeaders(res: http.ServerResponse): void {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+}
+
 function applyCors(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -5251,6 +5258,8 @@ async function handleRequest(
   state: ServerState,
   ctx?: RequestContext,
 ): Promise<void> {
+  applySecurityHeaders(res);
+
   const method = req.method ?? "GET";
   let url: URL;
   try {
