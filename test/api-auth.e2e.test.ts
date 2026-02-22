@@ -317,6 +317,18 @@ describe("Token auth gate (MILADY_API_TOKEN set)", () => {
     }
   });
 
+  it("accepts WebSocket upgrade with query token when enabled", async () => {
+    process.env.MILADY_ALLOW_WS_QUERY_TOKEN = "1";
+    try {
+      const result = await connectWs(
+        `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(TEST_TOKEN)}`,
+      );
+      expect(result.kind).toBe("open");
+    } finally {
+      delete process.env.MILADY_ALLOW_WS_QUERY_TOKEN;
+    }
+  });
+
   // ── Auth endpoints exempt from token ───────────────────────────────────
 
   it("/api/auth/status is accessible without token", async () => {
@@ -345,6 +357,7 @@ describe("Token auth gate (MILADY_API_TOKEN set)", () => {
       ["GET", "/api/wallet/addresses"],
       ["GET", "/api/wallet/config"],
       ["GET", "/api/onboarding/status"],
+      ["POST", "/api/terminal/run"],
     ];
 
     for (const [method, path] of endpoints) {
@@ -369,6 +382,19 @@ describe("Token auth gate (MILADY_API_TOKEN set)", () => {
       const { status } = await req(port, method, path, undefined, auth);
       expect(status).toBe(200);
     }
+  });
+
+  it("terminal run auth gate accepts valid token", async () => {
+    const auth = { headers: { Authorization: `Bearer ${TEST_TOKEN}` } };
+    const { status } = await req(
+      port,
+      "POST",
+      "/api/terminal/run",
+      { command: "echo auth-gate" },
+      auth,
+    );
+    // shell policy may still deny execution, but auth gate must pass
+    expect(status).not.toBe(401);
   });
 });
 

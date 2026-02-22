@@ -33,6 +33,8 @@ vendor/
 # Local untracked files
 .local/
 .vscode/
+.claude/settings.local.json
+.git-workspace/
 IDENTITY.md
 USER.md
 .tgz
@@ -60,6 +62,9 @@ knowledge/
 scripts/knowledge-loop.mjs
 test/contracts/
 apps/app/test-results/
+# WhatsApp session files (Baileys auth state)
+/auth/
 :memory:/
 benchmarks/
 plugins/
+!docs/plugins/
