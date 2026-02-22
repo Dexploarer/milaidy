@@ -1507,6 +1507,54 @@ function applyCors(
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 10;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+// Cleanup expired rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetAt) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+function getClientIp(req: http.IncomingMessage): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (forwarded) {
+    return (typeof forwarded === "string" ? forwarded : forwarded[0])
+      .split(",")[0]
+      .trim();
+  }
+  return req.socket.remoteAddress ?? "unknown";
+}
+
+export function checkRateLimit(
+  ip: string | null,
+  action: string,
+  max: number = RATE_LIMIT_MAX_REQUESTS,
+  window: number = RATE_LIMIT_WINDOW_MS,
+): boolean {
+  const key = `${ip ?? "unknown"}:${action}`;
+  const now = Date.now();
+  const current = rateLimitMap.get(key);
+
+  if (!current || now > current.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + window });
+    return true;
+  }
+
+  if (current.count >= max) return false;
+  current.count += 1;
+  return true;
+}
+
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 const PAIRING_WINDOW_MS = 10 * 60 * 1000;
 const PAIRING_MAX_ATTEMPTS = 5;
@@ -2353,6 +2401,11 @@ async function handleRequest(
   // ── POST /api/agent/reset ──────────────────────────────────────────────
   // Wipe config, workspace (memory), and return to onboarding.
   if (method === "POST" && pathname === "/api/agent/reset") {
+    if (!checkRateLimit(getClientIp(req), "agent-reset", 3)) {
+      error(res, "Too many reset attempts. Try again later.", 429);
+      return;
+    }
+
     try {
       // 1. Stop the runtime if it's running
       if (state.runtime) {
@@ -2421,6 +2474,11 @@ async function handleRequest(
   // ── POST /api/agent/export ─────────────────────────────────────────────
   // Export the entire agent as a password-encrypted binary file.
   if (method === "POST" && pathname === "/api/agent/export") {
+    if (!checkRateLimit(getClientIp(req), "agent-export", 5)) {
+      error(res, "Too many export attempts. Try again later.", 429);
+      return;
+    }
+
     if (!state.runtime) {
       error(res, "Agent is not running — start it before exporting.", 503);
       return;
@@ -2495,6 +2553,11 @@ async function handleRequest(
   // ── POST /api/agent/import ─────────────────────────────────────────────
   // Import an agent from a password-encrypted .eliza-agent file.
   if (method === "POST" && pathname === "/api/agent/import") {
+    if (!checkRateLimit(getClientIp(req), "agent-import", 5)) {
+      error(res, "Too many import attempts. Try again later.", 429);
+      return;
+    }
+
     if (!state.runtime) {
       error(res, "Agent is not running — start it before importing.", 503);
       return;
@@ -4561,6 +4624,11 @@ async function handleRequest(
   // SECURITY: Requires { confirm: true } in the request body to prevent
   // accidental exposure of private keys.
   if (method === "POST" && pathname === "/api/wallet/export") {
+    if (!checkRateLimit(getClientIp(req), "wallet-export", 3)) {
+      error(res, "Too many export attempts. Try again later.", 429);
+      return;
+    }
+
     const body = await readJsonBody<{ confirm?: boolean }>(req, res);
     if (!body) return;
 
@@ -4754,6 +4822,13 @@ async function handleRequest(
 
   // ── Cloud routes (/api/cloud/*) ─────────────────────────────────────────
   if (pathname.startsWith("/api/cloud/")) {
+    if (pathname === "/api/cloud/login" && method === "POST") {
+      if (!checkRateLimit(getClientIp(req), "cloud-login", 5)) {
+        error(res, "Too many login attempts. Try again later.", 429);
+        return;
+      }
+    }
+
     const cloudState: CloudRouteState = {
       config: state.config,
       cloudManager: state.cloudManager,
