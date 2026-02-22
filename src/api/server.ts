@@ -4041,6 +4041,13 @@ const LOCAL_ORIGIN_RE =
 const APP_ORIGIN_RE =
   /^(capacitor|capacitor-electron|app):\/\/(localhost|-)?$/i;
 
+export function applySecurityHeaders(res: http.ServerResponse): void {
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+}
+
 function resolveCorsOrigin(origin?: string): string | null {
   if (!origin) return null;
   const trimmed = origin.trim();
@@ -5251,6 +5258,7 @@ async function handleRequest(
   state: ServerState,
   ctx?: RequestContext,
 ): Promise<void> {
+  applySecurityHeaders(res);
   const method = req.method ?? "GET";
   let url: URL;
   try {
