@@ -4091,6 +4091,14 @@ function applyCors(
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "accelerometer=(), camera=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()",
+  );
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self' capacitor-electron://* https://* http://localhost:* http://127.0.0.1:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' http://localhost:* http://127.0.0.1:* https://*; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*; connect-src 'self' blob: data: http://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* ws://127.0.0.1:* wss://127.0.0.1:* https://* wss://*; img-src 'self' data: blob: http://localhost:* http://127.0.0.1:* https://*; media-src 'self' blob: http://localhost:* http://127.0.0.1:* https://*; font-src 'self' data: https://fonts.gstatic.com https://*; frame-src 'self' http://localhost:* http://127.0.0.1:* https://*; worker-src 'self' blob:;",
+  );
 
   return true;
 }

@@ -31,7 +31,7 @@ async function build() {
           outdir: "./dist",
           target: "node",
           format: "esm",
-          sourcemap: true,
+          sourcemap: "external",
           minify: false,
           external: ["node:*", "@elizaos/core", "@mariozechner/pi-ai", "zod"],
           naming: {
