@@ -322,7 +322,7 @@ export class ElectronCapacitorApp {
           app.getAppPath(),
           "assets",
           this.CapacitorFileConfig.electron?.splashScreenImageName ??
-            "splash.png",
+          "splash.png",
         ),
         windowWidth: 400,
         windowHeight: 400,
@@ -563,6 +563,8 @@ export function setupContentSecurityPolicy(customScheme: string): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     // For sub-frame requests (iframes), strip frame-ancestors so embedded
     // apps like Privy auth can load inside our GameView iframe.
+    // Also strip COOP/COEP headers that break popup-based auth flows
+    // (e.g. Base Smart Wallet SDK requires COOP to NOT be 'same-origin').
     // This is safe because Electron windows are native containers and
     // aren't vulnerable to clickjacking via frame-ancestors.
     if (details.resourceType === "subFrame") {
@@ -579,6 +581,14 @@ export function setupContentSecurityPolicy(customScheme: string): void {
               v.replace(/frame-ancestors\s+[^;]+(;|$)/gi, ""),
             );
           }
+        }
+        // Strip COOP/COEP from subframes — these headers prevent embedded
+        // apps from opening popups for auth flows (Privy, Base Wallet SDK).
+        if (
+          lk === "cross-origin-opener-policy" ||
+          lk === "cross-origin-embedder-policy"
+        ) {
+          delete headers[key];
         }
       }
       callback({ responseHeaders: headers });
@@ -602,11 +612,16 @@ export function setupContentSecurityPolicy(customScheme: string): void {
       `worker-src 'self' blob:`,
     ].join("; ");
 
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        "Content-Security-Policy": [base],
-      },
-    });
+    // For main-frame responses, use 'same-origin-allow-popups' instead of
+    // 'same-origin' for COOP. This allows embedded apps to open popup
+    // windows for auth flows (Privy, Base Smart Wallet SDK) while still
+    // maintaining cross-origin isolation for the main window.
+    const responseHeaders = {
+      ...details.responseHeaders,
+      "Content-Security-Policy": [base],
+      "Cross-Origin-Opener-Policy": ["same-origin-allow-popups"],
+    };
+
+    callback({ responseHeaders });
   });
 }
