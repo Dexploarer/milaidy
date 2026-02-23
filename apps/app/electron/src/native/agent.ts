@@ -14,7 +14,7 @@
  */
 
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { app, type BrowserWindow, ipcMain } from "electron";
 import type { IpcValue } from "./ipc-types";
 
@@ -23,19 +23,31 @@ import type { IpcValue } from "./ipc-types";
  * tsc converts `import()` to `require()` when targeting CommonJS, but the
  * milady dist bundles are ESM.  This wrapper keeps a real `import()` call
  * at runtime.
+ *
+ * If the `new Function` trick fails (e.g. Electron CSP), we fall back to
+ * require() with the filesystem path (file:// URLs don't work with require).
  */
 const dynamicImport = async (
   specifier: string,
 ): Promise<Record<string, unknown>> => {
+  // Primary path: use new Function to get a real async import() at runtime,
+  // bypassing tsc's CJS downgrade.
   try {
     const importer = new Function("s", "return import(s)") as (
       s: string,
     ) => Promise<Record<string, unknown>>;
     return await importer(specifier);
-  } catch {
-    // Test runners can sandbox dynamic import callbacks. Fall back to native
-    // import so startup logic remains testable.
-    return import(specifier);
+  } catch (primaryErr) {
+    // If the primary path failed, try require() with filesystem path
+    console.warn(
+      "[Agent] ESM dynamic import failed, falling back to require():",
+      primaryErr instanceof Error ? primaryErr.message : primaryErr,
+    );
+    const fsPath = specifier.startsWith("file://")
+      ? fileURLToPath(specifier)
+      : specifier;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require(fsPath) as Record<string, unknown>;
   }
 };
 
@@ -94,7 +106,7 @@ export class AgentManager {
     if (
       this.runtime &&
       typeof (this.runtime as { stop?: () => Promise<void> }).stop ===
-        "function"
+      "function"
     ) {
       try {
         await (this.runtime as { stop: () => Promise<void> }).stop();
@@ -140,8 +152,8 @@ export class AgentManager {
       let actualPort: number | null = null;
       let startEliza:
         | ((opts: {
-            headless: boolean;
-          }) => Promise<Record<string, unknown> | null>)
+          headless: boolean;
+        }) => Promise<Record<string, unknown> | null>)
         | null = null;
       // `startApiServer()` returns an `updateRuntime()` helper that broadcasts
       // status updates and restores conversation state after a hot restart.
@@ -169,7 +181,7 @@ export class AgentManager {
             if (
               prevRuntime &&
               typeof (prevRuntime as { stop?: () => Promise<void> }).stop ===
-                "function"
+              "function"
             ) {
               try {
                 await (prevRuntime as { stop: () => Promise<void> }).stop();
@@ -244,8 +256,8 @@ export class AgentManager {
       const resolvedStartEliza = (elizaModule.startEliza ??
         (elizaModule.default as Record<string, unknown>)?.startEliza) as
         | ((opts: {
-            headless: boolean;
-          }) => Promise<Record<string, unknown> | null>)
+          headless: boolean;
+        }) => Promise<Record<string, unknown> | null>)
         | undefined;
 
       if (typeof resolvedStartEliza !== "function") {
@@ -306,7 +318,7 @@ export class AgentManager {
       if (
         this.runtime &&
         typeof (this.runtime as { stop?: () => Promise<void> }).stop ===
-          "function"
+        "function"
       ) {
         try {
           await (this.runtime as { stop: () => Promise<void> }).stop();
@@ -345,7 +357,7 @@ export class AgentManager {
       if (
         this.runtime &&
         typeof (this.runtime as { stop?: () => Promise<void> }).stop ===
-          "function"
+        "function"
       ) {
         await (this.runtime as { stop: () => Promise<void> }).stop();
       }
