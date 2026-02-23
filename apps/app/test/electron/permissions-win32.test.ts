@@ -2,7 +2,7 @@
  * Unit tests for Windows permission detection
  * (apps/app/electron/src/native/permissions-win32.ts)
  */
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -11,9 +11,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   const execFn = vi.fn();
-  // biome-ignore lint/suspicious/noExplicitAny: test mock requires dynamic property assignment
-  // biome-ignore lint/style/noNonNullAssertion: promisify.custom is always defined in Node
-  (execFn as any)[promisify.custom!] = (...args: unknown[]) =>
+  (execFn as any)[promisify.custom!] = (...args: any[]) =>
     new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
       const cb = (err: Error | null, stdout = "", stderr = "") => {
         if (err) {
@@ -32,13 +30,8 @@ vi.mock("electron", () => ({
   shell: {
     openExternal: vi.fn(),
   },
-  systemPreferences: {
-    askForMediaAccess: vi.fn(),
-    getMediaAccessStatus: vi.fn(),
-  },
 }));
 
-import { exec } from "node:child_process";
 import { shell } from "electron";
 import {
   checkCamera,
@@ -47,40 +40,11 @@ import {
   openPrivacySettings,
   requestPermission,
 } from "../../electron/src/native/permissions-win32";
+import { mockExecSequence } from "./helpers/exec-mock";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Tests
 // ---------------------------------------------------------------------------
-
-const execMock = exec as unknown as Mock;
-
-/**
- * Configure exec to respond to multiple command patterns.
- */
-function mockExecSequence(
-  entries: Array<{
-    pattern: string | RegExp;
-    result: { stdout: string; stderr?: string } | Error;
-  }>,
-) {
-  execMock.mockImplementation(
-    (cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
-      const callback = typeof opts === "function" ? opts : cb;
-      for (const { pattern, result } of entries) {
-        const matches =
-          typeof pattern === "string"
-            ? cmd.includes(pattern)
-            : pattern.test(cmd);
-        if (matches) {
-          if (result instanceof Error) callback?.(result, "", result.message);
-          else callback?.(null, result.stdout, result.stderr || "");
-          return;
-        }
-      }
-      callback?.(new Error(`unexpected command: ${cmd}`), "", "");
-    },
-  );
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -231,33 +195,33 @@ describe("checkCamera", () => {
 // ---------------------------------------------------------------------------
 
 describe("openPrivacySettings", () => {
-  const openMock = () => shell.openExternal as Mock;
+  const openMock = shell.openExternal as Mock;
 
   it("opens ms-settings:privacy-microphone for microphone", async () => {
     await openPrivacySettings("microphone");
-    expect(openMock()).toHaveBeenCalledWith("ms-settings:privacy-microphone");
+    expect(openMock).toHaveBeenCalledWith("ms-settings:privacy-microphone");
   });
 
   it("opens ms-settings:privacy-webcam for camera", async () => {
     await openPrivacySettings("camera");
-    expect(openMock()).toHaveBeenCalledWith("ms-settings:privacy-webcam");
+    expect(openMock).toHaveBeenCalledWith("ms-settings:privacy-webcam");
   });
 
   it("opens ms-settings:easeofaccess for accessibility", async () => {
     await openPrivacySettings("accessibility");
-    expect(openMock()).toHaveBeenCalledWith("ms-settings:easeofaccess");
+    expect(openMock).toHaveBeenCalledWith("ms-settings:easeofaccess");
   });
 
   it("opens correct URI for screen-recording", async () => {
     await openPrivacySettings("screen-recording");
-    expect(openMock()).toHaveBeenCalledWith(
+    expect(openMock).toHaveBeenCalledWith(
       "ms-settings:privacy-broadcastglobalsettings",
     );
   });
 
   it("opens ms-settings:developers for shell", async () => {
     await openPrivacySettings("shell");
-    expect(openMock()).toHaveBeenCalledWith("ms-settings:developers");
+    expect(openMock).toHaveBeenCalledWith("ms-settings:developers");
   });
 });
 
@@ -304,7 +268,6 @@ describe("checkPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: testing unknown permission id
     const result = await checkPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });
@@ -315,46 +278,52 @@ describe("checkPermission dispatcher", () => {
 // ---------------------------------------------------------------------------
 
 describe("requestPermission dispatcher", () => {
-  it("opens settings for microphone then re-checks", async () => {
-    vi.useFakeTimers();
-    const openMock = shell.openExternal as Mock;
-    openMock.mockResolvedValue(undefined);
+  describe("timer-based re-check tests", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
 
-    mockExecSequence([
-      {
-        pattern: "microphone",
-        result: { stdout: "    Value    REG_SZ    Allow" },
-      },
-    ]);
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-    const promise = requestPermission("microphone");
-    await vi.advanceTimersByTimeAsync(600);
-    const result = await promise;
+    it("opens settings for microphone then re-checks", async () => {
+      const openMock = shell.openExternal as Mock;
+      openMock.mockResolvedValue(undefined);
 
-    expect(openMock).toHaveBeenCalledWith("ms-settings:privacy-microphone");
-    expect(result.status).toBe("granted");
-    vi.useRealTimers();
-  });
+      mockExecSequence([
+        {
+          pattern: "microphone",
+          result: { stdout: "    Value    REG_SZ    Allow" },
+        },
+      ]);
 
-  it("opens settings for camera then re-checks", async () => {
-    vi.useFakeTimers();
-    const openMock = shell.openExternal as Mock;
-    openMock.mockResolvedValue(undefined);
+      const promise = requestPermission("microphone");
+      await vi.advanceTimersByTimeAsync(600);
+      const result = await promise;
 
-    mockExecSequence([
-      {
-        pattern: "webcam",
-        result: { stdout: "    Value    REG_SZ    Deny" },
-      },
-    ]);
+      expect(openMock).toHaveBeenCalledWith("ms-settings:privacy-microphone");
+      expect(result.status).toBe("granted");
+    });
 
-    const promise = requestPermission("camera");
-    await vi.advanceTimersByTimeAsync(600);
-    const result = await promise;
+    it("opens settings for camera then re-checks", async () => {
+      const openMock = shell.openExternal as Mock;
+      openMock.mockResolvedValue(undefined);
 
-    expect(openMock).toHaveBeenCalled();
-    expect(result.status).toBe("denied");
-    vi.useRealTimers();
+      mockExecSequence([
+        {
+          pattern: "webcam",
+          result: { stdout: "    Value    REG_SZ    Deny" },
+        },
+      ]);
+
+      const promise = requestPermission("camera");
+      await vi.advanceTimersByTimeAsync(600);
+      const result = await promise;
+
+      expect(openMock).toHaveBeenCalled();
+      expect(result.status).toBe("denied");
+    });
   });
 
   it("returns not-applicable for accessibility", async () => {
@@ -373,7 +342,6 @@ describe("requestPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: testing unknown permission id
     const result = await requestPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });

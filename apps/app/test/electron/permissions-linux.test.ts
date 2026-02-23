@@ -2,15 +2,7 @@
  * Unit tests for Linux permission detection
  * (apps/app/electron/src/native/permissions-linux.ts)
  */
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  vi,
-} from "vitest";
+import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -19,9 +11,7 @@ import {
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   const execFn = vi.fn();
-  // biome-ignore lint/suspicious/noExplicitAny: test mock requires dynamic property assignment
-  // biome-ignore lint/style/noNonNullAssertion: promisify.custom is always defined in Node
-  (execFn as any)[promisify.custom!] = (...args: unknown[]) =>
+  (execFn as any)[promisify.custom!] = (...args: any[]) =>
     new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
       const cb = (err: Error | null, stdout = "", stderr = "") => {
         if (err) {
@@ -47,7 +37,6 @@ vi.mock("electron", () => ({
   },
 }));
 
-import { exec } from "node:child_process";
 import { access } from "node:fs/promises";
 import { shell } from "electron";
 import {
@@ -58,12 +47,12 @@ import {
   openPrivacySettings,
   requestPermission,
 } from "../../electron/src/native/permissions-linux";
+import { execMock, mockExecSequence } from "./helpers/exec-mock";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const execMock = exec as unknown as Mock;
 const accessMock = access as unknown as Mock;
 const openPathMock = shell.openPath as Mock;
 
@@ -82,35 +71,6 @@ function restoreEnv() {
     else process.env[key] = value;
   }
   for (const key of Object.keys(envBackup)) delete envBackup[key];
-}
-
-/**
- * Configure exec to respond to multiple command patterns.
- */
-function mockExecSequence(
-  entries: Array<{
-    pattern: string | RegExp;
-    result: { stdout: string; stderr?: string } | Error;
-  }>,
-) {
-  execMock.mockImplementation(
-    (cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
-      const callback = typeof opts === "function" ? opts : cb;
-      for (const { pattern, result } of entries) {
-        const matches =
-          typeof pattern === "string"
-            ? cmd.includes(pattern)
-            : pattern.test(cmd);
-        if (matches) {
-          if (result instanceof Error) callback?.(result, "", result.message);
-          else callback?.(null, result.stdout, result.stderr || "");
-          return;
-        }
-      }
-      // Default: command fails
-      callback?.(new Error(`unexpected command: ${cmd}`), "", "");
-    },
-  );
 }
 
 beforeEach(() => {
@@ -257,7 +217,11 @@ describe("checkCamera", () => {
     mockExecSequence([
       {
         pattern: "ls /dev/video",
-        result: { stdout: "No such file or directory" },
+        result: new Error("No such file or directory"),
+      },
+      {
+        pattern: "groups",
+        result: { stdout: "user" },
       },
     ]);
 
@@ -311,7 +275,7 @@ describe("checkCamera", () => {
     expect(result.status).toBe("denied");
   });
 
-  it("returns denied when ls returns empty output", async () => {
+  it("returns denied when ls returns error", async () => {
     mockExecSequence([
       {
         pattern: "ls /dev/video",
@@ -428,7 +392,7 @@ describe("openPrivacySettings", () => {
     setEnv("XDG_CURRENT_DESKTOP", "sway");
     // All `which` commands fail
     execMock.mockImplementation(
-      (_cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
+      (cmd: string, opts: unknown, cb?: Function) => {
         const callback = typeof opts === "function" ? opts : cb;
         callback?.(null, "", "");
       },
@@ -441,7 +405,7 @@ describe("openPrivacySettings", () => {
   it("does not try pavucontrol for camera permission", async () => {
     setEnv("XDG_CURRENT_DESKTOP", "sway");
     execMock.mockImplementation(
-      (_cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
+      (cmd: string, opts: unknown, cb?: Function) => {
         const callback = typeof opts === "function" ? opts : cb;
         callback?.(null, "", "");
       },
@@ -450,9 +414,7 @@ describe("openPrivacySettings", () => {
     await openPrivacySettings("camera");
     // Should not have tried pavucontrol for camera
     const calls = execMock.mock.calls.map((c: unknown[]) => c[0]);
-    expect(
-      calls.some((c: unknown) => (c as string).includes("pavucontrol")),
-    ).toBe(false);
+    expect(calls.some((c: string) => c.includes("pavucontrol"))).toBe(false);
   });
 });
 
@@ -494,7 +456,11 @@ describe("checkPermission dispatcher", () => {
     mockExecSequence([
       {
         pattern: "ls /dev/video",
-        result: { stdout: "No such file or directory" },
+        result: new Error("No such file or directory"),
+      },
+      {
+        pattern: "groups",
+        result: { stdout: "user" },
       },
     ]);
 
@@ -508,7 +474,6 @@ describe("checkPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: testing unknown permission id
     const result = await checkPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });
@@ -519,77 +484,81 @@ describe("checkPermission dispatcher", () => {
 // ---------------------------------------------------------------------------
 
 describe("requestPermission dispatcher", () => {
-  it("opens settings for microphone then re-checks", async () => {
-    vi.useFakeTimers();
-    setEnv("XDG_CURRENT_DESKTOP", "sway");
+  describe("timer-based re-check tests", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
 
-    // All which commands fail, so fallback to shell.openPath, then re-check
-    execMock.mockImplementation(
-      (cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
-        const callback = typeof opts === "function" ? opts : cb;
-        if (cmd.includes("pactl info")) {
-          callback?.(new Error("failed"), "", "failed");
-        } else if (cmd.includes("pw-cli")) {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("opens settings for microphone then re-checks", async () => {
+      setEnv("XDG_CURRENT_DESKTOP", "sway");
+
+      // All which commands fail, so fallback to shell.openPath, then re-check
+      execMock.mockImplementation(
+        (cmd: string, opts: unknown, cb?: Function) => {
+          const callback = typeof opts === "function" ? opts : cb;
+          if (cmd.includes("pactl info")) {
+            callback?.(new Error("failed"), "", "failed");
+          } else if (cmd.includes("pw-cli")) {
+            callback?.(null, "", "");
+          } else if (cmd.includes("arecord")) {
+            callback?.(null, "", "");
+          } else if (cmd.includes("groups")) {
+            callback?.(null, "user audio", "");
+          } else {
+            callback?.(null, "", "");
+          }
+        },
+      );
+
+      const promise = requestPermission("microphone");
+      await vi.advanceTimersByTimeAsync(600);
+      const result = await promise;
+
+      expect(result.status).toBe("granted");
+    });
+
+    it("opens settings for camera then re-checks", async () => {
+      setEnv("XDG_CURRENT_DESKTOP", "sway");
+
+      execMock.mockImplementation(
+        (cmd: string, opts: unknown, cb?: Function) => {
+          const callback = typeof opts === "function" ? opts : cb;
+          if (cmd.includes("ls /dev/video")) {
+            callback?.(null, "No such file or directory", "");
+          } else {
+            callback?.(null, "", "");
+          }
+        },
+      );
+
+      const promise = requestPermission("camera");
+      await vi.advanceTimersByTimeAsync(600);
+      const result = await promise;
+
+      expect(result.status).toBe("denied");
+    });
+
+    it("opens settings for screen-recording then re-checks", async () => {
+      setEnv("WAYLAND_DISPLAY", "wayland-0");
+      setEnv("XDG_CURRENT_DESKTOP", "sway");
+
+      execMock.mockImplementation(
+        (cmd: string, opts: unknown, cb?: Function) => {
+          const callback = typeof opts === "function" ? opts : cb;
           callback?.(null, "", "");
-        } else if (cmd.includes("arecord")) {
-          callback?.(null, "", "");
-        } else if (cmd.includes("groups")) {
-          callback?.(null, "user audio", "");
-        } else {
-          callback?.(null, "", "");
-        }
-      },
-    );
+        },
+      );
 
-    const promise = requestPermission("microphone");
-    await vi.advanceTimersByTimeAsync(600);
-    const result = await promise;
+      const promise = requestPermission("screen-recording");
+      await vi.advanceTimersByTimeAsync(600);
+      const result = await promise;
 
-    expect(result.status).toBe("granted");
-    vi.useRealTimers();
-  });
-
-  it("opens settings for camera then re-checks", async () => {
-    vi.useFakeTimers();
-    setEnv("XDG_CURRENT_DESKTOP", "sway");
-
-    execMock.mockImplementation(
-      (cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
-        const callback = typeof opts === "function" ? opts : cb;
-        if (cmd.includes("ls /dev/video")) {
-          callback?.(null, "No such file or directory", "");
-        } else {
-          callback?.(null, "", "");
-        }
-      },
-    );
-
-    const promise = requestPermission("camera");
-    await vi.advanceTimersByTimeAsync(600);
-    const result = await promise;
-
-    expect(result.status).toBe("denied");
-    vi.useRealTimers();
-  });
-
-  it("opens settings for screen-recording then re-checks", async () => {
-    vi.useFakeTimers();
-    setEnv("WAYLAND_DISPLAY", "wayland-0");
-    setEnv("XDG_CURRENT_DESKTOP", "sway");
-
-    execMock.mockImplementation(
-      (_cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
-        const callback = typeof opts === "function" ? opts : cb;
-        callback?.(null, "", "");
-      },
-    );
-
-    const promise = requestPermission("screen-recording");
-    await vi.advanceTimersByTimeAsync(600);
-    const result = await promise;
-
-    expect(result.status).toBe("not-determined");
-    vi.useRealTimers();
+      expect(result.status).toBe("not-determined");
+    });
   });
 
   it("returns not-applicable for accessibility", async () => {
@@ -603,7 +572,6 @@ describe("requestPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: testing unknown permission id
     const result = await requestPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });

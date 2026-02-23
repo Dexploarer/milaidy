@@ -45,8 +45,8 @@ vi.mock("../../electron/src/native/permissions-linux", () => mockLinux);
 
 import { ipcMain } from "electron";
 import {
-  getPermissionManager,
   PermissionManager,
+  getPermissionManager,
   registerPermissionsIPC,
 } from "../../electron/src/native/permissions";
 import type {
@@ -78,7 +78,7 @@ function granted(): PermissionCheckResult {
 function denied(): PermissionCheckResult {
   return { status: "denied", canRequest: false };
 }
-function _notDetermined(): PermissionCheckResult {
+function notDetermined(): PermissionCheckResult {
   return { status: "not-determined", canRequest: true };
 }
 
@@ -234,9 +234,10 @@ describe("PermissionManager", () => {
       manager.setMainWindow(win);
       manager.setShellEnabled(false);
 
-      expect(win.webContents.send).toHaveBeenCalledWith("permissions:changed", {
-        id: "shell",
-      });
+      expect(win.webContents.send).toHaveBeenCalledWith(
+        "permissions:changed",
+        { id: "shell" },
+      );
     });
   });
 
@@ -254,18 +255,18 @@ describe("PermissionManager", () => {
       expect(pm.checkPermission).toHaveBeenCalledWith("microphone");
     });
 
-    it("returns not-applicable for permissions not on this platform", async () => {
-      // accessibility is only for darwin
-      if (process.platform !== "darwin") {
-        const result = await manager.checkPermission("accessibility");
-        expect(result.status).toBe("not-applicable");
-      }
-      // screen-recording is only for darwin
-      if (process.platform !== "darwin") {
-        const result = await manager.checkPermission("screen-recording");
-        expect(result.status).toBe("not-applicable");
-      }
-    });
+    it.skipIf(process.platform === "darwin")(
+      "returns not-applicable for permissions not on this platform",
+      async () => {
+        const accessibilityResult =
+          await manager.checkPermission("accessibility");
+        expect(accessibilityResult.status).toBe("not-applicable");
+
+        const screenResult =
+          await manager.checkPermission("screen-recording");
+        expect(screenResult.status).toBe("not-applicable");
+      },
+    );
   });
 
   // -----------------------------------------------------------------------
@@ -293,14 +294,15 @@ describe("PermissionManager", () => {
       await manager.checkAllPermissions(false);
       const callCount1 = pm.checkPermission.mock.calls.length;
 
-      // Second call without force should hit cache
+      // Second call without force should hit cache — zero new platform calls
       await manager.checkAllPermissions(false);
       const callCount2 = pm.checkPermission.mock.calls.length;
-      // Platform-applicable permissions should be cached
-      expect(callCount2).toBeLessThanOrEqual(callCount1 * 2);
+      expect(callCount2).toBe(callCount1);
 
       // Force refresh should re-check
       await manager.checkAllPermissions(true);
+      const callCount3 = pm.checkPermission.mock.calls.length;
+      expect(callCount3).toBeGreaterThan(callCount2);
     });
   });
 
@@ -333,17 +335,19 @@ describe("PermissionManager", () => {
       manager.setMainWindow(win);
 
       await manager.requestPermission("microphone");
-      expect(win.webContents.send).toHaveBeenCalledWith("permissions:changed", {
-        id: "microphone",
-      });
+      expect(win.webContents.send).toHaveBeenCalledWith(
+        "permissions:changed",
+        { id: "microphone" },
+      );
     });
 
-    it("returns not-applicable for inapplicable permissions", async () => {
-      if (process.platform !== "darwin") {
+    it.skipIf(process.platform === "darwin")(
+      "returns not-applicable for inapplicable permissions",
+      async () => {
         const result = await manager.requestPermission("accessibility");
         expect(result.status).toBe("not-applicable");
-      }
-    });
+      },
+    );
   });
 
   // -----------------------------------------------------------------------
@@ -428,9 +432,10 @@ describe("PermissionManager", () => {
 
       await manager.requestPermission("microphone");
 
-      expect(win.webContents.send).toHaveBeenCalledWith("permissions:changed", {
-        id: "microphone",
-      });
+      expect(win.webContents.send).toHaveBeenCalledWith(
+        "permissions:changed",
+        { id: "microphone" },
+      );
     });
 
     it("no-ops when window is null", async () => {
