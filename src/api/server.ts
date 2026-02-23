@@ -11,6 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import {
   type AgentRuntime,
   ChannelType,
@@ -967,10 +968,25 @@ async function readJsonBody<T = Record<string, unknown>>(
   }
 }
 
-function json(res: http.ServerResponse, data: unknown, status = 200): void {
+export function json(
+  res: http.ServerResponse,
+  data: unknown,
+  status = 200,
+  req?: http.IncomingMessage,
+): void {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(data));
+  const content = JSON.stringify(data);
+  if (
+    req &&
+    content.length > 1024 &&
+    (req.headers["accept-encoding"] as string)?.includes("gzip")
+  ) {
+    res.setHeader("Content-Encoding", "gzip");
+    res.end(zlib.gzipSync(content));
+    return;
+  }
+  res.end(content);
 }
 
 function error(res: http.ServerResponse, message: string, status = 400): void {
@@ -2860,7 +2876,7 @@ async function handleRequest(
       plugin.validationWarnings = validation.warnings;
     }
 
-    json(res, { plugins: allPlugins });
+    json(res, { plugins: allPlugins }, 200, req);
     return;
   }
 
@@ -3468,14 +3484,19 @@ async function handleRequest(
         ...s,
         installed: installedSlugs.has(s.slug),
       }));
-      json(res, {
-        total: all.length,
-        page,
-        perPage,
-        totalPages: Math.ceil(all.length / perPage),
-        installedCount: installedSlugs.size,
-        skills,
-      });
+      json(
+        res,
+        {
+          total: all.length,
+          page,
+          perPage,
+          totalPages: Math.ceil(all.length / perPage),
+          installedCount: installedSlugs.size,
+          skills,
+        },
+        200,
+        req,
+      );
     } catch (err) {
       error(
         res,
@@ -4274,7 +4295,7 @@ async function handleRequest(
 
     const sources = [...new Set(state.logBuffer.map((e) => e.source))].sort();
     const tags = [...new Set(state.logBuffer.flatMap((e) => e.tags))].sort();
-    json(res, { entries: entries.slice(-200), sources, tags });
+    json(res, { entries: entries.slice(-200), sources, tags }, 200, req);
     return;
   }
 
