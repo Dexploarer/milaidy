@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppContext";
 import { AdvancedPageView } from "./components/AdvancedPageView";
 import { AppsPageView } from "./components/AppsPageView";
+import { APPS_ENABLED } from "./navigation";
 import { AutonomousPanel } from "./components/AutonomousPanel";
 import { CharacterView } from "./components/CharacterView";
 import { ChatView } from "./components/ChatView";
@@ -36,7 +37,8 @@ function ViewRouter() {
     case "chat":
       return <ChatView />;
     case "apps":
-      return <AppsPageView />;
+      // Apps disabled in production builds; fall through to chat
+      return APPS_ENABLED ? <AppsPageView /> : <ChatView />;
     case "character":
       return <CharacterView />;
     case "wallets":

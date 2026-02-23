@@ -1882,6 +1882,17 @@ function installActionAliases(runtime: AgentRuntime): void {
     ? runtimeWithAliases.actions
     : [];
 
+  // Keep compaction automatic-only; do not allow manual COMPACT_SESSION invokes.
+  const compactSessionIndex = actions.findIndex(
+    (action) => action?.name?.toUpperCase() === "COMPACT_SESSION",
+  );
+  if (compactSessionIndex !== -1) {
+    actions.splice(compactSessionIndex, 1);
+    logger.info(
+      "[milady] Disabled manual COMPACT_SESSION action; auto-compaction remains enabled",
+    );
+  }
+
   // Compatibility alias: older prompts/docs still reference CODE_TASK,
   // while plugin-agent-orchestrator exposes CREATE_TASK.
   const createTaskAction = actions.find(
@@ -3235,7 +3246,7 @@ export async function startEliza(
   // ── Start API server for GUI access ──────────────────────────────────────
   // In CLI mode (non-headless), start the API server in the background so
   // the GUI can connect to the running agent.  This ensures full feature
-  // parity: whether started via `npx milady`, `bun run dev`, or the
+  // parity: whether started via `npx miladyai`, `bun run dev`, or the
   // desktop app, the API server is always available for the GUI admin
   // surface.
   try {

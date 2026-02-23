@@ -1,7 +1,7 @@
 /**
  * CLI & Runtime Parity Tests (GitHub Issue #2)
  *
- * Validates that all entry points — GUI app, `npx milady`, `bun run dev` —
+ * Validates that all entry points — GUI app, `npx miladyai`, `bun run dev` —
  * produce consistent behaviour:
  *   - Same plugin set loads in all modes
  *   - Same config paths are used
