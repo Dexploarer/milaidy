@@ -2646,6 +2646,12 @@ const BLOCKED_INTERPRETER_FLAGS = new Set([
   "--eval",
   "-p",
   "--print",
+  "-r",
+  "--require",
+  "--import",
+  "--loader",
+  "--experimental-loader",
+  "--preload",
   "-c",
   "-m",
 ]);
