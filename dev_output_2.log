@@ -1,0 +1,29 @@
+
+> milaidy@2.0.0-alpha.26 dev
+> scripts/rt.sh scripts/dev-ui.mjs
+
+
+milady dev mode
+
+
+        miladym                        iladym
+    iladymil                                ady
+    mil                                         ad
+ymi                                   ladymila
+dym                                    ila dymila
+dy       miladymil                     ady   milady
+    miladymilad                     ymila dymilady
+    mi    ladymila                   dymiladymil
+adymiladymiladymi                  l  adymila d
+ym   iladymiladymil                 ad ymilad  y
+m  il  adymiladym  i                  l   ad   y
+    mi  ladymila  dy                    mi
+    la          dy                         mil
+        ad      ym
+        iladym
+
+  [milady] Starting dev server...
+
+  [milady] API log level=info (startup + warnings/errors)
+  [milady] On-chain bootstrap disabled (MILADY_DEV_ONCHAIN=0)
+  [milady] Waiting for API server... 1s  [milady] Waiting for API server... 2s  [milady] Waiting for API server... 3s  [milady] Waiting for API server... 4s  [milady] Waiting for API server... 5s  [milady] Waiting for API server... 6s  [milady] Waiting for API server... 7s  [milady] Waiting for API server... 8s  [milady] Waiting for API server... 9s  [milady] Waiting for API server... 10s  [milady] Waiting for API server... 11s  [milady] Waiting for API server... 12s  [milady] Waiting for API server... 13s  [milady] Waiting for API server... 14s  [milady] Waiting for API server... 15s  [milady] Waiting for API server... 16s  [milady] Waiting for API server... 17s  [milady] Waiting for API server... 18s  [milady] Waiting for API server... 19s  [milady] Waiting for API server... 20s  [milady] Waiting for API server... 21s  [milady] Waiting for API server... 22s  [milady] Waiting for API server... 23s  [milady] Waiting for API server... 24s  [milady] Waiting for API server... 25s  [milady] Waiting for API server... 26s  [milady] Waiting for API server... 27s  [milady] Waiting for API server... 28s  [milady] Waiting for API server... 29s  [milady] Waiting for API server... 30s  [milady] Waiting for API server... 31s  [milady] Waiting for API server... 32s  [milady] Waiting for API server... 33s  [milady] Waiting for API server... 34s  [milady] Waiting for API server... 35s  [milady] Waiting for API server... 36s  [milady] Waiting for API server... 37s  [milady] Waiting for API server... 38s  [milady] Waiting for API server... 39s  [milady] Waiting for API server... 40s  [milady] Waiting for API server... 41s  [milady] Waiting for API server... 42s  [milady] Waiting for API server... 43s  [milady] Waiting for API server... 44s  [milady] Waiting for API server... 45s  [milady] Waiting for API server... 46s  [milady] Waiting for API server... 47s  [milady] Waiting for API server... 48s  [milady] Waiting for API server... 49s  [milady] Waiting for API server... 50s  [milady] Waiting for API server... 51s  [milady] Waiting for API server... 52s  [milady] Waiting for API server... 53s  [milady] Waiting for API server... 54s  [milady] Waiting for API server... 55s  [milady] Waiting for API server... 56s  [milady] Waiting for API server... 57s  [milady] Waiting for API server... 58s  [milady] Waiting for API server... 59s  [milady] Waiting for API server... 60s  [milady] Waiting for API server... 61s  [milady] Waiting for API server... 62s  [milady] Waiting for API server... 63s  [milady] Waiting for API server... 64s  [milady] Waiting for API server... 65s  [milady] Waiting for API server... 66s  [milady] Waiting for API server... 67s  [milady] Waiting for API server... 68s  [milady] Waiting for API server... 69s  [milady] Waiting for API server... 70s  [milady] Waiting for API server... 71s  [milady] Waiting for API server... 72s  [milady] Waiting for API server... 73s  [milady] Waiting for API server... 74s  [milady] Waiting for API server... 75s  [milady] Waiting for API server... 76s  [milady] Waiting for API server... 77s  [milady] Waiting for API server... 78s  [milady] Waiting for API server... 79s

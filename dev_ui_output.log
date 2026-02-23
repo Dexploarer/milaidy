@@ -1,0 +1,24 @@
+
+> milaidy@2.0.0-alpha.26 dev:ui
+> scripts/rt.sh scripts/dev-ui.mjs --ui-only
+
+912 | process.on("SIGINT", () => cleanup(0));
+913 | process.on("SIGTERM", () => cleanup(0));
+914 |
+915 | function startVite() {
+916 |   const viteCmd = hasBun ? "bunx" : "npx";
+917 |   viteProcess = spawn(viteCmd, ["vite", "--port", String(UI_PORT)], {
+                      ^
+error: Executable not found in $PATH: "bunx"
+      path: "bunx",
+     errno: -2,
+   syscall: "spawn bunx",
+ spawnargs: [ "vite", "--port", "2138" ],
+      code: "ENOENT"
+
+      at spawn (node:child_process:640:35)
+      at spawn (node:child_process:14:39)
+      at startVite (/app/scripts/dev-ui.mjs:917:17)
+      at /app/scripts/dev-ui.mjs:946:3
+
+Bun v1.2.14 (Linux x64 baseline)
