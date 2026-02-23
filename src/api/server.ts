@@ -1512,9 +1512,63 @@ const PAIRING_WINDOW_MS = 10 * 60 * 1000;
 const PAIRING_MAX_ATTEMPTS = 5;
 const PAIRING_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+// ---------------------------------------------------------------------------
+// Rate Limiting
+// ---------------------------------------------------------------------------
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Cleanup expired rate limit entries every 5 minutes to prevent memory leaks.
+ */
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of rateLimitMap.entries()) {
+    if (now > val.resetAt) rateLimitMap.delete(key);
+  }
+}, 5 * 60 * 1000).unref();
+
+export function getClientIp(req: http.IncomingMessage): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.socket.remoteAddress ?? "unknown";
+}
+
+export function checkRateLimit(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  limit = 10,
+  windowMs = 60 * 1000,
+  type = "default",
+): boolean {
+  const ip = getClientIp(req);
+  const key = `${type}:${ip}`;
+  const now = Date.now();
+
+  const current = rateLimitMap.get(key);
+
+  if (!current || now > current.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (current.count >= limit) {
+    res.statusCode = 429;
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({ error: "Too many requests. Please try again later." }),
+    );
+    return false;
+  }
+
+  current.count += 1;
+  return true;
+}
+
 let pairingCode: string | null = null;
 let pairingExpiresAt = 0;
-const pairingAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function pairingEnabled(): boolean {
   return (
@@ -1547,19 +1601,6 @@ function ensurePairingCode(): string | null {
     );
   }
   return pairingCode;
-}
-
-function rateLimitPairing(ip: string | null): boolean {
-  const key = ip ?? "unknown";
-  const now = Date.now();
-  const current = pairingAttempts.get(key);
-  if (!current || now > current.resetAt) {
-    pairingAttempts.set(key, { count: 1, resetAt: now + PAIRING_WINDOW_MS });
-    return true;
-  }
-  if (current.count >= PAIRING_MAX_ATTEMPTS) return false;
-  current.count += 1;
-  return true;
 }
 
 function extractAuthToken(req: http.IncomingMessage): string | null {
@@ -1659,8 +1700,9 @@ async function handleRequest(
       error(res, "Pairing disabled", 403);
       return;
     }
-    if (!rateLimitPairing(req.socket.remoteAddress ?? null)) {
-      error(res, "Too many attempts. Try again later.", 429);
+    if (
+      !checkRateLimit(req, res, 5, 10 * 60 * 1000, "pairing")
+    ) {
       return;
     }
 
@@ -2353,6 +2395,8 @@ async function handleRequest(
   // ── POST /api/agent/reset ──────────────────────────────────────────────
   // Wipe config, workspace (memory), and return to onboarding.
   if (method === "POST" && pathname === "/api/agent/reset") {
+    if (!checkRateLimit(req, res, 5, 60 * 60 * 1000, "reset")) return;
+
     try {
       // 1. Stop the runtime if it's running
       if (state.runtime) {
@@ -2421,6 +2465,8 @@ async function handleRequest(
   // ── POST /api/agent/export ─────────────────────────────────────────────
   // Export the entire agent as a password-encrypted binary file.
   if (method === "POST" && pathname === "/api/agent/export") {
+    if (!checkRateLimit(req, res, 10, 60 * 1000, "export")) return;
+
     if (!state.runtime) {
       error(res, "Agent is not running — start it before exporting.", 503);
       return;
@@ -2495,6 +2541,8 @@ async function handleRequest(
   // ── POST /api/agent/import ─────────────────────────────────────────────
   // Import an agent from a password-encrypted .eliza-agent file.
   if (method === "POST" && pathname === "/api/agent/import") {
+    if (!checkRateLimit(req, res, 10, 60 * 1000, "import")) return;
+
     if (!state.runtime) {
       error(res, "Agent is not running — start it before importing.", 503);
       return;
@@ -4561,6 +4609,8 @@ async function handleRequest(
   // SECURITY: Requires { confirm: true } in the request body to prevent
   // accidental exposure of private keys.
   if (method === "POST" && pathname === "/api/wallet/export") {
+    if (!checkRateLimit(req, res, 3, 60 * 60 * 1000, "wallet-export")) return;
+
     const body = await readJsonBody<{ confirm?: boolean }>(req, res);
     if (!body) return;
 
@@ -4754,6 +4804,10 @@ async function handleRequest(
 
   // ── Cloud routes (/api/cloud/*) ─────────────────────────────────────────
   if (pathname.startsWith("/api/cloud/")) {
+    if (pathname === "/api/cloud/login" && method === "POST") {
+      if (!checkRateLimit(req, res, 5, 10 * 60 * 1000, "cloud-login")) return;
+    }
+
     const cloudState: CloudRouteState = {
       config: state.config,
       cloudManager: state.cloudManager,
