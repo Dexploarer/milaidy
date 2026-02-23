@@ -186,8 +186,9 @@ export function ConversationsSidebar({
                         void handleDeleteConversation(conv.id);
                       }}
                       title="Delete conversation"
+                      aria-label="Delete conversation"
                     >
-                      ×
+                      <span aria-hidden="true">×</span>
                     </button>
                   </>
                 )}
