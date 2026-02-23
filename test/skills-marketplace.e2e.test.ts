@@ -35,7 +35,11 @@ vi.mock("../src/services/skill-catalog-client", () => {
       },
       createdAt: 1700000000000,
       updatedAt: 1700100000000,
-      latestVersion: { version: "1.2.0", createdAt: 1700100000000, changelog: "Bug fixes" },
+      latestVersion: {
+        version: "1.2.0",
+        createdAt: 1700100000000,
+        changelog: "Bug fixes",
+      },
     },
     {
       slug: "weather-check",
@@ -52,7 +56,11 @@ vi.mock("../src/services/skill-catalog-client", () => {
       },
       createdAt: 1699000000000,
       updatedAt: 1700200000000,
-      latestVersion: { version: "2.0.1", createdAt: 1700200000000, changelog: "v2 release" },
+      latestVersion: {
+        version: "2.0.1",
+        createdAt: 1700200000000,
+        changelog: "v2 release",
+      },
     },
     {
       slug: "code-review",
@@ -69,7 +77,11 @@ vi.mock("../src/services/skill-catalog-client", () => {
       },
       createdAt: 1698000000000,
       updatedAt: 1700300000000,
-      latestVersion: { version: "3.1.0", createdAt: 1700300000000, changelog: "Added streaming" },
+      latestVersion: {
+        version: "3.1.0",
+        createdAt: 1700300000000,
+        changelog: "Added streaming",
+      },
     },
   ];
 
@@ -78,27 +90,29 @@ vi.mock("../src/services/skill-catalog-client", () => {
     getCatalogSkill: vi.fn().mockImplementation(async (slug: string) => {
       return fixtureSkills.find((s) => s.slug === slug) ?? null;
     }),
-    searchCatalogSkills: vi.fn().mockImplementation(async (query: string, limit = 30) => {
-      const lq = query.toLowerCase();
-      return fixtureSkills
-        .filter(
-          (s) =>
-            s.slug.includes(lq) ||
-            s.displayName.toLowerCase().includes(lq) ||
-            (s.summary ?? "").toLowerCase().includes(lq),
-        )
-        .slice(0, limit)
-        .map((s) => ({
-          slug: s.slug,
-          displayName: s.displayName,
-          summary: s.summary,
-          score: 1,
-          latestVersion: s.latestVersion?.version ?? null,
-          downloads: s.stats.downloads,
-          stars: s.stats.stars,
-          installs: s.stats.installsAllTime,
-        }));
-    }),
+    searchCatalogSkills: vi
+      .fn()
+      .mockImplementation(async (query: string, limit = 30) => {
+        const lq = query.toLowerCase();
+        return fixtureSkills
+          .filter(
+            (s) =>
+              s.slug.includes(lq) ||
+              s.displayName.toLowerCase().includes(lq) ||
+              (s.summary ?? "").toLowerCase().includes(lq),
+          )
+          .slice(0, limit)
+          .map((s) => ({
+            slug: s.slug,
+            displayName: s.displayName,
+            summary: s.summary,
+            score: 1,
+            latestVersion: s.latestVersion?.version ?? null,
+            downloads: s.stats.downloads,
+            stars: s.stats.stars,
+            installs: s.stats.installsAllTime,
+          }));
+      }),
     refreshCatalog: vi.fn().mockResolvedValue(fixtureSkills),
     getTrendingSkills: vi.fn().mockResolvedValue(fixtureSkills),
   };
@@ -210,7 +224,11 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
 
   describe("GET /api/skills/catalog", () => {
     it("returns paginated skill catalog", async () => {
-      const { status, data } = await http$(server.port, "GET", "/api/skills/catalog");
+      const { status, data } = await http$(
+        server.port,
+        "GET",
+        "/api/skills/catalog",
+      );
       expect(status).toBe(200);
       expect(data.total).toBe(3);
       expect(data.page).toBe(1);
@@ -230,7 +248,11 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
     });
 
     it("sorts by downloads by default", async () => {
-      const { status, data } = await http$(server.port, "GET", "/api/skills/catalog");
+      const { status, data } = await http$(
+        server.port,
+        "GET",
+        "/api/skills/catalog",
+      );
       expect(status).toBe(200);
       const skills = data.skills as Array<{ slug: string }>;
       // code-review has most downloads (1200), then weather-check (500), then hello-world (150)
@@ -241,7 +263,11 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
 
   describe("GET /api/skills/catalog/search", () => {
     it("returns 400 without query parameter", async () => {
-      const { status, data } = await http$(server.port, "GET", "/api/skills/catalog/search");
+      const { status, data } = await http$(
+        server.port,
+        "GET",
+        "/api/skills/catalog/search",
+      );
       expect(status).toBe(400);
       expect(data.error).toContain("Missing query");
     });
@@ -294,7 +320,11 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
 
   describe("POST /api/skills/catalog/refresh", () => {
     it("refreshes the catalog and returns count", async () => {
-      const { status, data } = await http$(server.port, "POST", "/api/skills/catalog/refresh");
+      const { status, data } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/refresh",
+      );
       expect(status).toBe(200);
       expect(data.ok).toBe(true);
       expect(data.count).toBe(3);
@@ -307,32 +337,52 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
 
   describe("POST /api/skills/catalog/install", () => {
     it("returns 400 for missing slug", async () => {
-      const { status, data } = await http$(server.port, "POST", "/api/skills/catalog/install", {});
+      const { status, data } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/install",
+        {},
+      );
       expect(status).toBe(400);
       expect(data.error).toContain("slug");
     });
 
     it("installs a skill successfully", async () => {
-      const { status, data } = await http$(server.port, "POST", "/api/skills/catalog/install", {
-        slug: "hello-world",
-      });
+      const { status, data } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/install",
+        {
+          slug: "hello-world",
+        },
+      );
       expect(status).toBe(200);
       expect(data.ok).toBe(true);
       expect(data.slug).toBe("hello-world");
     });
 
     it("reports already installed on duplicate install", async () => {
-      const { status, data } = await http$(server.port, "POST", "/api/skills/catalog/install", {
-        slug: "hello-world",
-      });
+      const { status, data } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/install",
+        {
+          slug: "hello-world",
+        },
+      );
       expect(status).toBe(200);
       expect(data.alreadyInstalled).toBe(true);
     });
 
     it("returns error for install failure", async () => {
-      const { status } = await http$(server.port, "POST", "/api/skills/catalog/install", {
-        slug: "nonexistent-skill-xyz",
-      });
+      const { status } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/install",
+        {
+          slug: "nonexistent-skill-xyz",
+        },
+      );
       expect(status).toBe(500);
     });
   });
@@ -362,9 +412,14 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
     });
 
     it("returns error for uninstalling a non-installed skill", async () => {
-      const { status } = await http$(server.port, "POST", "/api/skills/catalog/uninstall", {
-        slug: "never-installed",
-      });
+      const { status } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/uninstall",
+        {
+          slug: "never-installed",
+        },
+      );
       expect(status).toBe(400);
     });
   });
@@ -411,7 +466,9 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
         "/api/skills/marketplace/installed",
       );
       expect(status).toBe(200);
-      expect(Array.isArray(data.skills) || Array.isArray(data.installed)).toBe(true);
+      expect(Array.isArray(data.skills) || Array.isArray(data.installed)).toBe(
+        true,
+      );
     });
   });
 
@@ -423,15 +480,24 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
     const testSlug = "weather-check";
 
     it("Step 1: installs the skill", async () => {
-      const { status, data } = await http$(server.port, "POST", "/api/skills/catalog/install", {
-        slug: testSlug,
-      });
+      const { status, data } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/install",
+        {
+          slug: testSlug,
+        },
+      );
       expect(status).toBe(200);
       expect(data.ok).toBe(true);
     });
 
     it("Step 2: confirms skill is marked as installed in catalog", async () => {
-      const { status, data } = await http$(server.port, "GET", "/api/skills/catalog");
+      const { status, data } = await http$(
+        server.port,
+        "GET",
+        "/api/skills/catalog",
+      );
       expect(status).toBe(200);
       const skills = data.skills as Array<{ slug: string; installed: boolean }>;
       const skill = skills.find((s) => s.slug === testSlug);
@@ -450,9 +516,14 @@ describe("Skills Marketplace & Catalog E2E (MW-08, #473)", () => {
     });
 
     it("Step 4: reinstalls the skill successfully", async () => {
-      const { status, data } = await http$(server.port, "POST", "/api/skills/catalog/install", {
-        slug: testSlug,
-      });
+      const { status, data } = await http$(
+        server.port,
+        "POST",
+        "/api/skills/catalog/install",
+        {
+          slug: testSlug,
+        },
+      );
       expect(status).toBe(200);
       expect(data.ok).toBe(true);
       expect(data.alreadyInstalled).toBeUndefined();
