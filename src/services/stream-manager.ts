@@ -91,6 +91,14 @@ class StreamManager {
       return;
     }
 
+    if (
+      !config.rtmpUrl ||
+      (!config.rtmpUrl.startsWith("rtmp://") &&
+        !config.rtmpUrl.startsWith("rtmps://"))
+    ) {
+      throw new Error("Invalid RTMP URL: must start with rtmp:// or rtmps://");
+    }
+
     this._frameCount = 0;
     const resolution = config.resolution || "1280x720";
     const bitrate = config.bitrate || "2500k";
