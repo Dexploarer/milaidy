@@ -202,6 +202,7 @@ export function CommandPalette() {
       }
 
       if (e.key === "ArrowDown") {
+        if (filteredCommands.length === 0) return;
         e.preventDefault();
         setState(
           "commandActiveIndex",
@@ -213,6 +214,7 @@ export function CommandPalette() {
       }
 
       if (e.key === "ArrowUp") {
+        if (filteredCommands.length === 0) return;
         e.preventDefault();
         setState(
           "commandActiveIndex",
@@ -224,6 +226,7 @@ export function CommandPalette() {
       }
 
       if (e.key === "Enter") {
+        if (filteredCommands.length === 0) return;
         e.preventDefault();
         const cmd = filteredCommands[commandActiveIndex];
         if (cmd) {
@@ -243,6 +246,23 @@ export function CommandPalette() {
     setState,
     closeCommandPalette,
   ]);
+
+  useEffect(() => {
+    if (filteredCommands.length === 0) {
+      if (commandActiveIndex !== 0) {
+        setState("commandActiveIndex", 0);
+      }
+      return;
+    }
+
+    const maxIndex = filteredCommands.length - 1;
+    if (commandActiveIndex < 0 || commandActiveIndex > maxIndex) {
+      setState(
+        "commandActiveIndex",
+        Math.min(Math.max(commandActiveIndex, 0), maxIndex),
+      );
+    }
+  }, [commandActiveIndex, filteredCommands.length, setState]);
 
   // Reset active index when query changes
   useEffect(() => {
@@ -293,11 +313,10 @@ export function CommandPalette() {
               <button
                 type="button"
                 key={cmd.id}
-                className={`w-full px-4 py-2.5 cursor-pointer flex justify-between items-center text-left text-sm font-body ${
-                  idx === commandActiveIndex
+                className={`w-full px-4 py-2.5 cursor-pointer flex justify-between items-center text-left text-sm font-body ${idx === commandActiveIndex
                     ? "bg-bg-hover"
                     : "hover:bg-bg-hover"
-                }`}
+                  }`}
                 onClick={() => {
                   cmd.action();
                   closeCommandPalette();

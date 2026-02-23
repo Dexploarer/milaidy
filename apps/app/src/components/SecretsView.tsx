@@ -319,11 +319,10 @@ export function SecretsView() {
         <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[var(--border)]">
           <button
             type="button"
-            className={`px-4 py-2 text-[13px] font-medium border-0 cursor-pointer transition-colors ${
-              dirtyKeys.length > 0
+            className={`px-4 py-2 text-[13px] font-medium border-0 cursor-pointer transition-colors ${dirtyKeys.length > 0
                 ? "bg-[var(--accent)] text-white"
                 : "bg-[var(--bg-card)] text-[var(--muted)] cursor-not-allowed"
-            }`}
+              }`}
             disabled={dirtyKeys.length === 0 || saving}
             onClick={handleSave}
           >
@@ -371,7 +370,7 @@ function SecretPicker({
         if (e.target === e.currentTarget) onClose();
       }}
       onKeyDown={(e) => {
-        if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+        if (e.key === "Escape") {
           e.preventDefault();
           onClose();
         }
