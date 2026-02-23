@@ -2,7 +2,15 @@
  * Unit tests for Windows permission detection
  * (apps/app/electron/src/native/permissions-win32.ts)
  */
-import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -11,7 +19,9 @@ import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from "vite
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   const execFn = vi.fn();
-  (execFn as any)[promisify.custom!] = (...args: any[]) =>
+  // biome-ignore lint/style/noNonNullAssertion: promisify.custom is defined
+  // biome-ignore lint/suspicious/noExplicitAny: test mock
+  (execFn as any)[promisify.custom!] = (...args: unknown[]) =>
     new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
       const cb = (err: Error | null, stdout = "", stderr = "") => {
         if (err) {
@@ -268,6 +278,7 @@ describe("checkPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test for unknown input
     const result = await checkPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });
@@ -342,6 +353,7 @@ describe("requestPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test for unknown input
     const result = await requestPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });

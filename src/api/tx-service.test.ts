@@ -133,17 +133,14 @@ describe("tx-service", () => {
   });
 
   it("shows preview in error for short keys", () => {
-    expect(() => new TxService(RPC_URL, "abc")).toThrow(
-      /empty or too short/,
-    );
+    expect(() => new TxService(RPC_URL, "abc")).toThrow(/empty or too short/);
   });
 
   it("getBalance delegates to provider", async () => {
     const service = createService();
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getBalance",
-    ).mockResolvedValue(5_000_000_000_000_000_000n);
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getBalance").mockResolvedValue(
+      5_000_000_000_000_000_000n,
+    );
 
     const balance = await service.getBalance();
 
@@ -152,10 +149,9 @@ describe("tx-service", () => {
 
   it("getBalanceFormatted returns ETH string", async () => {
     const service = createService();
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getBalance",
-    ).mockResolvedValue(1_500_000_000_000_000_000n);
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getBalance").mockResolvedValue(
+      1_500_000_000_000_000_000n,
+    );
 
     const formatted = await service.getBalanceFormatted();
 
@@ -164,10 +160,9 @@ describe("tx-service", () => {
 
   it("getChainId returns network chain ID", async () => {
     const service = createService();
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getNetwork",
-    ).mockResolvedValue({ chainId: 8453n } as ethers.Network);
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getNetwork").mockResolvedValue({
+      chainId: 8453n,
+    } as ethers.Network);
 
     const chainId = await service.getChainId();
 
@@ -176,14 +171,10 @@ describe("tx-service", () => {
 
   it("estimateGasCostEth combines gas estimate and fee data", async () => {
     const service = createService();
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "estimateGas",
-    ).mockResolvedValue(21_000n);
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getFeeData",
-    ).mockResolvedValue({
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "estimateGas").mockResolvedValue(
+      21_000n,
+    );
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getFeeData").mockResolvedValue({
       gasPrice: 1_000_000_000n,
       maxFeePerGas: null,
       maxPriorityFeePerGas: null,
@@ -197,14 +188,10 @@ describe("tx-service", () => {
 
   it("hasEnoughBalance returns true when sufficient", async () => {
     const service = createService();
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getBalance",
-    ).mockResolvedValue(1_000_000_000_000_000_000n);
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getFeeData",
-    ).mockResolvedValue({
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getBalance").mockResolvedValue(
+      1_000_000_000_000_000_000n,
+    );
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getFeeData").mockResolvedValue({
       gasPrice: 1_000_000_000n,
       maxFeePerGas: null,
       maxPriorityFeePerGas: null,
@@ -217,14 +204,10 @@ describe("tx-service", () => {
 
   it("hasEnoughBalance returns false when insufficient", async () => {
     const service = createService();
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getBalance",
-    ).mockResolvedValue(100n);
-    vi.spyOn(
-      ethers.JsonRpcProvider.prototype,
-      "getFeeData",
-    ).mockResolvedValue({
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getBalance").mockResolvedValue(
+      100n,
+    );
+    vi.spyOn(ethers.JsonRpcProvider.prototype, "getFeeData").mockResolvedValue({
       gasPrice: 1_000_000_000n,
       maxFeePerGas: null,
       maxPriorityFeePerGas: null,

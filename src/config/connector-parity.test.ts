@@ -24,7 +24,9 @@ describe("connector map parity", () => {
   });
 
   it("keeps runtime-to-auto-enable package mappings aligned (reverse)", () => {
-    for (const [connectorId, pluginName] of Object.entries(CHANNEL_PLUGIN_MAP)) {
+    for (const [connectorId, pluginName] of Object.entries(
+      CHANNEL_PLUGIN_MAP,
+    )) {
       expect(CONNECTOR_PLUGINS[connectorId]).toBe(pluginName);
     }
   });

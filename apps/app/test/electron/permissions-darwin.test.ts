@@ -2,7 +2,15 @@
  * Unit tests for macOS permission detection
  * (apps/app/electron/src/native/permissions-darwin.ts)
  */
-import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -13,7 +21,9 @@ vi.mock("node:child_process", async () => {
   const execFn = vi.fn();
   // Attach custom promisify so util.promisify(exec) returns { stdout, stderr }
   // matching Node's real child_process.exec behavior.
-  (execFn as any)[promisify.custom!] = (...args: any[]) =>
+  // biome-ignore lint/style/noNonNullAssertion: promisify.custom is defined
+  // biome-ignore lint/suspicious/noExplicitAny: test mock
+  (execFn as any)[promisify.custom!] = (...args: unknown[]) =>
     new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
       const cb = (err: Error | null, stdout = "", stderr = "") => {
         if (err) {
@@ -53,7 +63,7 @@ import {
   requestMicrophone,
   requestPermission,
 } from "../../electron/src/native/permissions-darwin";
-import { execMock, mockExecResult, mockExecSequence } from "./helpers/exec-mock";
+import { execMock, mockExecResult } from "./helpers/exec-mock";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -87,7 +97,7 @@ describe("checkAccessibility", () => {
     // First call: no clear result, second call: position query succeeds
     let callCount = 0;
     execMock.mockImplementation(
-      (cmd: string, opts: unknown, cb?: Function) => {
+      (_cmd: string, opts: unknown, cb?: (...a: unknown[]) => void) => {
         const callback = typeof opts === "function" ? opts : cb;
         callCount++;
         if (callCount === 1) {
@@ -107,7 +117,7 @@ describe("checkAccessibility", () => {
   it("returns denied when both queries fail", async () => {
     let callCount = 0;
     execMock.mockImplementation(
-      (cmd: string, opts: unknown, cb?: Function) => {
+      (_cmd: string, opts: unknown, cb?: (...a: unknown[]) => void) => {
         const callback = typeof opts === "function" ? opts : cb;
         callCount++;
         if (callCount === 1) {
@@ -350,6 +360,7 @@ describe("checkPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test for unknown input
     const result = await checkPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });
@@ -410,6 +421,7 @@ describe("requestPermission dispatcher", () => {
   });
 
   it("returns not-applicable for unknown", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test for unknown input
     const result = await requestPermission("unknown-id" as any);
     expect(result.status).toBe("not-applicable");
   });

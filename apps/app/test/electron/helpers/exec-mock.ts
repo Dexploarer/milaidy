@@ -1,5 +1,5 @@
-import { type Mock } from "vitest";
 import { exec } from "node:child_process";
+import type { Mock } from "vitest";
 
 export const execMock = exec as unknown as Mock;
 
@@ -8,7 +8,7 @@ export function mockExecResult(
   result: { stdout: string; stderr?: string } | Error,
 ) {
   execMock.mockImplementation(
-    (cmd: string, opts: unknown, cb?: Function) => {
+    (cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
       const callback = typeof opts === "function" ? opts : cb;
       const matches =
         typeof pattern === "string" ? cmd.includes(pattern) : pattern.test(cmd);
@@ -29,7 +29,7 @@ export function mockExecSequence(
   }>,
 ) {
   execMock.mockImplementation(
-    (cmd: string, opts: unknown, cb?: Function) => {
+    (cmd: string, opts: unknown, cb?: (...args: unknown[]) => void) => {
       const callback = typeof opts === "function" ? opts : cb;
       for (const { pattern, result } of entries) {
         const matches =
