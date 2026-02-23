@@ -139,6 +139,7 @@ import {
   verifyTweet,
 } from "./twitter-verify";
 import { buildWhitelistTree, generateProof } from "./merkle-tree";
+import { verifyAndWhitelistHolder } from "./nft-verify";
 import { TxService } from "./tx-service";
 import { generateWalletKeys, getWalletAddresses } from "./wallet";
 import { handleWalletRoutes } from "./wallet-routes";
@@ -8753,6 +8754,7 @@ async function handleRequest(
     json(res, {
       eligible: twitterVerified,
       twitterVerified,
+      nftVerified: twitterVerified, // shares whitelist.json — if address is in it, it's verified regardless of path
       ogCode: ogCode ?? null,
       walletAddress,
       merkle: {
@@ -8809,6 +8811,52 @@ async function handleRequest(
     return;
   }
 
+  // ── POST /api/whitelist/nft/verify ───────────────────────────────────────
+  // Verify Milady NFT ownership for whitelist eligibility.
+  if (method === "POST" && pathname === "/api/whitelist/nft/verify") {
+    const body = await readJsonBody<{ walletAddress?: string }>(req, res);
+    if (!body) return;
+
+    const addrs = getWalletAddresses();
+    const address = body.walletAddress?.trim() || addrs.evmAddress || "";
+    if (!address) {
+      error(res, "Wallet address is required. Provide walletAddress in body or complete onboarding first.");
+      return;
+    }
+
+    try {
+      const result = await verifyAndWhitelistHolder(address);
+      json(res, { ...result, walletAddress: address });
+    } catch (err) {
+      error(
+        res,
+        `NFT verification failed: ${err instanceof Error ? err.message : String(err)}`,
+        500,
+      );
+    }
+    return;
+  }
+
+  // ── GET /api/whitelist/nft/status ────────────────────────────────────────
+  // Check NFT verification status without modifying the whitelist.
+  if (method === "GET" && pathname === "/api/whitelist/nft/status") {
+    const addrs = getWalletAddresses();
+    const walletAddress = addrs.evmAddress ?? "";
+    const whitelisted = walletAddress
+      ? isAddressWhitelisted(walletAddress)
+      : false;
+
+    json(res, {
+      walletAddress,
+      whitelisted,
+      contractAddress: process.env.MILADY_NFT_CONTRACT?.trim() || "0x5Af0D9827E0c53E4799BB226655A1de152A425a5",
+      message: whitelisted
+        ? "Address is whitelisted for mint."
+        : "Address is not whitelisted. Use POST /api/whitelist/nft/verify to verify NFT ownership.",
+    });
+    return;
+  }
+
   // ── GET /api/whitelist/merkle/proof?address=0x... — proof for an address
   if (method === "GET" && pathname === "/api/whitelist/merkle/proof") {
     const url = new URL(req.url ?? "", `http://${req.headers.host}`);
@@ -8821,7 +8869,6 @@ async function handleRequest(
     json(res, result);
     return;
   }
-
   // ── GET /api/update/status ───────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/update/status") {
     const { VERSION } = await import("../runtime/version");
