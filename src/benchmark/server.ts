@@ -346,10 +346,10 @@ async function collectSessionDiagnostics(
     },
     latest_compaction_summary: latestCompactionSummary
       ? {
-        memory_id: latestCompactionSummary.id,
-        created_at: latestCompactionSummary.createdAt ?? null,
-        preview: summaryPreview,
-      }
+          memory_id: latestCompactionSummary.id,
+          created_at: latestCompactionSummary.createdAt ?? null,
+          preview: summaryPreview,
+        }
       : null,
     capability_flags: {
       has_recent_messages_provider: providerNames.includes("RECENT_MESSAGES"),
@@ -801,10 +801,10 @@ export async function startBenchmarkServer() {
           plugins: plugins.length,
           active_session: activeSession
             ? {
-              benchmark: activeSession.benchmark,
-              task_id: activeSession.taskId,
-              room_id: activeSession.roomId,
-            }
+                benchmark: activeSession.benchmark,
+                task_id: activeSession.taskId,
+                room_id: activeSession.roomId,
+              }
             : null,
         }),
       );
@@ -818,18 +818,18 @@ export async function startBenchmarkServer() {
         try {
           const parsed = body.trim()
             ? (JSON.parse(body) as {
-              task_id?: unknown;
-              benchmark?: unknown;
-            })
+                task_id?: unknown;
+                benchmark?: unknown;
+              })
             : {};
           const taskId =
             typeof parsed.task_id === "string" &&
-              parsed.task_id.trim().length > 0
+            parsed.task_id.trim().length > 0
               ? parsed.task_id
               : "default-task";
           const benchmark =
             typeof parsed.benchmark === "string" &&
-              parsed.benchmark.trim().length > 0
+            parsed.benchmark.trim().length > 0
               ? parsed.benchmark
               : "unknown";
 
