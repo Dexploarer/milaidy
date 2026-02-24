@@ -5,6 +5,9 @@
 /** Apps tab — always enabled when running from source. */
 export const APPS_ENABLED = true;
 
+/** Stream tab — enable to show the retake.tv streaming view. */
+export const STREAM_ENABLED = true;
+
 export type Tab =
   | "chat"
   | "stream"
@@ -54,9 +57,11 @@ const ALL_TAB_GROUPS = [
   },
 ] as const;
 
-export const TAB_GROUPS = APPS_ENABLED
-  ? ALL_TAB_GROUPS
-  : ALL_TAB_GROUPS.filter((g) => g.label !== "Apps");
+export const TAB_GROUPS = ALL_TAB_GROUPS.filter(
+  (g) =>
+    (APPS_ENABLED || g.label !== "Apps") &&
+    (STREAM_ENABLED || g.label !== "Stream"),
+);
 
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
@@ -115,6 +120,10 @@ export function tabFromPath(pathname: string, basePath = ""): Tab | null {
   if (normalized === "/voice") return "settings";
   // Apps disabled in production builds — redirect to chat
   if (!APPS_ENABLED && (normalized === "/apps" || normalized === "/game")) {
+    return "chat";
+  }
+  // Stream tab hidden — redirect to chat
+  if (!STREAM_ENABLED && normalized === "/stream") {
     return "chat";
   }
   // Check current paths first, then legacy redirects
