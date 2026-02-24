@@ -367,8 +367,64 @@ export class ElectronCapacitorApp {
         openExternal(details.url);
         return { action: "deny" };
       }
+      // Popout stream windows get always-on-top, PIP-friendly, frameless treatment
+      if (details.url.includes("popout")) {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            alwaysOnTop: true,
+            visibleOnAllWorkspaces: true,
+            frame: false,
+            titleBarStyle: "hidden",
+            backgroundColor: "#0a0a0a",
+            fullscreenable: false,
+            minimizable: false,
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: preloadPath,
+            },
+          },
+        };
+      }
       return { action: "allow" };
     });
+
+    // When a popout child window is created, configure PIP behavior and
+    // switch frame capture so retake.tv streams the pop-out StreamView.
+    this.MainWindow.webContents.on(
+      "did-create-window",
+      (childWindow, { url }) => {
+        if (!url.includes("popout")) return;
+
+        console.log("[Setup] Popout window created — configuring PIP + capture target");
+
+        // PIP: stay above all other windows including fullscreen apps
+        childWindow.setAlwaysOnTop(true, "floating");
+        childWindow.setVisibleOnAllWorkspaces(true, {
+          visibleOnFullScreen: true,
+        });
+
+        // Switch stream capture to the popout window
+        const scm = (
+          globalThis as unknown as {
+            __miladyScreenCaptureManager?: {
+              setCaptureTarget(w: BrowserWindow | null): void;
+            };
+          }
+        ).__miladyScreenCaptureManager;
+
+        if (scm) {
+          scm.setCaptureTarget(childWindow);
+
+          childWindow.on("closed", () => {
+            console.log("[Setup] Popout window closed — reverting capture to main window");
+            scm.setCaptureTarget(null);
+          });
+        }
+      },
+    );
+
     this.MainWindow.webContents.on("will-navigate", (event, newURL) => {
       if (!isAllowedUrl(newURL)) {
         event.preventDefault();
