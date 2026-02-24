@@ -1055,100 +1055,130 @@ export function ensureBrowserServerLink(): boolean {
  */
 async function resolveStaticElizaPlugin(
   pluginName: string,
-): Promise<any | null> {
+): Promise<unknown | null> {
   switch (pluginName) {
     // Core Plugins
-    // @ts-ignore - implicit any or missing declaration
     case "@elizaos/plugin-sql":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-sql");
-    // @ts-ignore
     case "@elizaos/plugin-local-embedding":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-local-embedding");
-    // @ts-ignore
     case "@elizaos/plugin-secrets-manager":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-secrets-manager");
-    // @ts-ignore
     case "@elizaos/plugin-form":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-form");
-    // @ts-ignore
     case "@elizaos/plugin-knowledge":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-knowledge");
-    // @ts-ignore
     case "@elizaos/plugin-rolodex":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-rolodex");
-    // @ts-ignore
     case "@elizaos/plugin-trajectory-logger":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-trajectory-logger");
-    // @ts-ignore
     case "@elizaos/plugin-agent-orchestrator":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-agent-orchestrator");
-    // @ts-ignore
     case "@elizaos/plugin-cron":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-cron");
-    // @ts-ignore
     case "@elizaos/plugin-shell":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-shell");
-    // @ts-ignore
     case "@elizaos/plugin-plugin-manager":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-plugin-manager");
-    // @ts-ignore
     case "@elizaos/plugin-agent-skills":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-agent-skills");
-    // @ts-ignore
     case "@elizaos/plugin-pdf":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-pdf");
 
     // Optional / Provider Plugins
-    // @ts-ignore
     case "@elizaos/plugin-cua":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-cua");
-    // @ts-ignore
     case "@elizaos/plugin-obsidian":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-obsidian");
-    // @ts-ignore
     case "@elizaos/plugin-code":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-code");
-    // @ts-ignore
     case "@elizaos/plugin-repoprompt":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-repoprompt");
-    // @ts-ignore
     case "@milaidy/plugin-claude-code-workbench":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@milaidy/plugin-claude-code-workbench");
-    // @ts-ignore
     case "@elizaos/plugin-openai":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-openai");
-    // @ts-ignore
     case "@elizaos/plugin-anthropic":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-anthropic");
-    // @ts-ignore
     case "@elizaos/plugin-google-genai":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-google-genai");
-    // @ts-ignore
     case "@elizaos/plugin-xai":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-xai");
-    // @ts-ignore
     case "@elizaos/plugin-groq":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-groq");
-    // @ts-ignore
     case "@elizaos/plugin-openrouter":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-openrouter");
-    // @ts-ignore
     case "@elizaos/plugin-ollama":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-ollama");
-    // @ts-ignore
     case "@elizaos/plugin-deepseek":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-deepseek");
-    // @ts-ignore
     case "@elizaos/plugin-mistral":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-mistral");
-    // @ts-ignore
     case "@elizaos/plugin-together":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-together");
-    // @ts-ignore
     case "@elizaos/plugin-pi-ai":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-pi-ai");
-    // @ts-ignore
     case "@elizaos/plugin-elizacloud":
+      // biome-ignore lint/suspicious/noTsIgnore: dynamic import
+      // @ts-ignore
       return import("@elizaos/plugin-elizacloud");
 
     default:
