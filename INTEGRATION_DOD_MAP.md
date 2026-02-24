@@ -465,7 +465,7 @@ Prioritization order applied: correctness/security first, then reliability/obser
 | MW-09 | P1 | DX/Tooling | DX/Tooling | Observability baseline | No standardized metrics/traces for integration boundaries | Define minimal metrics contract (success/failure/latency) for cloud, wallet, marketplace, and MCP boundaries | `bun run typecheck && bunx vitest run <observability-tests>` | `src/services/*`, `src/api/*`, optional `src/diagnostics/*` | Hard incident triage and SLO blind spots |
 | MW-10 | P2 | API | API | Twitter whitelist | No dedicated tests for `twitter-verify.ts` parser/error cases | Add table-driven unit tests for URL parse, timeout/fetch fail, and message mismatch | `bunx vitest run src/api/twitter-verify.test.ts` | `src/api/twitter-verify.test.ts` | Verification false positives/negatives |
 | MW-11 | P2 | Docs | Docs | Docs completeness | Resolved — runbooks expanded for registry/drop, skill catalog, connectors, and CUA operations with setup, failure modes, recovery, and verification sections | Add setup + failure-mode + verification sections per integration boundary | `bun run docs:build` | `docs/guides/registry.md`, `docs/plugins/skills.md`, `docs/guides/connectors.md`, `docs/plugin-registry/computeruse.md` | Slower onboarding and misconfigurations |
-| MW-12 | P2 | DX/Tooling | DX/Tooling | Migration checks | No explicit DB migration verification command surfaced in scripts | Define and add minimal migration check script or explicit N/A policy | `bun run db:check` (proposed) | `package.json`, `scripts/` | Schema drift not caught early |
+| MW-12 | P2 | DX/Tooling | DX/Tooling | Migration checks | Resolved — `bun run db:check` exists; migrations are auto-applied by `@elizaos/plugin-sql` on startup | `db:check` runs DB security/query-guard tests; explicit N/A policy documented for manual migrations | `bun run db:check` | `package.json`, `docs/plugin-registry/sql.md` | Schema drift not caught early |
 
 ---
 
@@ -630,10 +630,14 @@ Prioritization order applied: correctness/security first, then reliability/obser
 - Title: `Add explicit DB migration check command or N/A policy`
 - Labels: `priority:P2`, `area:DX/Tooling`
 - Owner: `DX/Tooling`
+- Status: **Resolved**
 - Acceptance criteria:
   - `db:check` (or documented explicit N/A policy) exists and is enforced in docs/workflow.
+- Resolution:
+  - `bun run db:check` exists in `package.json` — runs database security and read-only query-guard tests (20 tests).
+  - **Explicit N/A policy for manual migrations:** `@elizaos/plugin-sql` auto-applies schema migrations on startup. There are no user-managed migration files. Schema versioning is embedded in the plugin package. See `docs/plugin-registry/sql.md` §Migrations.
 - Verification commands:
-  - `bun run db:check` (proposed)
+  - `bun run db:check`
 - Risk:
   - Schema/migration drift discovered too late.
 - Source:
@@ -705,16 +709,20 @@ bun install && bun run postinstall && \
 bun run lint && bun run format && bun run typecheck && \
 bunx vitest run --config vitest.unit.config.ts && \
 bun run test:coverage && \
+bun run db:check && \
 bun run build && \
 bunx vitest run --config vitest.e2e.config.ts --exclude test/anvil-contracts.e2e.test.ts --exclude test/apps-e2e.e2e.test.ts && \
 bunx vitest run --config vitest.e2e.config.ts test/e2e-validation.e2e.test.ts
 ```
 
-### Migration checks
+### Database checks
 
-- Current state: no explicit migration command found in `package.json` scripts.
-- Minimal script to add (proposed, not implemented in this task):
-  - `db:check` -> run a deterministic schema/migration health check for Postgres/PGLite startup compatibility.
+```bash
+bun run db:check
+```
+
+- Runs database security tests and read-only query-guard tests (20 tests).
+- **Migration policy (N/A):** `@elizaos/plugin-sql` auto-applies schema migrations on startup — there are no user-managed migration files and no manual migration step is required. Schema versions are embedded in the plugin package.
 
 ---
 
