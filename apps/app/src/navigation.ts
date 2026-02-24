@@ -2,11 +2,12 @@
  * Navigation — tabs + onboarding.
  */
 
-/** Apps are only enabled in dev mode; production builds hide this feature. */
-export const APPS_ENABLED = import.meta.env.DEV;
+/** Apps tab — always enabled when running from source. */
+export const APPS_ENABLED = true;
 
 export type Tab =
   | "chat"
+  | "stream"
   | "apps"
   | "character"
   | "wallets"
@@ -28,6 +29,7 @@ export type Tab =
 
 const ALL_TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] as Tab[] },
+  { label: "Stream", tabs: ["stream"] as Tab[] },
   { label: "Character", tabs: ["character"] as Tab[] },
   { label: "Wallets", tabs: ["wallets"] as Tab[] },
   { label: "Knowledge", tabs: ["knowledge"] as Tab[] },
@@ -58,6 +60,7 @@ export const TAB_GROUPS = APPS_ENABLED
 
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
+  stream: "/stream",
   apps: "/apps",
   character: "/character",
   triggers: "/triggers",
@@ -174,6 +177,8 @@ export function titleForTab(tab: Tab): string {
       return "Settings";
     case "logs":
       return "Logs";
+    case "stream":
+      return "Stream";
     case "security":
       return "Security";
     default:

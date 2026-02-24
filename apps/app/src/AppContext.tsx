@@ -395,6 +395,7 @@ function parseConversationMessageEvent(
   const text = value.text;
   const timestamp = value.timestamp;
   const source = value.source;
+  const from = value.from;
   if (
     typeof id !== "string" ||
     (role !== "user" && role !== "assistant") ||
@@ -406,6 +407,9 @@ function parseConversationMessageEvent(
   const parsed: ConversationMessage = { id, role, text, timestamp };
   if (typeof source === "string" && source.length > 0) {
     parsed.source = source;
+  }
+  if (typeof from === "string" && from.length > 0) {
+    parsed.from = from;
   }
   return parsed;
 }
@@ -755,6 +759,7 @@ export interface AppState {
   commandPaletteOpen: boolean;
   commandQuery: string;
   commandActiveIndex: number;
+  closeCommandPalette: () => void;
 
   // Emote picker
   emotePickerOpen: boolean;
@@ -820,7 +825,7 @@ export interface AppActions {
   handleChatStop: () => void;
   handleChatClear: () => Promise<void>;
   handleNewConversation: () => Promise<void>;
-  setChatPendingImages: (images: ImageAttachment[]) => void;
+  setChatPendingImages: React.Dispatch<React.SetStateAction<ImageAttachment[]>>;
   handleSelectConversation: (id: string) => Promise<void>;
   handleDeleteConversation: (id: string) => Promise<void>;
   handleRenameConversation: (id: string, title: string) => Promise<void>;
@@ -953,7 +958,7 @@ export function useApp(): AppContextValue {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   // --- Core state ---
-  const [tab, setTabRaw] = useState<Tab>("chat");
+  const [tab, setTabRaw] = useState<Tab>("stream");
   const [currentTheme, setCurrentTheme] = useState<ThemeName>(loadTheme);
   const [connected, setConnected] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
@@ -3750,6 +3755,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Emote picker ────────────────────────────────────────────────────
 
+  const closeCommandPalette = useCallback(() => {
+    _setCommandPaletteOpen(false);
+    setCommandQuery("");
+    setCommandActiveIndex(0);
+  }, []);
+
   const openEmotePicker = useCallback(() => {
     setEmotePickerOpen(true);
   }, []);
@@ -3960,7 +3971,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn(`${STARTUP_WARN_PREFIX} ${scope}`, err);
     };
 
+    // Detect popout mode — lightweight init that skips agent lifecycle.
+    const isPopoutMode = (() => {
+      if (typeof window === "undefined") return false;
+      const params = new URLSearchParams(
+        window.location.search || window.location.hash.split("?")[1] || "",
+      );
+      return params.has("popout");
+    })();
+
     const initApp = async () => {
+      // Popout fast-path: just connect WS and fetch events. No agent
+      // lifecycle, no onboarding, no auth gates.
+      if (isPopoutMode) {
+        setOnboardingComplete(true);
+        setOnboardingLoading(false);
+
+        // Wait for API to be reachable (it's already running from the main window)
+        for (let i = 0; i < 30 && !cancelled; i++) {
+          try {
+            const status = await client.getStatus();
+            setAgentStatus(status);
+            setConnected(true);
+            break;
+          } catch {
+            await new Promise<void>((r) => setTimeout(r, 500));
+          }
+        }
+
+        client.connectWs();
+        unbindStatus = client.onWsEvent(
+          "status",
+          (data: Record<string, unknown>) => {
+            const nextStatus = parseAgentStatusEvent(data);
+            if (nextStatus) setAgentStatus(nextStatus);
+          },
+        );
+        unbindAgentEvents = client.onWsEvent(
+          "agent_event",
+          (data: Record<string, unknown>) => {
+            const event = parseStreamEventEnvelopeEvent(data);
+            if (event) appendAutonomousEvent(event);
+          },
+        );
+        unbindHeartbeatEvents = client.onWsEvent(
+          "heartbeat_event",
+          (data: Record<string, unknown>) => {
+            const event = parseStreamEventEnvelopeEvent(data);
+            if (event) appendAutonomousEvent(event);
+          },
+        );
+
+        try {
+          const replay = await client.getAgentEvents({ limit: 300 });
+          if (replay.events.length > 0) {
+            setAutonomousEvents(replay.events);
+            setAutonomousLatestEventId(replay.latestEventId);
+          }
+        } catch {
+          // Non-fatal
+        }
+
+        return;
+      }
+
       if (import.meta.env.DEV && startupRunId > 0) {
         console.debug(`[milady] Retrying startup run #${startupRunId}`);
       }
@@ -4326,6 +4400,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setUnreadConversations((prev) => new Set([...prev, convId]));
           }
 
+          // Synthesize agent_event for non-retake sources (e.g. discord)
+          // so they appear in the StreamView activity feed
+          if (
+            msg.source &&
+            msg.source !== "retake" &&
+            msg.source !== "client_chat" &&
+            msg.role === "user"
+          ) {
+            appendAutonomousEvent({
+              type: "agent_event",
+              version: 1,
+              eventId: `synth-${msg.id}`,
+              ts: msg.timestamp,
+              stream: "message",
+              payload: {
+                text: msg.text,
+                from: msg.from,
+                source: msg.source,
+                direction: "inbound",
+                channel: msg.source,
+              },
+            });
+          }
+
           // Bump conversation to top of list
           setConversations((prev) => {
             const updated = prev.map((c) =>
@@ -4688,6 +4786,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     commandPaletteOpen,
     commandQuery,
     commandActiveIndex,
+    closeCommandPalette,
     emotePickerOpen,
     mcpConfiguredServers,
     mcpServerStatuses,
