@@ -1,4 +1,8 @@
 import type http from "node:http";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
+
+const gzipAsync = promisify(gzip);
 
 /**
  * Common request body size guard used across API/benchmark endpoints.
@@ -157,7 +161,27 @@ export async function writeJsonResponse(
 ): Promise<void> {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(body));
+  res.setHeader("Vary", "Accept-Encoding");
+
+  const json = JSON.stringify(body);
+
+  if (json.length > 1024) {
+    const req = (res as unknown as { req: http.IncomingMessage }).req;
+    const acceptEncoding = req?.headers?.["accept-encoding"] || "";
+
+    if (acceptEncoding.includes("gzip")) {
+      try {
+        const buffer = await gzipAsync(json);
+        res.setHeader("Content-Encoding", "gzip");
+        res.end(buffer);
+        return;
+      } catch {
+        // Fallback to uncompressed
+      }
+    }
+  }
+
+  res.end(json);
 }
 
 export async function writeJsonError(
