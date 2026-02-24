@@ -106,7 +106,7 @@ export function ConversationsSidebar({
             onClick={onClose}
             aria-label="Close chats panel"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
       )}
@@ -119,7 +119,7 @@ export function ConversationsSidebar({
             onClose?.();
           }}
         >
-          + New Chat
+          <span aria-hidden="true">+</span> New Chat
         </button>
       </div>
 
@@ -153,6 +153,7 @@ export function ConversationsSidebar({
                     onBlur={() => void handleEditSubmit(conv.id)}
                     onKeyDown={(e) => handleEditKeyDown(e, conv.id)}
                     onClick={(e) => e.stopPropagation()}
+                    aria-label={`Rename conversation: ${conv.title}`}
                   />
                 ) : (
                   <>
@@ -186,8 +187,9 @@ export function ConversationsSidebar({
                         void handleDeleteConversation(conv.id);
                       }}
                       title="Delete conversation"
+                      aria-label={`Delete conversation: ${conv.title}`}
                     >
-                      ×
+                      <span aria-hidden="true">×</span>
                     </button>
                   </>
                 )}
