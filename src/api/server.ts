@@ -49,6 +49,7 @@ import {
 } from "../runtime/custom-actions";
 import {
   isBlockedPrivateOrLinkLocalIp,
+  isLoopbackHost,
   normalizeHostLike,
 } from "../security/network-policy";
 import { AppManager } from "../services/app-manager";
@@ -4309,16 +4310,8 @@ function isLoopbackBindHost(host: string): boolean {
 
   normalized = normalized.replace(/^\[|\]$/g, "");
   if (!normalized) return true;
-  if (
-    normalized === "localhost" ||
-    normalized === "::1" ||
-    normalized === "0:0:0:0:0:0:0:1" ||
-    normalized === "::ffff:127.0.0.1"
-  ) {
-    return true;
-  }
-  if (normalized.startsWith("127.")) return true;
-  return false;
+
+  return isLoopbackHost(normalized);
 }
 
 export function ensureApiTokenForBindHost(host: string): void {
