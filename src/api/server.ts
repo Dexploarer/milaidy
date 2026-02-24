@@ -138,7 +138,14 @@ import {
   markAddressVerified,
   verifyTweet,
 } from "./twitter-verify";
+
 import { verifyAndWhitelistHolder } from "./nft-verify";
+    });
+    return;
+  }
+
+import { buildWhitelistTree, generateProof } from "./merkle-tree";
+
 import { TxService } from "./tx-service";
 import { generateWalletKeys, getWalletAddresses } from "./wallet";
 import { handleWalletRoutes } from "./wallet-routes";
@@ -8728,9 +8735,26 @@ async function handleRequest(
       endpoint?: string;
       proof?: string[];
     }>(req, res);
-    if (!body || !body.proof) {
-      error(res, "proof array is required");
-      return;
+    if (!body) return;
+
+    // Auto-generate proof from Merkle tree if not provided
+    let proof = body.proof;
+    if (!proof || proof.length === 0) {
+      const addrs = getWalletAddresses();
+      const walletAddress = addrs.evmAddress ?? "";
+      if (!walletAddress) {
+        error(res, "EVM wallet not configured.");
+        return;
+      }
+      const proofResult = generateProof(walletAddress);
+      if (!proofResult.isWhitelisted) {
+        error(
+          res,
+          "Address not whitelisted. Complete Twitter or NFT verification first.",
+        );
+        return;
+      }
+      proof = proofResult.proof;
     }
 
     const agentName = body.name || state.agentName || "Milady Agent";
@@ -8738,7 +8762,7 @@ async function handleRequest(
     const result = await dropService.mintWithWhitelist(
       agentName,
       endpoint,
-      body.proof,
+      proof,
     );
     json(res, result);
     return;
@@ -8756,12 +8780,23 @@ async function handleRequest(
       : false;
     const ogCode = readOGCodeFromState();
 
+    // Include Merkle tree info for mint readiness
+    const { info } = buildWhitelistTree();
+    const proofReady = walletAddress
+      ? generateProof(walletAddress).isWhitelisted
+      : false;
+
     json(res, {
       eligible: twitterVerified,
       twitterVerified,
       nftVerified: twitterVerified, // shares whitelist.json — if address is in it, it's verified regardless of path
       ogCode: ogCode ?? null,
       walletAddress,
+      merkle: {
+        root: info.root,
+        addressCount: info.addressCount,
+        proofReady,
+      },
     });
     return;
   }
@@ -8800,6 +8835,7 @@ async function handleRequest(
     json(res, result);
     return;
   }
+
 
   // ── POST /api/whitelist/nft/verify ───────────────────────────────────────
   // Verify Milady NFT ownership for whitelist eligibility.
@@ -8846,6 +8882,31 @@ async function handleRequest(
     });
     return;
   }
+
+  // ── GET /api/whitelist/merkle/root — tree info and root hash
+  if (method === "GET" && pathname === "/api/whitelist/merkle/root") {
+    const { info } = buildWhitelistTree();
+    json(res, {
+      root: info.root,
+      addressCount: info.addressCount,
+
+    });
+    return;
+  }
+
+  // ── GET /api/whitelist/merkle/proof?address=0x... — proof for an address
+  if (method === "GET" && pathname === "/api/whitelist/merkle/proof") {
+    const url = new URL(req.url ?? "", `http://${req.headers.host}`);
+    const addr = url.searchParams.get("address");
+    if (!addr) {
+      error(res, "address query parameter is required");
+      return;
+    }
+    const result = generateProof(addr);
+    json(res, result);
+    return;
+  }
+
 
   // ── GET /api/update/status ───────────────────────────────────────────────
   if (method === "GET" && pathname === "/api/update/status") {
