@@ -199,6 +199,7 @@ export function ConversationsSidebar({
                           className="px-1.5 py-0.5 text-[10px] border border-danger bg-danger text-white cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => void handleConfirmDelete(conv.id)}
                           disabled={deletingId === conv.id}
+                          aria-label="Confirm deletion"
                         >
                           {deletingId === conv.id ? "..." : "Yes"}
                         </button>
@@ -207,6 +208,7 @@ export function ConversationsSidebar({
                           className="px-1.5 py-0.5 text-[10px] border border-border bg-card text-muted cursor-pointer hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => setConfirmDeleteId(null)}
                           disabled={deletingId === conv.id}
+                          aria-label="Cancel deletion"
                         >
                           No
                         </button>
@@ -215,14 +217,29 @@ export function ConversationsSidebar({
                       <button
                         type="button"
                         data-testid="conv-delete"
-                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
+                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer p-1 rounded flex-shrink-0 flex items-center justify-center"
                         onClick={(e) => {
                           e.stopPropagation();
                           setConfirmDeleteId(conv.id);
                         }}
                         title="Delete conversation"
+                        aria-label="Delete conversation"
                       >
-                        ×
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
                       </button>
                     )}
                   </>
