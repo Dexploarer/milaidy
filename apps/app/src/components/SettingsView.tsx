@@ -584,7 +584,7 @@ export function SettingsView() {
                     type="button"
                     className="ml-2 px-1.5 py-0.5 border border-[var(--border)] bg-[var(--bg)] cursor-pointer text-[10px] font-[var(--mono)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     onClick={() =>
-                      void copyToClipboard(walletExportData.evm.privateKey)
+                      void copyToClipboard(walletExportData.evm!.privateKey)
                     }
                   >
                     copy
@@ -603,7 +603,7 @@ export function SettingsView() {
                     type="button"
                     className="ml-2 px-1.5 py-0.5 border border-[var(--border)] bg-[var(--bg)] cursor-pointer text-[10px] font-[var(--mono)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     onClick={() =>
-                      void copyToClipboard(walletExportData.solana.privateKey)
+                      void copyToClipboard(walletExportData.solana!.privateKey)
                     }
                   >
                     copy

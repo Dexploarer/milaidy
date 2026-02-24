@@ -62,7 +62,7 @@ describe("Header", () => {
     if (!testRenderer) {
       throw new Error("Failed to render Header");
     }
-    const root = testRenderer.root;
+    const root = (testRenderer as ReactTestRenderer).root;
     const hasClass = (node: ReactTestInstance, className: string): boolean =>
       typeof node.props.className === "string" &&
       node.props.className.includes(className);
