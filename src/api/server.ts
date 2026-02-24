@@ -4091,6 +4091,14 @@ function applyCors(
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "browsing-topics=(), interest-cohort=(), geolocation=(), camera=(), microphone=(), payment=()",
+  );
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'none'; frame-ancestors 'none'; sandbox allow-scripts allow-same-origin;",
+  );
 
   return true;
 }
