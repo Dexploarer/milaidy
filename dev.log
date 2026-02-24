@@ -1,0 +1,12 @@
+
+> milaidy@2.0.0-alpha.26 dev
+> scripts/rt.sh scripts/dev-ui.mjs
+
+error: ENOENT while resolving package '@noble/hashes/crypto' from '/app/node_modules/.cache/@noble/hashes@1.3.2@@@1/esm/utils.js'
+
+Bun v1.2.14 (Linux x64 baseline)
+npm notice
+npm notice New minor version of npm available! 11.7.0 -> 11.10.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.10.1
+npm notice To update run: npm install -g npm@11.10.1
+npm notice
