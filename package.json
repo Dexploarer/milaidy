@@ -108,6 +108,7 @@
     "@elizaos/core": "next",
     "@elizaos/plugin-agent-orchestrator": "next",
     "@elizaos/plugin-agent-skills": "next",
+    "@elizaos/plugin-anthropic": "next",
     "@elizaos/plugin-browser": "next",
     "@elizaos/plugin-computeruse": "next",
     "@elizaos/plugin-cron": "next",
