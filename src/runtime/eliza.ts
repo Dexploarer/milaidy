@@ -3096,6 +3096,15 @@ export async function startEliza(
       logger.info(
         "[milady] No plugins loaded yet — the onboarding wizard will configure a model provider",
       );
+    } else if (opts?.serverOnly && earlyServerHandle) {
+      // Server-only with early server — don't crash, keep health probes alive
+      logger.error(
+        "[milady] No plugins loaded — set an API key (e.g. OPENAI_API_KEY) in environment variables",
+      );
+      console.error(
+        "[milady] Server will remain up for health probes but agent is non-functional",
+      );
+      await new Promise(() => {}); // block forever
     } else {
       logger.error(
         "[milady] No plugins loaded — at least one model provider plugin is required",
@@ -3606,6 +3615,13 @@ export async function startEliza(
   // desktop app, the API server is always available for the GUI admin
   // surface.
   try {
+    if (earlyServerHandle) {
+      // Early server is already listening — just wire in the runtime
+      earlyServerHandle.updateRuntime(runtime);
+      console.log(
+        `[milady] Runtime loaded — API server fully operational`,
+      );
+    } else {
     const { startApiServer } = await import("../api/server");
     const apiPort = Number(process.env.MILADY_PORT) || 2138;
     const { port: actualApiPort } = await startApiServer({
@@ -3761,6 +3777,7 @@ export async function startEliza(
     const dashboardUrl = `http://localhost:${actualApiPort}`;
     console.log(`[milady] Control UI: ${dashboardUrl}`);
     logger.info(`[milady] API server listening on ${dashboardUrl}`);
+    } // end else (no earlyServerHandle)
   } catch (apiErr) {
     logger.warn(`[milady] Could not start API server: ${formatError(apiErr)}`);
     // Non-fatal — CLI chat loop still works without the API server.
