@@ -55,10 +55,9 @@ USER node
 # token — set it explicitly in your PaaS environment variables.
 ENV MILADY_API_BIND="0.0.0.0"
 
-# Kinsta/Sevalla sets PORT env var; bridge it to MILADY_PORT.
-# Falls back to 2138 if PORT is not set.
+# Always use port 2138. Sevalla internal_port must match (set to 2138).
+ENV MILADY_PORT=2138
 EXPOSE 2138
 
 # Start the API server + dashboard UI.
-# Uses shell form so $PORT is expanded at runtime.
-CMD sh -c "MILADY_PORT=${PORT:-2138} bun milady.mjs start"
+CMD ["bun", "milady.mjs", "start"]
