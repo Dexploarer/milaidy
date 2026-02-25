@@ -810,6 +810,7 @@ function prefixLabel(key: string, suffix: string): string {
 // ---------------------------------------------------------------------------
 
 const BLOCKED_ENV_KEYS = new Set([
+  // System-level injection vectors
   "LD_PRELOAD",
   "LD_LIBRARY_PATH",
   "DYLD_INSERT_LIBRARIES",
@@ -817,11 +818,36 @@ const BLOCKED_ENV_KEYS = new Set([
   "NODE_OPTIONS",
   "NODE_EXTRA_CA_CERTS",
   "ELECTRON_RUN_AS_NODE",
+  // TLS bypass — setting to "0" disables ALL certificate verification,
+  // enabling MITM interception of every outbound HTTPS request (API keys
+  // for OpenAI, Anthropic, ElevenLabs etc. sent in plaintext headers).
+  "NODE_TLS_REJECT_UNAUTHORIZED",
+  // Proxy hijack — routes all HTTP/HTTPS traffic through attacker proxy,
+  // exposing Authorization headers and API keys in transit.
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  // Module resolution override
+  "NODE_PATH",
+  // CA certificate override — trust rogue CAs for MITM
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "CURL_CA_BUNDLE",
   "PATH",
   "HOME",
   "SHELL",
+  // Auth / step-up tokens — writable via API would grant privilege escalation
   "MILADY_API_TOKEN",
   "MILADY_WALLET_EXPORT_TOKEN",
+  "MILADY_TERMINAL_RUN_TOKEN",
+  "HYPERSCAPE_AUTH_TOKEN",
+  // Wallet private keys — writable via API would enable key theft / replacement
+  "EVM_PRIVATE_KEY",
+  "SOLANA_PRIVATE_KEY",
+  // Third-party auth tokens
+  "GITHUB_TOKEN",
+  // Database connection strings
   "DATABASE_URL",
   "POSTGRES_URL",
 ]);
@@ -1240,6 +1266,7 @@ function categorizePlugin(
     "nextcloud-talk",
     "instagram",
     "retake",
+    "blooio",
   ];
   const databases = ["sql", "localdb", "inmemorydb"];
 
@@ -2806,7 +2833,15 @@ const SENSITIVE_KEY_RE =
   /password|secret|api.?key|private.?key|seed.?phrase|authorization|connection.?string|credential|(?<!max)tokens?$/i;
 
 function isBlockedObjectKey(key: string): boolean {
-  return key === "__proto__" || key === "constructor" || key === "prototype";
+  return (
+    key === "__proto__" ||
+    key === "constructor" ||
+    key === "prototype" ||
+    // Block config include directives — if an API caller embeds "$include"
+    // inside a config patch, the next loadMiladyConfig() → resolveConfigIncludes
+    // pass would read arbitrary local files and merge them into the config.
+    key === "$include"
+  );
 }
 
 function hasBlockedObjectKeyDeep(value: unknown): boolean {
@@ -2958,6 +2993,15 @@ const BLOCKED_MCP_ENV_KEYS = new Set([
   "NODE_OPTIONS",
   "NODE_EXTRA_CA_CERTS",
   "ELECTRON_RUN_AS_NODE",
+  "NODE_TLS_REJECT_UNAUTHORIZED",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "NODE_PATH",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "CURL_CA_BUNDLE",
   "PATH",
   "HOME",
   "SHELL",
@@ -6365,22 +6409,25 @@ async function handleRequest(
       body.blooioApiKey.trim()
     ) {
       if (!config.env) config.env = {};
-      (config.env as Record<string, string>).BLOOIO_API_KEY = (
-        body.blooioApiKey as string
-      ).trim();
-      process.env.BLOOIO_API_KEY = (body.blooioApiKey as string).trim();
+      const trimmedKey = (body.blooioApiKey as string).trim();
+      (config.env as Record<string, string>).BLOOIO_API_KEY = trimmedKey;
+      process.env.BLOOIO_API_KEY = trimmedKey;
+
+      const blooioConnector: Record<string, string> = { apiKey: trimmedKey };
+
       if (
         body.blooioPhoneNumber &&
         typeof body.blooioPhoneNumber === "string" &&
         body.blooioPhoneNumber.trim()
       ) {
-        (config.env as Record<string, string>).BLOOIO_PHONE_NUMBER = (
-          body.blooioPhoneNumber as string
-        ).trim();
-        process.env.BLOOIO_PHONE_NUMBER = (
-          body.blooioPhoneNumber as string
-        ).trim();
+        const trimmedPhone = (body.blooioPhoneNumber as string).trim();
+        (config.env as Record<string, string>).BLOOIO_PHONE_NUMBER =
+          trimmedPhone;
+        process.env.BLOOIO_PHONE_NUMBER = trimmedPhone;
+        blooioConnector.fromNumber = trimmedPhone;
       }
+
+      config.connectors.blooio = blooioConnector;
     }
 
     // ── Inventory / RPC providers ─────────────────────────────────────────
@@ -9431,14 +9478,24 @@ async function handleRequest(
       // path changes in future refactors.
       delete envPatch.MILADY_API_TOKEN;
       delete envPatch.MILADY_WALLET_EXPORT_TOKEN;
+      delete envPatch.MILADY_TERMINAL_RUN_TOKEN;
+      delete envPatch.HYPERSCAPE_AUTH_TOKEN;
+      delete envPatch.EVM_PRIVATE_KEY;
+      delete envPatch.SOLANA_PRIVATE_KEY;
+      delete envPatch.GITHUB_TOKEN;
       if (
         envPatch.vars &&
         typeof envPatch.vars === "object" &&
         !Array.isArray(envPatch.vars)
       ) {
-        delete (envPatch.vars as Record<string, unknown>).MILADY_API_TOKEN;
-        delete (envPatch.vars as Record<string, unknown>)
-          .MILADY_WALLET_EXPORT_TOKEN;
+        const vars = envPatch.vars as Record<string, unknown>;
+        delete vars.MILADY_API_TOKEN;
+        delete vars.MILADY_WALLET_EXPORT_TOKEN;
+        delete vars.MILADY_TERMINAL_RUN_TOKEN;
+        delete vars.HYPERSCAPE_AUTH_TOKEN;
+        delete vars.EVM_PRIVATE_KEY;
+        delete vars.SOLANA_PRIVATE_KEY;
+        delete vars.GITHUB_TOKEN;
       }
     }
 
@@ -12133,6 +12190,25 @@ async function handleRequest(
       return;
     }
 
+    // Security gate: shell and code handlers execute arbitrary commands or
+    // code on the host machine, and the resulting action persists in config
+    // (survives restarts). Require the MILADY_TERMINAL_RUN_TOKEN to prove
+    // the caller has explicit operator authority for code execution.
+    if (handler.type === "shell" || handler.type === "code") {
+      const terminalRejection = resolveTerminalRunRejection(
+        req,
+        body as TerminalRunRequestBody,
+      );
+      if (terminalRejection) {
+        error(
+          res,
+          `Creating ${handler.type} actions requires terminal authorization. ${terminalRejection.reason}`,
+          terminalRejection.status,
+        );
+        return;
+      }
+    }
+
     // Validate type-specific required fields
     if (
       handler.type === "http" &&
@@ -12274,6 +12350,22 @@ async function handleRequest(
       return;
     }
 
+    // Security gate: shell/code handlers execute arbitrary commands on the host.
+    if (def.handler.type === "shell" || def.handler.type === "code") {
+      const terminalRejection = resolveTerminalRunRejection(
+        req,
+        body as TerminalRunRequestBody,
+      );
+      if (terminalRejection) {
+        error(
+          res,
+          `Testing ${def.handler.type} actions requires terminal authorization. ${terminalRejection.reason}`,
+          terminalRejection.status,
+        );
+        return;
+      }
+    }
+
     const testParams = body.params ?? {};
     const start = Date.now();
     try {
@@ -12320,6 +12412,23 @@ async function handleRequest(
         return;
       }
       newHandler = h as unknown as CustomActionDef["handler"];
+    }
+
+    // Security gate: if the new/updated handler is shell or code, require
+    // terminal authorization — same gate as POST creation.
+    if (newHandler.type === "shell" || newHandler.type === "code") {
+      const terminalRejection = resolveTerminalRunRejection(
+        req,
+        body as TerminalRunRequestBody,
+      );
+      if (terminalRejection) {
+        error(
+          res,
+          `Updating to ${newHandler.type} handler requires terminal authorization. ${terminalRejection.reason}`,
+          terminalRejection.status,
+        );
+        return;
+      }
     }
 
     const updated: CustomActionDef = {
