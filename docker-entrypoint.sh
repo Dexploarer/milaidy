@@ -3,6 +3,7 @@
 # Sevalla injects PORT at runtime; Milady reads MILADY_PORT.
 export MILADY_PORT="${PORT:-2138}"
 export MILADY_API_BIND="${MILADY_API_BIND:-0.0.0.0}"
+export MILADY_WEB_SURFACE="${MILADY_WEB_SURFACE:-landing}"
 
-echo "[docker-entrypoint] PORT=$PORT → MILADY_PORT=$MILADY_PORT, BIND=$MILADY_API_BIND"
+echo "[docker-entrypoint] PORT=$PORT → MILADY_PORT=$MILADY_PORT, BIND=$MILADY_API_BIND, WEB_SURFACE=$MILADY_WEB_SURFACE"
 exec node milady.mjs start
