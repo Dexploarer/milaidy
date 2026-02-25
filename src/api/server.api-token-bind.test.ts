@@ -45,4 +45,14 @@ describe("ensureApiTokenForBindHost", () => {
       false,
     );
   });
+
+  it("generates a token for non-loopback binds starting with 127.", () => {
+    delete process.env.MILADY_API_TOKEN;
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+    ensureApiTokenForBindHost("127.example.com");
+
+    const generated = process.env.MILADY_API_TOKEN ?? "";
+    expect(generated).toMatch(/^[a-f0-9]{64}$/);
+  });
 });

@@ -4448,7 +4448,7 @@ function isLoopbackBindHost(host: string): boolean {
   ) {
     return true;
   }
-  if (normalized.startsWith("127.")) return true;
+  if (net.isIP(normalized) === 4 && normalized.startsWith("127.")) return true;
   return false;
 }
 
