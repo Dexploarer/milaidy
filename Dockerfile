@@ -14,45 +14,12 @@ RUN if [ -n "$MILADY_DOCKER_APT_PACKAGES" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
-# Copy dependency manifests first for better layer caching.
-# Must include ALL workspace package.json files so bun can resolve workspace:* deps.
-COPY package.json bun.lock* .npmrc* ./
-
-# apps/app + electron
-COPY apps/app/package.json ./apps/app/package.json
-COPY apps/app/electron/package.json ./apps/app/electron/package.json
-
-# Capacitor plugins (workspace:* deps — 9 plugins)
-COPY apps/app/plugins/agent/package.json ./apps/app/plugins/agent/package.json
-COPY apps/app/plugins/camera/package.json ./apps/app/plugins/camera/package.json
-COPY apps/app/plugins/canvas/package.json ./apps/app/plugins/canvas/package.json
-COPY apps/app/plugins/desktop/package.json ./apps/app/plugins/desktop/package.json
-COPY apps/app/plugins/gateway/package.json ./apps/app/plugins/gateway/package.json
-COPY apps/app/plugins/location/package.json ./apps/app/plugins/location/package.json
-COPY apps/app/plugins/screencapture/package.json ./apps/app/plugins/screencapture/package.json
-COPY apps/app/plugins/swabble/package.json ./apps/app/plugins/swabble/package.json
-COPY apps/app/plugins/talkmode/package.json ./apps/app/plugins/talkmode/package.json
-
-# Internal packages
-COPY packages/mldy/package.json ./packages/mldy/package.json
-COPY packages/plugin-coding-agent/package.json ./packages/plugin-coding-agent/package.json
-COPY packages/plugin-claude-code-workbench/package.json ./packages/plugin-claude-code-workbench/package.json
-COPY packages/plugin-pi-ai/package.json ./packages/plugin-pi-ai/package.json
-COPY packages/plugin-repoprompt/package.json ./packages/plugin-repoprompt/package.json
-COPY packages/plugin-ui/package.json ./packages/plugin-ui/package.json
-COPY packages/psyop/package.json ./packages/psyop/package.json
-
-# Deploy template
-COPY deploy/cloud-agent-template/package.json ./deploy/cloud-agent-template/package.json
-
-# Scripts needed by postinstall hooks
-COPY scripts ./scripts
-
-# Install dependencies (no lockfile in repo; bun resolves from package.json).
-RUN bun install
-
-# Copy source and build (includes apps/app/dist UI bundle)
+# Copy full source first — postinstall hooks need source files
+# (build:local-plugins compiles workspace packages like plugin-pi-ai).
 COPY . .
+
+# Install deps + run postinstall (which builds local plugins), then build.
+RUN bun install
 RUN bun run build
 
 ENV NODE_ENV=production
