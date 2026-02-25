@@ -60,4 +60,7 @@ ENV MILADY_PORT=2138
 EXPOSE 2138
 
 # Start the API server + dashboard UI.
-CMD ["bun", "milady.mjs", "start"]
+# Use node (not bun) at runtime — Bun segfaults on native modules loaded
+# by @elizaos/plugin-local-embedding (GGML/GGUF). Bun is still used for
+# the build steps above where it works fine.
+CMD ["node", "milady.mjs", "start"]
