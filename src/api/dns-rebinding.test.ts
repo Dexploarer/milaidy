@@ -101,8 +101,18 @@ describe("isAllowedHost — DNS rebinding protection", () => {
     expect(isAllowedHost(fakeReq("myhost.local:31337"))).toBe(true);
   });
 
-  it("still blocks unrelated hosts even with custom bind", () => {
+  it("allows external hosts when custom bind host is non-loopback", () => {
     process.env.MILADY_API_BIND = "myhost.local";
+    expect(isAllowedHost(fakeReq("evil.com"))).toBe(true);
+  });
+
+  it("allows external hosts when bind is non-loopback (0.0.0.0)", () => {
+    process.env.MILADY_API_BIND = "0.0.0.0";
+    expect(isAllowedHost(fakeReq("evil.com"))).toBe(true);
+  });
+
+  it("keeps localhost-only protection when bind is loopback", () => {
+    process.env.MILADY_API_BIND = "127.0.0.1";
     expect(isAllowedHost(fakeReq("evil.com"))).toBe(false);
   });
 });

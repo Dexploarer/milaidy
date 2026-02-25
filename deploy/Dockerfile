@@ -28,8 +28,9 @@ RUN bun run build
 
 ENV NODE_ENV=production
 
-# Allow non-root user to write temp files during runtime.
-RUN chown -R node:node /app
+# Ensure entrypoint is executable + give non-root user write access.
+RUN chmod +x /app/docker-entrypoint.sh && \
+    chown -R node:node /app
 
 # Security hardening: Run as non-root user
 USER node
@@ -38,5 +39,9 @@ USER node
 # Set MILADY_API_TOKEN in production to require auth.
 ENV MILADY_API_BIND="0.0.0.0"
 
-# Start the API server + dashboard UI on port 2138.
-CMD ["node", "milady.mjs", "start"]
+# Sevalla injects PORT at runtime. docker-entrypoint.sh bridges it:
+#   MILADY_PORT=${PORT:-2138}
+EXPOSE 2138
+
+# Start via entrypoint that bridges PaaS PORT → MILADY_PORT.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

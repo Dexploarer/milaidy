@@ -16,6 +16,7 @@ describe("resolveWebSocketUpgradeRejection", () => {
   const prevToken = process.env.MILADY_API_TOKEN;
   const prevAllowQueryToken = process.env.MILADY_ALLOW_WS_QUERY_TOKEN;
   const prevAllowedOrigins = process.env.MILADY_ALLOWED_ORIGINS;
+  const prevBindHost = process.env.MILADY_API_BIND;
 
   afterEach(() => {
     if (prevToken === undefined) delete process.env.MILADY_API_TOKEN;
@@ -28,6 +29,9 @@ describe("resolveWebSocketUpgradeRejection", () => {
     if (prevAllowedOrigins === undefined)
       delete process.env.MILADY_ALLOWED_ORIGINS;
     else process.env.MILADY_ALLOWED_ORIGINS = prevAllowedOrigins;
+
+    if (prevBindHost === undefined) delete process.env.MILADY_API_BIND;
+    else process.env.MILADY_API_BIND = prevBindHost;
   });
 
   it("rejects non-/ws paths", () => {
@@ -157,6 +161,26 @@ describe("resolveWebSocketUpgradeRejection", () => {
       new URL("ws://localhost/ws"),
     );
     expect(rejection).toBeNull();
+  });
+
+  it("accepts external origins in non-loopback bind mode", () => {
+    delete process.env.MILADY_API_TOKEN;
+    process.env.MILADY_API_BIND = "0.0.0.0";
+    const rejection = resolveWebSocketUpgradeRejection(
+      req({ origin: "https://public.example" }) as http.IncomingMessage,
+      new URL("ws://public.example/ws"),
+    );
+    expect(rejection).toBeNull();
+  });
+
+  it("still enforces API token in non-loopback bind mode", () => {
+    process.env.MILADY_API_BIND = "0.0.0.0";
+    process.env.MILADY_API_TOKEN = "test-token";
+    const rejection = resolveWebSocketUpgradeRejection(
+      req({ origin: "https://public.example" }) as http.IncomingMessage,
+      new URL("ws://public.example/ws"),
+    );
+    expect(rejection).toEqual({ status: 401, reason: "Unauthorized" });
   });
 
   it("accepts upgrade when no origin header is present", () => {

@@ -1316,6 +1316,93 @@ describe("buildCharacterFromConfig", () => {
     expect((char.bio as string[])[0]).toContain("{{name}}");
     expect(char.system).toContain("{{name}}");
   });
+
+  it("normalizes preset-style messageExamples (shape A)", () => {
+    const config = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            messageExamples: [
+              [
+                { user: "User", content: { text: "hello" } },
+                { user: "Agent", content: { text: "hi" } },
+              ],
+            ],
+          },
+        ],
+      },
+    } as unknown as MiladyConfig;
+
+    const char = buildCharacterFromConfig(config);
+    expect(char.messageExamples).toEqual([
+      {
+        examples: [
+          { name: "User", content: { text: "hello" } },
+          { name: "Agent", content: { text: "hi" } },
+        ],
+      },
+    ]);
+  });
+
+  it("normalizes CharacterSchema-style messageExamples (shape B)", () => {
+    const config = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            messageExamples: [
+              {
+                examples: [
+                  { name: "User", content: { text: "hello" } },
+                  { name: "Agent", content: { text: "hi" } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as MiladyConfig;
+
+    const char = buildCharacterFromConfig(config);
+    expect(char.messageExamples).toEqual([
+      {
+        examples: [
+          { name: "User", content: { text: "hello" } },
+          { name: "Agent", content: { text: "hi" } },
+        ],
+      },
+    ]);
+  });
+
+  it("ignores malformed messageExamples without throwing", () => {
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    const config = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            messageExamples: { bad: "shape" },
+          },
+        ],
+      },
+    } as unknown as MiladyConfig;
+
+    try {
+      expect(() => buildCharacterFromConfig(config)).not.toThrow();
+      const char = buildCharacterFromConfig(config);
+      expect(char.messageExamples).toEqual([]);
+      expect(
+        warnSpy.mock.calls.some(
+          ([msg]) =>
+            typeof msg === "string" &&
+            msg.includes("Ignoring malformed messageExamples"),
+        ),
+      ).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

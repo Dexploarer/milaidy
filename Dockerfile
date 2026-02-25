@@ -43,8 +43,9 @@ RUN mkdir -p /home/node/.milady/workspace/.eliza/.elizadb \
              /home/node/.eliza && \
     chown -R node:node /home/node
 
-# Allow non-root user to write temp files during runtime.
-RUN chown -R node:node /app
+# Ensure entrypoint is executable + give non-root user write access.
+RUN chmod +x /app/docker-entrypoint.sh && \
+    chown -R node:node /app
 
 # Security hardening: Run as non-root user
 USER node
@@ -55,12 +56,13 @@ USER node
 # token — set it explicitly in your PaaS environment variables.
 ENV MILADY_API_BIND="0.0.0.0"
 
-# Always use port 2138. Sevalla internal_port must match (set to 2138).
-ENV MILADY_PORT=2138
+# Sevalla injects PORT at runtime. docker-entrypoint.sh bridges it:
+#   MILADY_PORT=${PORT:-2138}
+# Do NOT hardcode MILADY_PORT here — the entrypoint handles it.
 EXPOSE 2138
 
-# Start the API server + dashboard UI.
-# Use node (not bun) at runtime — Bun segfaults on native modules loaded
+# Start via entrypoint script that bridges Sevalla PORT → MILADY_PORT.
+# Uses node (not bun) at runtime — Bun segfaults on native modules loaded
 # by @elizaos/plugin-local-embedding (GGML/GGUF). Bun is still used for
 # the build steps above where it works fine.
-CMD ["node", "milady.mjs", "start"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

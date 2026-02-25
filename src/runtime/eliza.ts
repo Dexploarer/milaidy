@@ -2190,6 +2190,104 @@ async function registerSqlPluginWithRecovery(
   await initializeDatabaseAdapter(runtime, config);
 }
 
+type CharacterMessageExampleGroup = NonNullable<Character["messageExamples"]>[number];
+type CharacterMessageExample = CharacterMessageExampleGroup["examples"][number];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeMessageExampleContent(
+  value: unknown,
+): CharacterMessageExample["content"] | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.text !== "string") return null;
+
+  const text = value.text.trim();
+  if (!text) return null;
+
+  const normalized: CharacterMessageExample["content"] = { text };
+  if (Array.isArray(value.actions)) {
+    const actions = value.actions.filter(
+      (action): action is string => typeof action === "string" && action.length > 0,
+    );
+    if (actions.length > 0) normalized.actions = actions;
+  }
+
+  return normalized;
+}
+
+function normalizeMessageExampleEntry(
+  value: unknown,
+): CharacterMessageExample | null {
+  if (!isRecord(value)) return null;
+
+  const name =
+    typeof value.user === "string"
+      ? value.user.trim()
+      : typeof value.name === "string"
+        ? value.name.trim()
+        : "";
+  if (!name) return null;
+
+  const content = normalizeMessageExampleContent(value.content);
+  if (!content) return null;
+
+  return { name, content };
+}
+
+function normalizeMessageExamples(raw: unknown): Character["messageExamples"] {
+  if (raw == null) return undefined;
+  if (!Array.isArray(raw)) {
+    logger.warn(
+      `[milady] Ignoring malformed messageExamples: expected an array, got ${typeof raw}`,
+    );
+    return undefined;
+  }
+
+  const groups: CharacterMessageExampleGroup[] = [];
+  let droppedGroups = 0;
+  let droppedExamples = 0;
+
+  for (const group of raw) {
+    const rawExamples =
+      Array.isArray(group)
+        ? group
+        : isRecord(group) && Array.isArray(group.examples)
+          ? group.examples
+          : null;
+
+    if (!rawExamples) {
+      droppedGroups += 1;
+      continue;
+    }
+
+    const normalizedGroup: CharacterMessageExample[] = [];
+    for (const rawExample of rawExamples) {
+      const normalized = normalizeMessageExampleEntry(rawExample);
+      if (normalized) {
+        normalizedGroup.push(normalized);
+      } else {
+        droppedExamples += 1;
+      }
+    }
+
+    if (normalizedGroup.length > 0) {
+      groups.push({ examples: normalizedGroup });
+    } else {
+      droppedGroups += 1;
+    }
+  }
+
+  if (droppedGroups > 0 || droppedExamples > 0) {
+    logger.warn(
+      `[milady] Ignoring malformed messageExamples entries (groups=${droppedGroups}, examples=${droppedExamples})`,
+    );
+  }
+
+  return groups.length > 0 ? groups : undefined;
+}
+
 /**
  * Build an ElizaOS Character from the Milady config.
  *
@@ -2285,12 +2383,11 @@ export function buildCharacterFromConfig(config: MiladyConfig): Character {
     }
   }
 
-  // The messageExamples stored in config use the loose preset format
-  // ({ user, content: { text } }).  The core Character type requires a
-  // `name` field on each example, so we map `user` → `name` here.
-  const mappedExamples = messageExamples?.map((convo) =>
-    convo.map((msg) => ({ ...msg, name: msg.user })),
-  );
+  // messageExamples can arrive in either legacy preset format
+  // (Array<Array<{user,content}>>) or CharacterSchema format
+  // (Array<{examples:Array<{name,content}>}>). Normalize both shapes.
+  // Malformed values are ignored with a warning instead of crashing startup.
+  const mappedExamples = normalizeMessageExamples(messageExamples);
 
   return mergeCharacterDefaults({
     name,
@@ -2909,11 +3006,13 @@ export async function startEliza(
   // can take 30-120+ seconds.  Start the HTTP server NOW with
   // initialAgentState: "starting" so /health returns 200 immediately,
   // then hot-swap the runtime in via updateRuntime() once init completes.
-  let earlyServerHandle: {
-    updateRuntime: (rt: AgentRuntime) => void;
-    updateStartup: (update: Record<string, unknown>) => void;
-    close: () => Promise<void>;
-  } | null = null;
+  let earlyServerHandle:
+    | {
+        updateRuntime: (rt: AgentRuntime) => void;
+        close: () => Promise<void>;
+      }
+    | null = null;
+  let apiServerReady = false;
 
   if (opts?.serverOnly && !opts?.headless) {
     try {
@@ -2923,7 +3022,8 @@ export async function startEliza(
         port: apiPort,
         initialAgentState: "starting",
       });
-      earlyServerHandle = handle as typeof earlyServerHandle;
+      earlyServerHandle = handle;
+      apiServerReady = true;
       logger.info(
         `[milady] Early API server listening on port ${handle.port} (health probes active)`,
       );
@@ -2931,10 +3031,14 @@ export async function startEliza(
         `[milady] Early API server started on port ${handle.port} — health probes will pass`,
       );
     } catch (earlyErr) {
-      logger.warn(
-        `[milady] Early API server failed: ${earlyErr instanceof Error ? earlyErr.message : String(earlyErr)}`,
+      const reason = formatError(earlyErr);
+      logger.error(
+        `[milady] Fatal: early API server bind failed in server-only mode: ${reason}`,
       );
-      // Non-fatal — fall through to the original server start path below
+      console.error(
+        `[milady] Fatal: early API server bind failed in server-only mode: ${reason}`,
+      );
+      throw earlyErr;
     }
   }
 
@@ -3518,6 +3622,17 @@ export async function startEliza(
     logger.warn(
       `[milady] Runtime migrations failed (${formatError(err)}). Resetting local PGLite DB at ${pgliteDataDir} and retrying startup once.`,
     );
+    if (earlyServerHandle) {
+      try {
+        await earlyServerHandle.close();
+      } catch (closeErr) {
+        logger.warn(
+          `[milady] Failed to close early API server during recovery retry: ${formatError(closeErr)}`,
+        );
+      }
+      earlyServerHandle = null;
+      apiServerReady = false;
+    }
     await resetPgliteDataDir(pgliteDataDir);
     process.env.PGLITE_DATA_DIR = pgliteDataDir;
 
@@ -3618,6 +3733,7 @@ export async function startEliza(
     if (earlyServerHandle) {
       // Early server is already listening — just wire in the runtime
       earlyServerHandle.updateRuntime(runtime);
+      apiServerReady = true;
       console.log(
         `[milady] Runtime loaded — API server fully operational`,
       );
@@ -3775,16 +3891,34 @@ export async function startEliza(
       },
     });
     const dashboardUrl = `http://localhost:${actualApiPort}`;
+    apiServerReady = true;
     console.log(`[milady] Control UI: ${dashboardUrl}`);
     logger.info(`[milady] API server listening on ${dashboardUrl}`);
     } // end else (no earlyServerHandle)
   } catch (apiErr) {
-    logger.warn(`[milady] Could not start API server: ${formatError(apiErr)}`);
-    // Non-fatal — CLI chat loop still works without the API server.
+    const reason = formatError(apiErr);
+    if (opts?.serverOnly) {
+      logger.error(
+        `[milady] Fatal: API server bind failed in server-only mode: ${reason}`,
+      );
+      console.error(
+        `[milady] Fatal: API server bind failed in server-only mode: ${reason}`,
+      );
+      throw new Error(
+        `Server-only startup requires a reachable API server: ${reason}`,
+      );
+    }
+    logger.warn(`[milady] Could not start API server: ${reason}`);
+    // Non-fatal in interactive CLI mode — chat loop still works without API.
   }
 
   // ── Server-only mode — keep running without chat loop ────────────────────
   if (opts?.serverOnly) {
+    if (!apiServerReady) {
+      throw new Error(
+        "Server-only mode aborted because the API server did not start.",
+      );
+    }
     logger.info("[milady] Running in server-only mode (no interactive chat)");
     console.log("[milady] Server running. Press Ctrl+C to stop.");
 

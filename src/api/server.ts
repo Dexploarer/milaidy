@@ -4209,13 +4209,24 @@ export function isAllowedHost(req: http.IncomingMessage): boolean {
 
   if (!hostname) return true;
 
-  // Allow configured custom bind host (if non-loopback, the token gate
-  // enforced by ensureApiTokenForBindHost already protects the API)
+  // In public-bind mode, DNS-rebinding protection is handled by API token
+  // auth. Rejecting non-loopback Host headers would break normal PaaS traffic.
   const bindHost = process.env.MILADY_API_BIND?.trim().toLowerCase();
+  if (bindHost && !isLoopbackBindHost(bindHost)) {
+    return true;
+  }
+
+  // Loopback-bind mode: allow configured custom bind host + loopback hosts.
   if (bindHost && hostname === bindHost.replace(/:\d+$/, "").trim()) {
     return true;
   }
   return LOCAL_HOST_RE.test(hostname);
+}
+
+function shouldAllowPublicOrigins(): boolean {
+  const bindHost = process.env.MILADY_API_BIND?.trim();
+  if (!bindHost) return false;
+  return !isLoopbackBindHost(bindHost);
 }
 
 function resolveCorsOrigin(origin?: string): string | null {
@@ -4235,6 +4246,9 @@ function resolveCorsOrigin(origin?: string): string | null {
 
   if (LOCAL_ORIGIN_RE.test(trimmed)) return trimmed;
   if (APP_ORIGIN_RE.test(trimmed)) return trimmed;
+  // In public-bind mode, allow browser origins and rely on API token auth for
+  // protected routes.
+  if (shouldAllowPublicOrigins()) return trimmed;
   if (trimmed === "null" && process.env.MILADY_ALLOW_NULL_ORIGIN === "1")
     return "null";
   return null;
@@ -12837,6 +12851,9 @@ export async function startApiServer(opts?: {
   const port = opts?.port ?? 2138;
   const host =
     (process.env.MILADY_API_BIND ?? "127.0.0.1").trim() || "127.0.0.1";
+  console.log(
+    `[milady-api] Boot marker pid=${process.pid} target=${host}:${port}`,
+  );
   ensureApiTokenForBindHost(host);
   console.log(`[milady-api] Token check done (${Date.now() - apiStartTime}ms)`);
 
@@ -13682,6 +13699,9 @@ export async function startApiServer(opts?: {
         `API server listening on http://${displayHost}:${actualPort}`,
         "system",
         ["server", "system"],
+      );
+      console.log(
+        `[milady-api] Readiness endpoints active: /health /healthz (${Date.now() - apiStartTime}ms)`,
       );
       logger.info(
         `[milady-api] Listening on http://${displayHost}:${actualPort}`,
