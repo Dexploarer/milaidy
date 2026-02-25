@@ -1,0 +1,4 @@
+## 2025-05-14 - Loose Loopback Validation
+**Vulnerability:** `isLoopbackBindHost` incorrectly identified any hostname starting with "127." (e.g., `127.example.com`) as a loopback address. This could bypass the automatic API token generation for non-loopback binds (`ensureApiTokenForBindHost`), potentially exposing the API without authentication if a user binds to such a hostname that resolves to a public IP.
+**Learning:** String prefix matching is insufficient for validating loopback addresses when hostnames are involved. Public DNS records can point to public IPs while having names that mimic private IP ranges.
+**Prevention:** Always validate resolved IP addresses or use strict IP matching logic (like `net.isIP`) when enforcing network security policies based on address ranges. Do not rely on hostname patterns for security decisions.
