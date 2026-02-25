@@ -67,13 +67,22 @@ describe("ConversationsSidebar", () => {
     const deleteTrigger = tree.root.findByProps({
       "data-testid": "conv-delete",
     });
+
+    expect(deleteTrigger.props["aria-label"]).toBe("Delete conversation");
+
     await act(async () => {
       deleteTrigger.props.onClick({ stopPropagation: () => {} });
     });
 
     expect(handleDeleteConversation).not.toHaveBeenCalled();
-    expect(findButtonByText(tree, "Yes")).toBeDefined();
-    expect(findButtonByText(tree, "No")).toBeDefined();
+
+    const yesButton = findButtonByText(tree, "Yes");
+    expect(yesButton).toBeDefined();
+    expect(yesButton.props["aria-label"]).toBe("Confirm deletion");
+
+    const noButton = findButtonByText(tree, "No");
+    expect(noButton).toBeDefined();
+    expect(noButton.props["aria-label"]).toBe("Cancel deletion");
   });
 
   it("deletes only after clicking Yes", async () => {
