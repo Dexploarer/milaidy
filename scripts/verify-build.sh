@@ -69,7 +69,7 @@ echo "--- Building Root Project ---"
 cd "${REPO_ROOT}"
 bun install
 bunx tsdown
-node --import tsx scripts/write-build-info.ts
+bunx tsx scripts/write-build-info.ts
 echo '{"type":"module"}' > dist/package.json
 
 # Build App

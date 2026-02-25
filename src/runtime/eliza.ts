@@ -2,7 +2,7 @@
  * ElizaOS runtime entry point for Milady.
  *
  * Starts the ElizaOS agent runtime with Milady's plugin configuration.
- * Can be run directly via: node --import tsx src/runtime/eliza.ts
+ * Can be run directly via: bunx tsx src/runtime/eliza.ts
  * Or via the CLI: milady start
  *
  * @module eliza

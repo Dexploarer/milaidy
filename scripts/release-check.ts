@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --import tsx
+#!/usr/bin/env -S bunx tsx
 
 import { execSync } from "node:child_process";
 

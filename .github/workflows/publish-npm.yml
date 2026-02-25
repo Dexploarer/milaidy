@@ -114,7 +114,7 @@ jobs:
       - name: Build
         run: |
           bunx tsdown
-          node --import tsx scripts/write-build-info.ts
+          bunx tsx scripts/write-build-info.ts
           echo '{"type":"module"}' > dist/package.json
 
       - name: Validate package

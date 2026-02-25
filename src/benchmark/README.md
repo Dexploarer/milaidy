@@ -32,7 +32,7 @@ The Python client side can live in a local adapter directory such as `benchmarks
 npm run benchmark:server
 
 # or directly
-node --import tsx src/benchmark/server.ts
+bunx tsx src/benchmark/server.ts
 ```
 
 The server prints `MILADY_BENCH_READY port=<port>` when ready.

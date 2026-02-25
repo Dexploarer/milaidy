@@ -1437,16 +1437,12 @@ describe("Agent Runtime E2E", () => {
           stderr: string;
           exitCode: number;
         }>((resolve) => {
-          // Use node --import tsx to run the TypeScript source directly
-          const child = spawn(
-            "node",
-            ["--import", "tsx", "src/runtime/eliza.ts"],
-            {
-              cwd: packageRoot,
-              env,
-              stdio: ["pipe", "pipe", "pipe"],
-            },
-          );
+          // Use bunx tsx so Bun resolves tsx from its cache layout.
+          const child = spawn("bunx", ["tsx", "src/runtime/eliza.ts"], {
+            cwd: packageRoot,
+            env,
+            stdio: ["pipe", "pipe", "pipe"],
+          });
 
           let stdout = "";
           let stderr = "";

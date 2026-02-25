@@ -106,18 +106,14 @@ process.on("SIGTERM", () => {
 async function run() {
   if (SHOULD_SPAWN_SERVER) {
     printSection("Starting benchmark server");
-    serverProcess = spawn(
-      "node",
-      ["--import", "tsx", "src/benchmark/server.ts"],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          MILADY_BENCH_MOCK: USE_MOCK,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
+    serverProcess = spawn("bunx", ["tsx", "src/benchmark/server.ts"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        MILADY_BENCH_MOCK: USE_MOCK,
       },
-    );
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
     serverProcess.stdout.on("data", (chunk) => {
       process.stdout.write(`[server] ${chunk.toString()}`);

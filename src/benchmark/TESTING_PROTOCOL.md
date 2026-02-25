@@ -64,7 +64,7 @@ These validate the underlying benchmark action/runner contracts we align Milady 
 Run Milady benchmark server with deterministic mock behavior:
 
 ```bash
-MILADY_BENCH_MOCK=true node --import tsx src/benchmark/server.ts
+MILADY_BENCH_MOCK=true bunx tsx src/benchmark/server.ts
 ```
 
 Then probe:

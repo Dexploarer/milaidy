@@ -148,15 +148,11 @@ async function maybeStartServer() {
   };
 
   printSection("Starting benchmark server");
-  serverProcess = spawn(
-    "node",
-    ["--import", "tsx", "src/benchmark/server.ts"],
-    {
-      cwd: process.cwd(),
-      env: childEnv,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  serverProcess = spawn("bunx", ["tsx", "src/benchmark/server.ts"], {
+    cwd: process.cwd(),
+    env: childEnv,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
   serverProcess.stdout.on("data", (chunk) => {
     process.stdout.write(`[server] ${chunk.toString()}`);

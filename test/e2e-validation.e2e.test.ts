@@ -531,8 +531,8 @@ describe("CLI Entry Point (npx miladyai equivalent)", () => {
       delete env.VITEST;
 
       const result = await runSubprocess(
-        "node",
-        ["--import", "tsx", "src/runtime/eliza.ts"],
+        "bunx",
+        ["tsx", "src/runtime/eliza.ts"],
         {
           env,
           timeoutMs: 150_000,
