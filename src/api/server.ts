@@ -4237,7 +4237,7 @@ function tokenMatches(expected: string, provided: string): boolean {
 function isLoopbackBindHost(host: string): boolean {
   let normalized = host.trim().toLowerCase();
 
-  if (!normalized) return true;
+  if (!normalized) return false;
 
   // Allow users to provide full URLs by mistake (e.g. http://localhost:2138)
   if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
@@ -4262,16 +4262,21 @@ function isLoopbackBindHost(host: string): boolean {
   }
 
   normalized = normalized.replace(/^\[|\]$/g, "");
-  if (!normalized) return true;
-  if (
-    normalized === "localhost" ||
-    normalized === "::1" ||
-    normalized === "0:0:0:0:0:0:0:1" ||
-    normalized === "::ffff:127.0.0.1"
-  ) {
-    return true;
+  if (!normalized) return false;
+  if (normalized === "localhost") return true;
+
+  const ipType = net.isIP(normalized);
+  if (ipType === 4) {
+    return normalized.startsWith("127.");
   }
-  if (normalized.startsWith("127.")) return true;
+  if (ipType === 6) {
+    return (
+      normalized === "::1" ||
+      normalized === "0:0:0:0:0:0:0:1" ||
+      normalized === "::ffff:127.0.0.1"
+    );
+  }
+
   return false;
 }
 
@@ -5375,6 +5380,17 @@ async function handleRequest(
   if (!applyCors(req, res)) {
     json(res, { error: "Origin not allowed" }, 403);
     return;
+  }
+
+  // Security: Prevent DNS rebinding attacks when running without a token (localhost mode).
+  // If no auth token is configured, we implicitly trust the loopback interface,
+  // so we must ensure the request actually targets localhost.
+  if (!process.env.MILADY_API_TOKEN?.trim()) {
+    const hostHeader = req.headers.host;
+    if (!hostHeader || !isLoopbackBindHost(hostHeader)) {
+      json(res, { error: "Invalid Host header" }, 403);
+      return;
+    }
   }
 
   // Serve dashboard static assets before the auth gate.  serveStaticUi

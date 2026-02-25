@@ -1,0 +1,4 @@
+## 2025-02-18 - DNS Rebinding Vulnerability in API Server
+**Vulnerability:** The API server allowed unauthenticated access when bound to localhost (default behavior) but failed to validate the `Host` header. This made it vulnerable to DNS Rebinding attacks, where an attacker could bind a malicious domain (e.g., `127.0.0.1.attacker.com` or via rapid DNS switching) to `127.0.0.1` and bypass the localhost-only implicit trust assumption via a victim's browser.
+**Learning:** `isLoopbackBindHost` was originally designed to validate *bind addresses* (user input), accepting "127." prefixes loosely. Reusing loose validation logic for security gates (Host header checks) is dangerous.
+**Prevention:** Strictly validate Host headers when relying on implicit network-level trust (like "localhost is safe"). Use strict IP parsing (`net.isIP`) instead of string prefix matching for security decisions.
