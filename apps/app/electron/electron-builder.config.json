@@ -5,12 +5,12 @@
     "buildResources": "resources"
   },
   "files": [
-    "assets/**/*",
-    "app-build/**/*",
+    "assets",
+    "app-build",
     "capacitor.config.*",
-    "app/**/*",
-    "milady-dist/**/*.js",
-    "milady-dist/package.json"
+    "app",
+    "milady-dist",
+    "package.json"
   ],
   "asarUnpack": ["milady-dist/**/*"],
   "publish": {
