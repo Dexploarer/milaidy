@@ -1,6 +1,5 @@
 # Nixpacks build configuration for Sevalla deployment
-# No bun.lock in repo, so Nixpacks won't auto-detect Bun.
-# Use npm with --legacy-peer-deps to handle Capacitor peer dep conflicts.
+# Installs Bun explicitly since there's no bun.lock for auto-detection.
 
 [variables]
 NIXPACKS_SPA_CADDY    = "false"
@@ -11,13 +10,15 @@ NPM_CONFIG_PRODUCTION = "false"
 [phases.setup]
 nixPkgs = ["...", "nodejs_22"]
 
-# npm install with legacy peer deps to avoid ERESOLVE errors
+# Install Bun first, then use it for dependency installation.
+# Chained in one command so PATH is available to bun install.
+# postinstall hooks also need bun, so it must be installed first.
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = ["curl -fsSL https://bun.sh/install | bash && export PATH=/root/.bun/bin:$PATH && bun install"]
 
 # Full build: compile agent runtime (tsdown) + web UI (Vite)
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["export PATH=/root/.bun/bin:$PATH && bun run build"]
 
 # Start the agent server. Sevalla injects PORT at runtime.
 [start]
