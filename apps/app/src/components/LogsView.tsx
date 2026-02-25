@@ -2,7 +2,7 @@
  * Logs view component — logs viewer with filtering.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useApp } from "../AppContext";
 import type { LogEntry } from "../api-client";
 import { formatTime } from "./shared/format";
@@ -17,6 +17,63 @@ const TAG_COLORS: Record<string, { bg: string; fg: string }> = {
   autonomy: { bg: "rgba(245, 158, 11, 0.15)", fg: "rgb(245, 158, 11)" },
   websocket: { bg: "rgba(20, 184, 166, 0.15)", fg: "rgb(20, 184, 166)" },
 };
+
+const LogEntryItem = memo(({ entry }: { entry: LogEntry }) => {
+  return (
+    <div
+      className="font-mono text-xs px-2 py-1 border-b border-border flex gap-2 items-baseline"
+      data-testid="log-entry"
+    >
+      {/* Timestamp */}
+      <span className="text-muted whitespace-nowrap">
+        {formatTime(entry.timestamp, { fallback: "—" })}
+      </span>
+
+      {/* Level */}
+      <span
+        className={`font-semibold w-[44px] uppercase text-[11px] ${
+          entry.level === "error"
+            ? "text-danger"
+            : entry.level === "warn"
+              ? "text-warn"
+              : "text-muted"
+        }`}
+      >
+        {entry.level}
+      </span>
+
+      {/* Source */}
+      <span className="text-muted w-16 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">
+        [{entry.source}]
+      </span>
+
+      {/* Tag badges */}
+      <span className="inline-flex gap-0.5 shrink-0">
+        {(entry.tags ?? []).map((t: string) => {
+          const c = TAG_COLORS[t];
+          return (
+            <span
+              key={t}
+              className="inline-block text-[10px] px-1.5 py-px rounded-lg mr-0.5"
+              style={{
+                background: c ? c.bg : "var(--bg-muted)",
+                color: c ? c.fg : "var(--muted)",
+                fontFamily: "var(--font-body, sans-serif)",
+              }}
+            >
+              {t}
+            </span>
+          );
+        })}
+      </span>
+
+      {/* Message */}
+      <span className="flex-1 break-all">{entry.message}</span>
+    </div>
+  );
+});
+
+LogEntryItem.displayName = "LogEntryItem";
 
 export function LogsView() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -163,57 +220,10 @@ export function LogsView() {
           </div>
         ) : (
           filteredLogs.map((entry: LogEntry) => (
-            <div
+            <LogEntryItem
               key={`${entry.timestamp}-${entry.source}-${entry.level}-${entry.message}`}
-              className="font-mono text-xs px-2 py-1 border-b border-border flex gap-2 items-baseline"
-              data-testid="log-entry"
-            >
-              {/* Timestamp */}
-              <span className="text-muted whitespace-nowrap">
-                {formatTime(entry.timestamp, { fallback: "—" })}
-              </span>
-
-              {/* Level */}
-              <span
-                className={`font-semibold w-[44px] uppercase text-[11px] ${
-                  entry.level === "error"
-                    ? "text-danger"
-                    : entry.level === "warn"
-                      ? "text-warn"
-                      : "text-muted"
-                }`}
-              >
-                {entry.level}
-              </span>
-
-              {/* Source */}
-              <span className="text-muted w-16 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">
-                [{entry.source}]
-              </span>
-
-              {/* Tag badges */}
-              <span className="inline-flex gap-0.5 shrink-0">
-                {(entry.tags ?? []).map((t: string) => {
-                  const c = TAG_COLORS[t];
-                  return (
-                    <span
-                      key={t}
-                      className="inline-block text-[10px] px-1.5 py-px rounded-lg mr-0.5"
-                      style={{
-                        background: c ? c.bg : "var(--bg-muted)",
-                        color: c ? c.fg : "var(--muted)",
-                        fontFamily: "var(--font-body, sans-serif)",
-                      }}
-                    >
-                      {t}
-                    </span>
-                  );
-                })}
-              </span>
-
-              {/* Message */}
-              <span className="flex-1 break-all">{entry.message}</span>
-            </div>
+              entry={entry}
+            />
           ))
         )}
       </div>
