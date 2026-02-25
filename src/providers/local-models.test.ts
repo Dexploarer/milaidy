@@ -23,7 +23,10 @@ describe("LocalModelManager", () => {
 
   beforeEach(() => {
     // Use a unique temp directory for each test
-    testCacheDir = join(tmpdir(), `milady-test-${Date.now()}`);
+    testCacheDir = join(
+      tmpdir(),
+      `milady-test-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    );
     mkdirSync(testCacheDir, { recursive: true });
     manager = new LocalModelManager({ cacheDir: testCacheDir });
   });

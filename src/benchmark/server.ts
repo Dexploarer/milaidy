@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
 import {
@@ -25,6 +26,90 @@ import {
 // Load environment variables BEFORE anything else
 // This ensures API keys are available when plugins initialize
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+// ---------------------------------------------------------------------------
+// Security: authentication + CORS
+// ---------------------------------------------------------------------------
+
+const MAX_BODY_BYTES = 1_048_576; // 1 MB
+
+/** Allowed CORS origins — only localhost variants. */
+const LOCALHOST_ORIGINS = new Set(["http://localhost", "https://localhost"]);
+
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  try {
+    const { hostname, origin: canonical } = new URL(origin);
+    if (LOCALHOST_ORIGINS.has(canonical)) return true;
+    // Allow localhost with any port
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]"
+    )
+      return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function resolveAllowedOrigin(req: http.IncomingMessage): string {
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && isAllowedOrigin(origin)) return origin;
+  return "http://localhost";
+}
+
+function resolveBenchToken(): string | null {
+  const token = process.env.MILADY_BENCH_TOKEN?.trim();
+  return token || null;
+}
+
+function tokenMatches(expected: string, provided: string): boolean {
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(provided, "utf8");
+  if (a.length !== b.length) {
+    // Pad to equal length to avoid length oracle
+    const padded = Buffer.alloc(a.length);
+    b.copy(padded, 0, 0, Math.min(b.length, a.length));
+    return crypto.timingSafeEqual(a, padded) && false;
+  }
+  return crypto.timingSafeEqual(a, b);
+}
+
+function checkBenchAuth(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): boolean {
+  const expected = resolveBenchToken();
+  if (!expected) {
+    // If no token is configured, reject ALL mutating requests with an
+    // actionable error message so operators know how to enable the server.
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error:
+          "Benchmark server requires MILADY_BENCH_TOKEN to be set. " +
+          "Generate one with: openssl rand -hex 32",
+      }),
+    );
+    return false;
+  }
+
+  const authHeader = req.headers.authorization;
+  const provided =
+    typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
+
+  if (!provided || !tokenMatches(expected, provided)) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid or missing Bearer token" }));
+    return false;
+  }
+
+  return true;
+}
 
 const DEFAULT_PORT = 3939;
 const BENCHMARK_WORLD_ID = stringToUuid("milady-benchmark-world");
@@ -779,9 +864,15 @@ export async function startBenchmarkServer() {
   };
 
   const server = http.createServer(async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    // Security: restrict CORS to localhost origins only.
+    const allowedOrigin = resolveAllowedOrigin(req);
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization",
+    );
+    res.setHeader("Vary", "Origin");
 
     const requestUrl = new URL(req.url ?? "/", "http://localhost");
     const pathname = requestUrl.pathname;
@@ -812,8 +903,17 @@ export async function startBenchmarkServer() {
     }
 
     if (pathname === "/api/benchmark/reset" && req.method === "POST") {
+      if (!checkBenchAuth(req, res)) return;
       let body = "";
-      req.on("data", (chunk) => (body += chunk));
+      let bodyBytes = 0;
+      req.on("data", (chunk: Buffer) => {
+        bodyBytes += chunk.length;
+        if (bodyBytes > MAX_BODY_BYTES) {
+          req.destroy();
+          return;
+        }
+        body += chunk;
+      });
       req.on("end", async () => {
         try {
           const parsed = body.trim()
@@ -977,8 +1077,17 @@ export async function startBenchmarkServer() {
     }
 
     if (pathname === "/api/benchmark/message" && req.method === "POST") {
+      if (!checkBenchAuth(req, res)) return;
       let body = "";
-      req.on("data", (chunk) => (body += chunk));
+      let bodyBytes = 0;
+      req.on("data", (chunk: Buffer) => {
+        bodyBytes += chunk.length;
+        if (bodyBytes > MAX_BODY_BYTES) {
+          req.destroy();
+          return;
+        }
+        body += chunk;
+      });
       req.on("end", async () => {
         try {
           const parsed = JSON.parse(body) as {
@@ -1118,11 +1227,10 @@ export async function startBenchmarkServer() {
           );
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          const errorDetail =
-            err instanceof Error && err.stack
-              ? err.stack
-              : formatUnknownError(err);
-          elizaLogger.error(`[bench] Request error: ${errorDetail}`);
+          // Log full detail server-side but never expose stack traces to clients.
+          elizaLogger.error(
+            `[bench] Request error: ${formatUnknownError(err)}`,
+          );
           res.writeHead(500, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: errorMessage }));
         }

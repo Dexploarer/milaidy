@@ -4734,8 +4734,8 @@ function rejectWebSocketUpgrade(
       `Content-Length: ${Buffer.byteLength(body)}\r\n` +
       "\r\n" +
       body,
+    () => socket.end(),
   );
-  socket.destroy();
 }
 
 function decodePathComponent(
@@ -8877,6 +8877,7 @@ async function handleRequest(
       eligible: twitterVerified,
       twitterVerified,
       nftVerified: twitterVerified, // We'll leave it as is if there's no way to distinguish, or we can check the file
+      whitelisted: walletAddress ? isAddressWhitelisted(walletAddress) : false,
       ogCode: ogCode ?? null,
       walletAddress,
       merkle: {
@@ -8925,6 +8926,8 @@ async function handleRequest(
 
   // ── POST /api/whitelist/nft/verify ───────────────────────────────────────
   // Verify Milady NFT ownership for whitelist eligibility.
+  // Security: only verifies the agent's own wallet — does not accept
+  // arbitrary addresses to prevent whitelist injection from local processes.
   if (method === "POST" && pathname === "/api/whitelist/nft/verify") {
     // PR 518 FIX: Restrict to the agent's own wallet to prevent injection
     const addrs = getWalletAddresses();
@@ -8975,6 +8978,7 @@ async function handleRequest(
     json(res, {
       root: info.root,
       addressCount: info.addressCount,
+      proofReady: true,
     });
     return;
   }
@@ -13353,6 +13357,8 @@ export async function startApiServer(opts?: {
           model: state.model,
           startedAt: state.startedAt,
           startup: state.startup,
+          pendingRestart: state.pendingRestartReasons.length > 0,
+          pendingRestartReasons: state.pendingRestartReasons,
         }),
       );
       const replay = state.eventBuffer.slice(-120);

@@ -119,6 +119,7 @@ export function OnboardingWizard() {
     setState,
     setTheme,
     handleCloudLogin,
+    mintFromDrop,
   } = useApp();
 
   const [openaiOAuthStarted, setOpenaiOAuthStarted] = useState(false);
@@ -585,6 +586,43 @@ export function OnboardingWizard() {
                   <div className="font-bold text-sm">{theme.label}</div>
                 </button>
               ))}
+            </div>
+          </div>
+        );
+
+      case "mint":
+        return (
+          <div className="max-w-[520px] mx-auto mt-10 text-center font-body">
+            <img
+              src="/android-chrome-512x512.png"
+              alt="Avatar"
+              className="w-[140px] h-[140px] rounded-full object-cover border-[3px] border-border mx-auto mb-5 block"
+            />
+            <div className="onboarding-speech bg-card border border-border rounded-xl px-5 py-4 mx-auto mb-6 max-w-[600px] relative text-[15px] text-txt leading-relaxed">
+              <h2 className="text-[28px] font-normal mb-1 text-txt-strong">
+                mint ur drop!
+              </h2>
+              <p className="text-[13px] text-txt mt-1 opacity-70">
+                claim ur character to get started
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 max-w-[460px] mx-auto">
+              <button
+                type="button"
+                className="px-4 py-3 bg-accent text-accent-fg font-bold rounded-lg cursor-pointer"
+                onClick={() => {
+                  mintFromDrop(false).then(() => handleOnboardingNext());
+                }}
+              >
+                Mint Character
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 bg-card border border-border text-txt font-bold rounded-lg hover:border-accent cursor-pointer"
+                onClick={() => handleOnboardingNext()}
+              >
+                Skip for now
+              </button>
             </div>
           </div>
         );
