@@ -1,24 +1,23 @@
 # Nixpacks build configuration for Sevalla deployment
-# Installs Bun explicitly since there's no bun.lock for auto-detection.
+# Bun added via Nix packages (not curl) for reliable PATH availability.
 
 [variables]
 NIXPACKS_SPA_CADDY    = "false"
 NODE_ENV              = "production"
 NPM_CONFIG_PRODUCTION = "false"
 
-# Pin Node 22 + system libs needed by native modules
+# Pin Node 22 + Bun via Nix packages. "..." preserves auto-detected packages.
 [phases.setup]
-nixPkgs = ["...", "nodejs_22"]
+nixPkgs = ["...", "nodejs_22", "bun"]
 
-# Install Bun first, then use it for dependency installation.
-# Chained in one command so PATH is available to bun install.
-# postinstall hooks also need bun, so it must be installed first.
+# Install dependencies with Bun (available via Nix).
+# postinstall hooks also call bun, so Bun must be on PATH before this runs.
 [phases.install]
-cmds = ["curl -fsSL https://bun.sh/install | bash && export PATH=/root/.bun/bin:$PATH && bun install"]
+cmds = ["bun install"]
 
 # Full build: compile agent runtime (tsdown) + web UI (Vite)
 [phases.build]
-cmds = ["export PATH=/root/.bun/bin:$PATH && bun run build"]
+cmds = ["bun run build"]
 
 # Start the agent server. Sevalla injects PORT at runtime.
 [start]
