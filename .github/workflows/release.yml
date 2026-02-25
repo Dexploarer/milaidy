@@ -421,6 +421,7 @@ jobs:
           }
         working-directory: apps/app/electron
         env:
+          DEBUG: electron-builder,electron-builder:*
           MATRIX_OS: ${{ matrix.platform.os }}
           TRUSTED_SIGNING_PREFLIGHT: ${{ steps.trusted_signing_preflight.outcome || 'success' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
