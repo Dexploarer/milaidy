@@ -6,7 +6,7 @@
     "./capacitor.config.js"
   ],
   "compilerOptions": {
-    "outDir": "./dist-tsc",
+    "outDir": "./tsc-out",
     "importHelpers": true,
     "target": "ES2017",
     "module": "CommonJS",

@@ -396,17 +396,15 @@ jobs:
             echo "Removed azureSignOptions from config"
           fi
           
-          # HACK: electron-builder traverses up and reads the root .gitignore which ignores app-build.
-          # We forcefully remove these ignore files just for packaging so it relies entirely on the 'files' array in package.json
+          # HACK: electron-builder traverses up and reads the root .gitignore and .npmignore which ignore apps/
+          # We forcefully remove these root ignore files just for packaging so electron-builder only uses the local .npmignore
           rm -f ../../../.gitignore || true
           rm -f ../../../.npmignore || true
-          rm -f .gitignore || true
-          rm -f .npmignore || true
           rm -rf ../../../.git || true
 
-          echo "DUMPING CONTENTS OF DIST-TSC"
-          ls -la dist-tsc || echo "DIST-TSC DIR IS MISSING"
-          ls -la dist-tsc/src || echo "DIST-TSC/SRC DIR IS MISSING"
+          echo "DUMPING CONTENTS OF TSC-OUT"
+          ls -la tsc-out || echo "TSC-OUT DIR IS MISSING"
+          ls -la tsc-out/src || echo "TSC-OUT/SRC DIR IS MISSING"
           
           npx electron-builder build ${{ matrix.platform.electron-args }} -c ./electron-builder.ci.json -p never || {
             echo "ELECTRON BUILDER CRASHED. DUMPING ASAR CONTENTS:"

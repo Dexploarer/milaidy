@@ -2,11 +2,12 @@
   "appId": "com.miladyai.milady",
   "productName": "Milady",
   "directories": {
+    "app": ".",
     "buildResources": "resources"
   },
   "files": [
     "assets/**/*",
-    "dist-tsc/**/*",
+    "tsc-out/**/*",
     "capacitor.config.*",
     "app/**/*",
     "milady-dist/**/*.js",
