@@ -127,7 +127,7 @@ describe("collectPluginNames", () => {
 
   it("includes all core plugins for an empty config", () => {
     // Guard against accidental removal from CORE_PLUGINS array
-    expect(CORE_PLUGINS).toHaveLength(13);
+    expect(CORE_PLUGINS).toHaveLength(12);
 
     const expectedCorePlugins = [
       "@elizaos/plugin-sql",
@@ -141,7 +141,7 @@ describe("collectPluginNames", () => {
       "@elizaos/plugin-shell",
       "@elizaos/plugin-plugin-manager",
       "@elizaos/plugin-agent-skills",
-      "@elizaos/plugin-pdf",
+      // "@elizaos/plugin-pdf", // disabled due to ESM compatibility issue
       "@elizaos/plugin-secrets-manager",
     ];
     const names = collectPluginNames({} as MiladyConfig);
