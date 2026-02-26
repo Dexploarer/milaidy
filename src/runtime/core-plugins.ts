@@ -19,7 +19,7 @@ export const CORE_PLUGINS: readonly string[] = [
   "@elizaos/plugin-shell", // shell command execution
   "@elizaos/plugin-plugin-manager", // dynamic plugin management
   "@elizaos/plugin-agent-skills", // skill execution and marketplace runtime
-  "@elizaos/plugin-pdf", // PDF processing
+  // "@elizaos/plugin-pdf", // PDF processing — disabled: ESM compatibility issue with pdfjs-dist
 ];
 
 /**
