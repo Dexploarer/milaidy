@@ -4240,7 +4240,7 @@ function resolveCorsOrigin(origin?: string): string | null {
   return null;
 }
 
-function applyCors(
+export function applyCors(
   req: http.IncomingMessage,
   res: http.ServerResponse,
 ): boolean {
@@ -4268,6 +4268,14 @@ function applyCors(
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'none'; upgrade-insecure-requests",
+  );
+  res.setHeader(
+    "Permissions-Policy",
+    "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), payment=(), usb=()",
+  );
 
   return true;
 }
