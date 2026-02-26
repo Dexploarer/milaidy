@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../AppContext";
+import { ConfirmDeleteControl } from "./shared/confirm-delete-control";
 
 interface ConversationsSidebarProps {
   mobile?: boolean;
@@ -177,18 +178,30 @@ export function ConversationsSidebar({
                         </div>
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      data-testid="conv-delete"
-                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDeleteConversation(conv.id);
-                      }}
-                      title="Delete conversation"
+                    {/*
+                      Interactive wrapper for delete control.
+                      We ignore keyboard events here because navigation and activation
+                      are handled by the inner buttons of ConfirmDeleteControl.
+                    */}
+                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: interactive children handle keyboard access */}
+                    {/* biome-ignore lint/a11y/noStaticElementInteractions: this wrapper just stops propagation */}
+                    <div
+                      className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      ×
-                    </button>
+                      <ConfirmDeleteControl
+                        onConfirm={() => void handleDeleteConversation(conv.id)}
+                        triggerLabel="×"
+                        triggerTitle="Delete conversation"
+                        triggerClassName="border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
+                        promptText="Delete?"
+                        confirmLabel="Yes"
+                        cancelLabel="No"
+                        confirmClassName="px-1.5 py-0.5 text-[10px] bg-danger text-white rounded cursor-pointer hover:bg-danger-hover border-none mr-1"
+                        cancelClassName="px-1.5 py-0.5 text-[10px] bg-bg border border-border text-muted rounded cursor-pointer hover:text-txt"
+                        promptClassName="text-[10px] text-danger mr-1"
+                      />
+                    </div>
                   </>
                 )}
               </div>

@@ -4,6 +4,7 @@ type ConfirmDeleteControlProps = {
   onConfirm: () => void;
   disabled?: boolean;
   triggerLabel?: string;
+  triggerTitle?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   busyLabel?: string;
@@ -18,6 +19,7 @@ export function ConfirmDeleteControl({
   onConfirm,
   disabled = false,
   triggerLabel = "Delete",
+  triggerTitle,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   busyLabel,
@@ -36,6 +38,7 @@ export function ConfirmDeleteControl({
         className={triggerClassName}
         onClick={() => setConfirming(true)}
         disabled={disabled}
+        title={triggerTitle}
       >
         {triggerLabel}
       </button>
