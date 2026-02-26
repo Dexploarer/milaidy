@@ -470,14 +470,18 @@ kbd {
   outline-offset: 2px;
 }
 
-/* Reduced motion */
+/* Reduced motion - !important is intentional for accessibility override */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: Accessibility requires forcing reduced motion */
     animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: Accessibility requires forcing reduced motion */
     animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: Accessibility requires forcing reduced motion */
     transition-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: Accessibility requires forcing reduced motion */
     scroll-behavior: auto !important;
   }
 }
