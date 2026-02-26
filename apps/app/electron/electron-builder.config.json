@@ -11,8 +11,7 @@
     "build/**/*",
     "capacitor.config.*",
     "app/**/*",
-    "milady-dist/**/*.js",
-    "milady-dist/package.json"
+    "milady-dist/**/*"
   ],
   "asarUnpack": [
     "milady-dist/**/*",
