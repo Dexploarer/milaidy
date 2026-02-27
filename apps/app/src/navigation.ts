@@ -8,6 +8,7 @@ import {
   Brain,
   Gamepad2,
   MessageSquare,
+  Radio,
   Settings,
   Share2,
   Sparkles,
@@ -17,8 +18,12 @@ import {
 /** Apps are only enabled in dev mode; production builds hide this feature. */
 export const APPS_ENABLED = import.meta.env.DEV;
 
+/** Stream tab — enabled when the "streaming-base" plugin is active (or in dev mode). */
+export const STREAM_ENABLED = import.meta.env.DEV;
+
 export type Tab =
   | "chat"
+  | "stream"
   | "apps"
   | "character"
   | "wallets"
@@ -45,12 +50,18 @@ export interface TabGroup {
   description?: string;
 }
 
-const ALL_TAB_GROUPS: TabGroup[] = [
+export const ALL_TAB_GROUPS: TabGroup[] = [
   {
     label: "Chat",
     tabs: ["chat"],
     icon: MessageSquare,
     description: "Conversations and messaging",
+  },
+  {
+    label: "Stream",
+    tabs: ["stream"],
+    icon: Radio,
+    description: "Live streaming controls",
   },
   {
     label: "Character",
@@ -108,12 +119,18 @@ const ALL_TAB_GROUPS: TabGroup[] = [
   },
 ];
 
-export const TAB_GROUPS = APPS_ENABLED
-  ? ALL_TAB_GROUPS
-  : ALL_TAB_GROUPS.filter((g) => g.label !== "Apps");
+/** Compute visible tab groups. Pass streamEnabled explicitly for React reactivity. */
+export function getTabGroups(streamEnabled = STREAM_ENABLED): TabGroup[] {
+  return ALL_TAB_GROUPS.filter(
+    (g) =>
+      (APPS_ENABLED || g.label !== "Apps") &&
+      (streamEnabled || g.label !== "Stream"),
+  );
+}
 
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
+  stream: "/stream",
   apps: "/apps",
   character: "/character",
   triggers: "/triggers",
@@ -168,6 +185,10 @@ export function tabFromPath(pathname: string, basePath = ""): Tab | null {
   if (normalized === "/voice") return "settings";
   // Apps disabled in production builds — redirect to chat
   if (!APPS_ENABLED && (normalized === "/apps" || normalized === "/game")) {
+    return "chat";
+  }
+  // Stream tab hidden — redirect to chat
+  if (!STREAM_ENABLED && normalized === "/stream") {
     return "chat";
   }
   // Check current paths first, then legacy redirects
@@ -230,6 +251,8 @@ export function titleForTab(tab: Tab): string {
       return "Settings";
     case "logs":
       return "Logs";
+    case "stream":
+      return "Stream";
     case "security":
       return "Security";
     default:

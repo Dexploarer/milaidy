@@ -22,6 +22,7 @@ import {
 import electronIsDev from "electron-is-dev";
 import electronServe from "electron-serve";
 import windowStateKeeper from "electron-window-state";
+import { getScreenCaptureManager } from "./native/screencapture";
 import {
   buildMissingWebAssetsMessage,
   resolveWebAssetDirectory,
@@ -367,6 +368,27 @@ export class ElectronCapacitorApp {
         openExternal(details.url);
         return { action: "deny" };
       }
+      // Popout stream windows get always-on-top, PIP-friendly, frameless treatment.
+      // Only match same-origin URLs (isAllowedUrl passed above) with ?popout param.
+      if (new URL(details.url).searchParams.has("popout")) {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            alwaysOnTop: true,
+            visibleOnAllWorkspaces: true,
+            frame: false,
+            titleBarStyle: "hidden",
+            backgroundColor: "#0a0a0a",
+            fullscreenable: false,
+            minimizable: false,
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: preloadPath,
+            },
+          },
+        };
+      }
       return { action: "allow" };
     });
 
@@ -375,7 +397,7 @@ export class ElectronCapacitorApp {
     this.MainWindow.webContents.on(
       "did-create-window",
       (childWindow, { url }) => {
-        if (!url.includes("popout")) return;
+        if (!new URL(url).searchParams.has("popout")) return;
 
         console.log(
           "[Setup] Popout window created — configuring PIP + capture target",
@@ -388,24 +410,15 @@ export class ElectronCapacitorApp {
         });
 
         // Switch stream capture to the popout window
-        const scm = (
-          globalThis as unknown as {
-            __miladyScreenCaptureManager?: {
-              setCaptureTarget(w: BrowserWindow | null): void;
-            };
-          }
-        ).__miladyScreenCaptureManager;
+        const scm = getScreenCaptureManager();
+        scm.setCaptureTarget(childWindow);
 
-        if (scm) {
-          scm.setCaptureTarget(childWindow);
-
-          childWindow.on("closed", () => {
-            console.log(
-              "[Setup] Popout window closed — reverting capture to main window",
-            );
-            scm.setCaptureTarget(null);
-          });
-        }
+        childWindow.on("closed", () => {
+          console.log(
+            "[Setup] Popout window closed — reverting capture to main window",
+          );
+          scm.setCaptureTarget(null);
+        });
       },
     );
 

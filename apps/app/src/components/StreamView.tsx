@@ -1,0 +1,269 @@
+/**
+ * StreamView — Dynamic agent activity screen for live streaming.
+ *
+ * Shows what the agent is actively doing as the primary content:
+ * - Terminal output when running commands
+ * - Game iframe when playing a game
+ * - Chat exchanges when conversing
+ * - Activity dashboard when idle
+ *
+ * VRM avatar floats as a small picture-in-picture overlay (bottom-left).
+ * Activity feed runs along the right sidebar. Chat ticker at the bottom.
+ */
+
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useApp } from "../AppContext";
+import { client, isApiError } from "../api-client";
+import { ActivityFeed } from "./stream/ActivityFeed";
+import { AvatarPip } from "./stream/AvatarPip";
+import { ChatContent } from "./stream/ChatContent";
+import { ChatTicker } from "./stream/ChatTicker";
+import {
+  type AgentMode,
+  CHAT_ACTIVE_WINDOW_MS,
+  FULL_SIZE,
+  IS_POPOUT,
+  PIP_SIZE,
+  TERMINAL_ACTIVE_WINDOW_MS,
+} from "./stream/helpers";
+import { IdleContent } from "./stream/IdleContent";
+import { StatusBar } from "./stream/StatusBar";
+import { StreamTerminal } from "./stream/StreamTerminal";
+
+// ---------------------------------------------------------------------------
+// StreamView
+// ---------------------------------------------------------------------------
+
+export function StreamView() {
+  const {
+    agentStatus,
+    autonomousEvents,
+    conversationMessages,
+    activeGameViewerUrl,
+    activeGameSandbox,
+    chatAvatarSpeaking,
+  } = useApp();
+
+  const agentName = agentStatus?.agentName ?? "Milady";
+
+  // ── Stream status polling ─────────────────────────────────────────────
+  const [streamLive, setStreamLive] = useState(false);
+  const [streamLoading, setStreamLoading] = useState(false);
+  const loadingRef = useRef(false);
+
+  const [streamAvailable, setStreamAvailable] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const poll = async () => {
+      if (loadingRef.current || !streamAvailable) return;
+      try {
+        const status = await client.streamStatus();
+        if (mounted && !loadingRef.current) {
+          setStreamLive(status.running && status.ffmpegAlive);
+        }
+      } catch (err: unknown) {
+        // 404 means stream routes are not configured — stop polling
+        if (isApiError(err) && err.status === 404) {
+          setStreamAvailable(false);
+          return;
+        }
+        // Other errors — API not yet available, leave as offline
+      }
+    };
+    if (!streamAvailable) return;
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, [streamAvailable]);
+
+  const toggleStream = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setStreamLoading(true);
+    try {
+      if (streamLive) {
+        await client.streamGoOffline();
+        setStreamLive(false);
+      } else {
+        const result = await client.streamGoLive();
+        setStreamLive(result.live);
+      }
+    } catch {
+      try {
+        const status = await client.streamStatus();
+        setStreamLive(status.running && status.ffmpegAlive);
+      } catch {
+        /* poll will recover within 5s */
+      }
+    } finally {
+      loadingRef.current = false;
+      setStreamLoading(false);
+    }
+  }, [streamLive]);
+
+  // PIP mode state — small overlay window
+  const [isPip, setIsPip] = useState(false);
+
+  const togglePip = useCallback(() => {
+    if (!IS_POPOUT) return;
+    const next = !isPip;
+    if (next) {
+      // Enter PIP: small window positioned at bottom-right
+      window.resizeTo(PIP_SIZE.width, PIP_SIZE.height);
+      const sw = window.screen.availWidth;
+      const sh = window.screen.availHeight;
+      window.moveTo(sw - PIP_SIZE.width - 20, sh - PIP_SIZE.height - 20);
+    } else {
+      // Exit PIP: restore full size, centered
+      window.resizeTo(FULL_SIZE.width, FULL_SIZE.height);
+      const sw = window.screen.availWidth;
+      const sh = window.screen.availHeight;
+      window.moveTo(
+        Math.round((sw - FULL_SIZE.width) / 2),
+        Math.round((sh - FULL_SIZE.height) / 2),
+      );
+    }
+    setIsPip(next);
+  }, [isPip]);
+
+  // Track whether terminal is active (received output recently)
+  const [terminalActive, setTerminalActive] = useState(false);
+  const terminalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const unbind = client.onWsEvent(
+      "terminal-output",
+      (data: Record<string, unknown>) => {
+        const event = data.event as string;
+        if (event === "start" || event === "stdout" || event === "stderr") {
+          setTerminalActive(true);
+          if (terminalTimeoutRef.current) {
+            clearTimeout(terminalTimeoutRef.current);
+          }
+          terminalTimeoutRef.current = setTimeout(() => {
+            setTerminalActive(false);
+          }, TERMINAL_ACTIVE_WINDOW_MS);
+        }
+      },
+    );
+    return () => {
+      unbind();
+      if (terminalTimeoutRef.current) clearTimeout(terminalTimeoutRef.current);
+    };
+  }, []);
+
+  // Detect current mode (priority order)
+  const mode: AgentMode = useMemo(() => {
+    if (activeGameViewerUrl.trim()) return "gaming";
+    if (terminalActive) return "terminal";
+
+    const now = Date.now();
+    const recentChat = autonomousEvents.find(
+      (e) => e.stream === "assistant" && now - e.ts < CHAT_ACTIVE_WINDOW_MS,
+    );
+    if (recentChat) return "chatting";
+
+    return "idle";
+  }, [activeGameViewerUrl, terminalActive, autonomousEvents]);
+
+  const feedEvents = useMemo(
+    () =>
+      autonomousEvents
+        .filter((e) => e.stream !== "viewer_stats")
+        .slice(-80)
+        .reverse(),
+    [autonomousEvents],
+  );
+
+  // Extract latest viewer stats from events
+  const viewerCount = useMemo(() => {
+    for (let i = autonomousEvents.length - 1; i >= 0; i--) {
+      const evt = autonomousEvents[i];
+      if (evt.stream === "viewer_stats") {
+        const p = evt.payload as Record<string, unknown>;
+        if (typeof p.apiViewerCount === "number") return p.apiViewerCount;
+        if (typeof p.uniqueChatters === "number") return p.uniqueChatters;
+      }
+    }
+    return null;
+  }, [autonomousEvents]);
+
+  // In PIP mode, render the full 1280×720 layout and CSS-transform-scale it
+  // down to fit the PIP window. This keeps the stream capture identical to
+  // the normal view — capturePage() captures the full layout at native pixels.
+  const pipScale = isPip ? PIP_SIZE.width / FULL_SIZE.width : 1;
+  const pipStyle: CSSProperties | undefined = isPip
+    ? {
+        width: FULL_SIZE.width,
+        height: FULL_SIZE.height,
+        transform: `scale(${pipScale})`,
+        transformOrigin: "top left",
+      }
+    : undefined;
+
+  return (
+    <div
+      data-stream-view
+      className={`flex flex-col bg-bg text-txt font-body ${isPip ? "" : "h-full w-full"}`}
+      style={pipStyle}
+    >
+      <StatusBar
+        agentName={agentName}
+        mode={mode}
+        viewerCount={viewerCount}
+        isPip={isPip}
+        onTogglePip={togglePip}
+        streamLive={streamLive}
+        streamLoading={streamLoading}
+        onToggleStream={toggleStream}
+      />
+
+      <div className="flex flex-1 min-h-0">
+        {/* Main content area — shows what the agent is doing */}
+        <div className="flex-1 min-w-0 relative">
+          {mode === "gaming" ? (
+            <iframe
+              src={activeGameViewerUrl}
+              title="Game"
+              className="w-full h-full border-0"
+              sandbox={
+                activeGameSandbox ||
+                "allow-scripts allow-same-origin allow-popups"
+              }
+            />
+          ) : mode === "terminal" ? (
+            <StreamTerminal />
+          ) : mode === "chatting" ? (
+            <ChatContent
+              events={autonomousEvents.slice(-20)}
+              messages={conversationMessages}
+            />
+          ) : (
+            <IdleContent events={autonomousEvents.slice(-20)} />
+          )}
+
+          {/* VRM avatar — picture-in-picture overlay */}
+          <AvatarPip isSpeaking={chatAvatarSpeaking} />
+        </div>
+
+        {/* Activity sidebar */}
+        <div className="w-[260px] min-w-[260px] xl:w-[300px] xl:min-w-[300px]">
+          <ActivityFeed events={feedEvents} />
+        </div>
+      </div>
+
+      <ChatTicker events={autonomousEvents} />
+    </div>
+  );
+}

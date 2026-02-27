@@ -411,6 +411,7 @@ function parseConversationMessageEvent(
   const text = value.text;
   const timestamp = value.timestamp;
   const source = value.source;
+  const from = value.from;
   if (
     typeof id !== "string" ||
     (role !== "user" && role !== "assistant") ||
@@ -422,6 +423,9 @@ function parseConversationMessageEvent(
   const parsed: ConversationMessage = { id, role, text, timestamp };
   if (typeof source === "string" && source.length > 0) {
     parsed.source = source;
+  }
+  if (typeof from === "string" && from.length > 0) {
+    parsed.from = from;
   }
   return parsed;
 }
@@ -695,7 +699,7 @@ export interface AppState {
 
   // Plugins
   plugins: PluginInfo[];
-  pluginFilter: "all" | "ai-provider" | "connector" | "feature";
+  pluginFilter: "all" | "ai-provider" | "connector" | "feature" | "streaming";
   pluginStatusFilter: "all" | "enabled" | "disabled";
   pluginSearch: string;
   pluginSettingsOpen: Set<string>;
@@ -872,6 +876,7 @@ export interface AppState {
   commandPaletteOpen: boolean;
   commandQuery: string;
   commandActiveIndex: number;
+  closeCommandPalette: () => void;
 
   // Emote picker
   emotePickerOpen: boolean;
@@ -1184,7 +1189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // --- Plugins ---
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [pluginFilter, setPluginFilter] = useState<
-    "all" | "ai-provider" | "connector" | "feature"
+    "all" | "ai-provider" | "connector" | "feature" | "streaming"
   >("all");
   const [pluginStatusFilter, setPluginStatusFilter] = useState<
     "all" | "enabled" | "disabled"
@@ -4228,6 +4233,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Emote picker ────────────────────────────────────────────────────
 
+  const closeCommandPalette = useCallback(() => {
+    _setCommandPaletteOpen(false);
+    setCommandQuery("");
+    setCommandActiveIndex(0);
+  }, []);
+
   const openEmotePicker = useCallback(() => {
     setEmotePickerOpen(true);
   }, []);
@@ -4774,6 +4785,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       void loadWorkbench();
+      void loadPlugins(); // Hydrate plugin state early so Nav sees streaming-base toggle
 
       // Hydrate coding agent sessions
       client
@@ -4871,6 +4883,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           } else {
             // Non-active — mark unread
             setUnreadConversations((prev) => new Set([...prev, convId]));
+          }
+
+          // Synthesize agent_event for non-retake sources (e.g. discord)
+          // so they appear in the StreamView activity feed
+          if (
+            msg.source &&
+            msg.source !== "retake" &&
+            msg.source !== "client_chat" &&
+            msg.role === "user"
+          ) {
+            appendAutonomousEvent({
+              type: "agent_event",
+              version: 1,
+              eventId: `synth-${msg.id}`,
+              ts: msg.timestamp,
+              stream: "message",
+              payload: {
+                text: msg.text,
+                from: msg.from,
+                source: msg.source,
+                direction: "inbound",
+                channel: msg.source,
+              },
+            });
           }
 
           // Bump conversation to top of list
@@ -5315,6 +5351,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     commandPaletteOpen,
     commandQuery,
     commandActiveIndex,
+    closeCommandPalette,
     emotePickerOpen,
     mcpConfiguredServers,
     mcpServerStatuses,

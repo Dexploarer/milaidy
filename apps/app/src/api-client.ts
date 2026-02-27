@@ -525,7 +525,13 @@ export interface PluginInfo {
   enabled: boolean;
   configured: boolean;
   envKey: string | null;
-  category: "ai-provider" | "connector" | "database" | "app" | "feature";
+  category:
+    | "ai-provider"
+    | "connector"
+    | "streaming"
+    | "database"
+    | "app"
+    | "feature";
   source: "bundled" | "store";
   parameters: PluginParamDef[];
   validationErrors: Array<{ field: string; message: string }>;
@@ -624,6 +630,8 @@ export interface ConversationMessage {
   blocks?: ContentBlock[];
   /** Source channel when forwarded from another channel (e.g. "autonomy"). */
   source?: string;
+  /** Username of the sender (e.g. retake viewer username, discord username). */
+  from?: string;
 }
 
 export type ConversationChannelType =
@@ -4342,6 +4350,56 @@ export class MiladyClient {
     } catch {
       return "";
     }
+  }
+
+  // ── Stream controls ─────────────────────────────────────────────────────
+
+  async streamGoLive(): Promise<{
+    ok: boolean;
+    live: boolean;
+    rtmpUrl?: string;
+    inputMode?: string;
+    audioSource?: string;
+    message?: string;
+    destination?: string;
+  }> {
+    return this.fetch("/api/stream/live", { method: "POST" });
+  }
+
+  async streamGoOffline(): Promise<{ ok: boolean; live: boolean }> {
+    return this.fetch("/api/stream/offline", { method: "POST" });
+  }
+
+  async streamStatus(): Promise<{
+    ok: boolean;
+    running: boolean;
+    ffmpegAlive: boolean;
+    uptime: number;
+    frameCount: number;
+    volume: number;
+    muted: boolean;
+    audioSource: string;
+    inputMode: string | null;
+    destination?: { id: string; name: string } | null;
+  }> {
+    return this.fetch("/api/stream/status");
+  }
+
+  async getStreamingDestinations(): Promise<{
+    ok: boolean;
+    destinations: Array<{ id: string; name: string }>;
+  }> {
+    return this.fetch("/api/streaming/destinations");
+  }
+
+  async setActiveDestination(destinationId: string): Promise<{
+    ok: boolean;
+    destination?: { id: string; name: string };
+  }> {
+    return this.fetch("/api/streaming/destination", {
+      method: "POST",
+      body: JSON.stringify({ destinationId }),
+    });
   }
 }
 

@@ -40,6 +40,7 @@ export default [
     fixedExtension: false,
     platform: "node",
     external: nativeExternals,
+    outputOptions: { codeSplitting: false },
   },
   {
     entry: "src/api/server.ts",
@@ -47,20 +48,15 @@ export default [
     fixedExtension: false,
     platform: "node",
     external: nativeExternals,
+    // Disable code splitting to prevent circular chunk dependencies.
+    // Without this, rolldown places the __exportAll runtime helper in the
+    // entry chunk and shared chunks import it back, creating a circular
+    // import that fails when Electron loads server.js via dynamic import().
+    outputOptions: { codeSplitting: false },
   },
   {
     entry: "src/plugins/whatsapp/index.ts",
     outDir: "dist/plugins/whatsapp",
-    env,
-    fixedExtension: false,
-    platform: "node",
-    unbundle: true,
-    inlineOnly: false,
-    external: nativeExternals,
-  },
-  {
-    entry: "src/plugins/retake/index.ts",
-    outDir: "dist/plugins/retake",
     env,
     fixedExtension: false,
     platform: "node",

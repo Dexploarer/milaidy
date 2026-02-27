@@ -79,6 +79,15 @@ class StreamManager {
   private _volume = 80;
   /** Whether audio is muted. */
   private _muted = false;
+  /** Auto-restart state. */
+  private _restartAttempts = 0;
+  private _maxRestartAttempts = 5;
+  private _restartDecayTimer: ReturnType<typeof setInterval> | null = null;
+  private _intentionalStop = false;
+  /** Pending auto-restart timer — cleared in stop() to prevent races. */
+  private _restartTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Guard: prevents concurrent start() calls from orphaning FFmpeg. */
+  private _starting = false;
 
   isRunning(): boolean {
     return this._running;
@@ -208,11 +217,19 @@ class StreamManager {
   }
 
   async start(config: StreamConfig): Promise<void> {
-    if (this._running) {
-      logger.warn(`${TAG} Already running — stop first`);
+    if (this._running || this._starting) {
+      logger.warn(`${TAG} Already running or starting — stop first`);
       return;
     }
+    this._starting = true;
+    try {
+      await this._startInner(config);
+    } finally {
+      this._starting = false;
+    }
+  }
 
+  private async _startInner(config: StreamConfig): Promise<void> {
     this._config = config;
     this._frameCount = 0;
     this._volume = config.volume ?? this._volume;
@@ -326,7 +343,11 @@ class StreamManager {
           `${TAG} FFmpeg exited unexpectedly (code=${code}, signal=${signal})`,
         );
         this._running = false;
-        this.startedAt = null;
+        if (!this._intentionalStop && this._config) {
+          this.autoRestart();
+        } else {
+          this.startedAt = null;
+        }
       }
     });
 
@@ -348,6 +369,17 @@ class StreamManager {
 
     this._running = true;
     this.startedAt = Date.now();
+    this._intentionalStop = false;
+    // Decay restart counter every 30s of healthy running
+    if (this._restartDecayTimer) clearInterval(this._restartDecayTimer);
+    this._restartDecayTimer = setInterval(() => {
+      if (this._restartAttempts > 0) {
+        this._restartAttempts = Math.max(0, this._restartAttempts - 1);
+        logger.info(
+          `${TAG} Restart counter decayed to ${this._restartAttempts}`,
+        );
+      }
+    }, 30_000);
     logger.info(`${TAG} FFmpeg streaming to RTMP — stream should be live`);
   }
 
@@ -375,15 +407,76 @@ class StreamManager {
       }
     }
 
+    this._intentionalStop = true;
+    if (this._restartTimer) {
+      clearTimeout(this._restartTimer);
+      this._restartTimer = null;
+    }
+    if (this._restartDecayTimer) {
+      clearInterval(this._restartDecayTimer);
+      this._restartDecayTimer = null;
+    }
     this.ffmpeg = null;
     this._running = false;
     this.startedAt = null;
     this._frameCount = 0;
+    this._restartAttempts = 0;
     this._config = null;
     logger.info(
       `${TAG} Stream stopped (uptime: ${uptime}s, frames: ${frames})`,
     );
     return { uptime };
+  }
+
+  /** Attempt to restart FFmpeg after unexpected exit with exponential backoff. */
+  private autoRestart(): void {
+    if (this._restartAttempts >= this._maxRestartAttempts) {
+      logger.error(
+        `${TAG} Max restart attempts (${this._maxRestartAttempts}) reached — giving up`,
+      );
+      this.startedAt = null;
+      if (this._restartDecayTimer) {
+        clearInterval(this._restartDecayTimer);
+        this._restartDecayTimer = null;
+      }
+      return;
+    }
+
+    this._restartAttempts++;
+    const delay = Math.min(1000 * 2 ** (this._restartAttempts - 1), 60_000);
+    logger.info(
+      `${TAG} Auto-restart attempt ${this._restartAttempts}/${this._maxRestartAttempts} in ${delay}ms`,
+    );
+
+    this._restartTimer = setTimeout(async () => {
+      this._restartTimer = null;
+      if (this._intentionalStop || !this._config) return;
+
+      const savedStartedAt = this.startedAt;
+      const savedFrameCount = this._frameCount;
+
+      try {
+        this.ffmpeg = null;
+        await this.start({
+          ...this._config,
+          volume: this._volume,
+          muted: this._muted,
+        });
+        // Restore tracking so uptime is continuous
+        this.startedAt = savedStartedAt;
+        this._frameCount = savedFrameCount;
+        logger.info(`${TAG} Auto-restart successful`);
+      } catch (err) {
+        logger.error(
+          `${TAG} Auto-restart failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        // start() failed before spawning FFmpeg — no exit event will fire,
+        // so manually chain the next restart attempt if retries remain.
+        if (!this._intentionalStop && this._config) {
+          this.autoRestart();
+        }
+      }
+    }, delay);
   }
 
   // ---------------------------------------------------------------------------

@@ -74,20 +74,33 @@ function makeMockProc(opts: { exitCode?: number | null } = {}) {
  * second argument (i.e. the ffmpeg args including the leading "-y").
  */
 async function startWithMock(config: StreamConfig): Promise<string[]> {
+  // Ensure singleton is stopped from any previous test leakage
+  vi.useRealTimers();
+  await streamManager.stop();
+
   const proc = makeMockProc();
-  // biome-ignore lint/suspicious/noExplicitAny: mock proc shape doesn't fully match ChildProcess
-  vi.mocked(spawn).mockReturnValueOnce(proc as any);
+  (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+    // biome-ignore lint/suspicious/noExplicitAny: mock proc shape doesn't fully match ChildProcess
+    proc as any,
+  );
 
   vi.useFakeTimers();
+  try {
+    const startPromise = streamManager.start(config);
+    // Advance past the 1500ms probe delay — don't use runAllTimersAsync
+    // because stream-manager has a setInterval that causes infinite loop.
+    // Use sync advanceTimersByTime (bun compat) and flush microtasks.
+    vi.advanceTimersByTime(2000);
+    await startPromise;
+  } finally {
+    vi.useRealTimers();
+  }
 
-  const startPromise = streamManager.start(config);
-  await vi.runAllTimersAsync();
-  await startPromise;
-
-  vi.useRealTimers();
-
-  const calls = vi.mocked(spawn).mock.calls;
+  const calls = (spawn as unknown as ReturnType<typeof vi.fn>).mock.calls;
   const lastCall = calls[calls.length - 1];
+  if (!lastCall) {
+    throw new Error("startWithMock: spawn was never called");
+  }
   // spawn("ffmpeg", ["-y", ...ffmpegArgs], opts)  →  lastCall[1] is the args array
   return lastCall[1] as string[];
 }
@@ -97,13 +110,13 @@ async function startWithMock(config: StreamConfig): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  vi.mocked(spawn).mockReset();
+  (spawn as unknown as ReturnType<typeof vi.fn>).mockReset();
 });
 
 afterEach(async () => {
-  // stop() is a no-op when not running, so calling it unconditionally is safe.
-  await streamManager.stop();
+  // Restore real timers FIRST so stop()'s internal setTimeout can fire
   vi.useRealTimers();
+  await streamManager.stop();
 });
 
 // ===========================================================================
@@ -180,7 +193,7 @@ describe("setVolume()", () => {
   it("does NOT call spawn when stream is not running", async () => {
     await streamManager.setVolume(40);
 
-    expect(vi.mocked(spawn)).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
   });
 });
 
@@ -242,18 +255,18 @@ describe("mute() / unmute()", () => {
   });
 
   it("mute() does NOT call spawn when stream is not running", async () => {
-    vi.mocked(spawn).mockReset();
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReset();
     await streamManager.mute();
 
-    expect(vi.mocked(spawn)).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
   });
 
   it("unmute() does NOT call spawn when stream is not running", async () => {
     await streamManager.mute();
-    vi.mocked(spawn).mockReset();
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReset();
     await streamManager.unmute();
 
-    expect(vi.mocked(spawn)).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
   });
 });
 
@@ -626,5 +639,129 @@ describe("x11grab mode args", () => {
 
     expect(args).toContain("-video_size");
     expect(args).toContain("1920x1080");
+  });
+});
+
+// ===========================================================================
+// 8. autoRestart on unexpected FFmpeg exit
+// ===========================================================================
+
+/** Find the captured "exit" listener from the mock proc's .on() calls. */
+function getExitHandler(
+  proc: ReturnType<typeof makeMockProc>,
+): ((code: number | null, signal: string | null) => void) | undefined {
+  const calls = proc.on.mock.calls as Array<
+    [string, (code: number | null, signal: string | null) => void]
+  >;
+  const exitCall = calls.find(([event]) => event === "exit");
+  return exitCall?.[1];
+}
+
+describe("autoRestart on unexpected FFmpeg exit", () => {
+  it("exit handler is registered and fires autoRestart on unexpected exit", async () => {
+    // Start stream with a mock proc
+    vi.useRealTimers();
+    await streamManager.stop();
+
+    const proc = makeMockProc();
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      // biome-ignore lint/suspicious/noExplicitAny: mock proc
+      proc as any,
+    );
+
+    vi.useFakeTimers();
+    try {
+      const startPromise = streamManager.start(BASE_CONFIG);
+      vi.advanceTimersByTime(2000);
+      await startPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(streamManager.isRunning()).toBe(true);
+
+    // Verify exit handler was registered
+    const exitHandler = getExitHandler(proc);
+    expect(exitHandler).toBeDefined();
+
+    // Trigger unexpected exit
+    exitHandler?.(1, null);
+
+    // After unexpected exit, _running should be false
+    expect(streamManager.isRunning()).toBe(false);
+    // Health should reflect the crashed state
+    expect(streamManager.getHealth().running).toBe(false);
+  });
+
+  it("stop() sets intentionalStop preventing restart after exit", async () => {
+    vi.useRealTimers();
+    await streamManager.stop();
+
+    const proc = makeMockProc();
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      // biome-ignore lint/suspicious/noExplicitAny: mock proc
+      proc as any,
+    );
+
+    vi.useFakeTimers();
+    try {
+      const startPromise = streamManager.start(BASE_CONFIG);
+      vi.advanceTimersByTime(2000);
+      await startPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(streamManager.isRunning()).toBe(true);
+
+    // Stop intentionally
+    await streamManager.stop();
+    expect(streamManager.isRunning()).toBe(false);
+
+    const spawnCountBefore = (spawn as unknown as ReturnType<typeof vi.fn>).mock
+      .calls.length;
+
+    // Simulate exit event after intentional stop — should NOT trigger restart
+    const exitHandler = getExitHandler(proc);
+    if (exitHandler) exitHandler(0, "SIGTERM");
+
+    // Advance timers well past any restart backoff (10s)
+    vi.useFakeTimers();
+    try {
+      vi.advanceTimersByTime(10_000);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const spawnCountAfter = (spawn as unknown as ReturnType<typeof vi.fn>).mock
+      .calls.length;
+    // No new spawn calls — restart was prevented by intentionalStop
+    expect(spawnCountAfter).toBe(spawnCountBefore);
+  });
+
+  it("concurrent start() calls are rejected by _starting guard", async () => {
+    vi.useRealTimers();
+    await streamManager.stop();
+
+    const proc = makeMockProc();
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      // biome-ignore lint/suspicious/noExplicitAny: mock proc
+      proc as any,
+    );
+
+    vi.useFakeTimers();
+    try {
+      // Fire two concurrent start() calls
+      const start1 = streamManager.start(BASE_CONFIG);
+      const start2 = streamManager.start(BASE_CONFIG);
+      vi.advanceTimersByTime(2000);
+      await Promise.all([start1, start2]);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // spawn should only have been called once (second start was rejected)
+    const spawnCalls = (spawn as unknown as ReturnType<typeof vi.fn>).mock
+      .calls;
+    expect(spawnCalls.length).toBe(1);
   });
 });
