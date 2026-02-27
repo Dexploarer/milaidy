@@ -1,4 +1,5 @@
 import type http from "node:http";
+import zlib from "node:zlib";
 
 /**
  * Common request body size guard used across API/benchmark endpoints.
@@ -157,7 +158,26 @@ export async function writeJsonResponse(
 ): Promise<void> {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(body));
+
+  const jsonBody = JSON.stringify(body);
+  const req = (res as unknown as { req: http.IncomingMessage }).req;
+  const acceptEncoding = req?.headers?.["accept-encoding"] || "";
+
+  // ⚡ Optimization: Compress large responses (>1KB) with GZIP if supported by the client.
+  // This reduces bandwidth usage and improves response times for large payloads.
+  if (jsonBody.length > 1024 && acceptEncoding.includes("gzip")) {
+    res.setHeader("Content-Encoding", "gzip");
+    res.setHeader("Vary", "Accept-Encoding");
+    const compressed = await new Promise<Buffer>((resolve, reject) => {
+      zlib.gzip(jsonBody, (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
+    res.end(compressed);
+  } else {
+    res.end(jsonBody);
+  }
 }
 
 export async function writeJsonError(
