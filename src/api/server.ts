@@ -27,12 +27,11 @@ import {
   type Task,
   type UUID,
 } from "@elizaos/core";
+import type {
+  PTYService,
+  SwarmEvent,
+} from "@elizaos/plugin-agent-orchestrator";
 import { listPiAiModelOptions } from "@elizaos/plugin-pi-ai";
-import type { PTYService, SwarmEvent } from "@milaidy/plugin-coding-agent";
-import {
-  createCodingAgentRouteHandler,
-  getCoordinator,
-} from "@milaidy/plugin-coding-agent";
 import { type WebSocket, WebSocketServer } from "ws";
 import type { CloudManager } from "../cloud/cloud-manager";
 import {
@@ -5377,13 +5376,30 @@ async function routeAutonomyTextToUser(
 // ── Coding Agent Chat Bridge ──────────────────────────────────────────
 
 /**
+ * Get the SwarmCoordinator from the runtime services (if available).
+ * The coordinator is registered by @elizaos/plugin-agent-orchestrator.
+ */
+function getCoordinatorFromRuntime(runtime: AgentRuntime): {
+  setChatCallback?: (
+    cb: (text: string, source?: string) => Promise<void>,
+  ) => void;
+  setWsBroadcast?: (cb: (event: SwarmEvent) => void) => void;
+} | null {
+  // Try to get coordinator from runtime services
+  const coordinator = runtime.getService("SWARM_COORDINATOR");
+  if (coordinator)
+    return coordinator as ReturnType<typeof getCoordinatorFromRuntime>;
+  return null;
+}
+
+/**
  * Wire the SwarmCoordinator's chatCallback so coordinator messages
  * appear in the user's chat UI via the existing proactive-message flow.
  * Returns true if successfully wired.
  */
 function wireCodingAgentChatBridge(st: ServerState): boolean {
   if (!st.runtime) return false;
-  const coordinator = getCoordinator(st.runtime);
+  const coordinator = getCoordinatorFromRuntime(st.runtime);
   if (!coordinator?.setChatCallback) return false;
   coordinator.setChatCallback(async (text: string, source?: string) => {
     await routeAutonomyTextToUser(st, text, source ?? "coding-agent");
@@ -5398,7 +5414,7 @@ function wireCodingAgentChatBridge(st: ServerState): boolean {
  */
 function wireCodingAgentWsBridge(st: ServerState): boolean {
   if (!st.runtime) return false;
-  const coordinator = getCoordinator(st.runtime);
+  const coordinator = getCoordinatorFromRuntime(st.runtime);
   if (!coordinator?.setWsBroadcast) return false;
   coordinator.setWsBroadcast((event: SwarmEvent) => {
     // Preserve the coordinator's event type (task_registered, task_complete, etc.)
@@ -5407,6 +5423,137 @@ function wireCodingAgentWsBridge(st: ServerState): boolean {
     st.broadcastWs?.({ type: "pty-session-event", eventType, ...rest });
   });
   return true;
+}
+
+/**
+ * Fallback handler for /api/coding-agents/* routes when the plugin
+ * doesn't export createCodingAgentRouteHandler.
+ * Uses the AgentOrchestratorService (CODE_TASK) to provide task data.
+ */
+async function handleCodingAgentsFallback(
+  runtime: AgentRuntime,
+  pathname: string,
+  method: string,
+  _req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<boolean> {
+  // GET /api/coding-agents/coordinator/status
+  if (
+    method === "GET" &&
+    pathname === "/api/coding-agents/coordinator/status"
+  ) {
+    const orchestratorService = runtime.getService("CODE_TASK") as {
+      getTasks?: () => Promise<
+        Array<{
+          id?: string;
+          name?: string;
+          description?: string;
+          metadata?: {
+            status?: string;
+            providerId?: string;
+            providerLabel?: string;
+            workingDirectory?: string;
+            progress?: number;
+            steps?: Array<{ status?: string }>;
+          };
+        }>
+      >;
+    } | null;
+
+    if (!orchestratorService?.getTasks) {
+      // Return empty status if service not available
+      json(res, {
+        supervisionLevel: "autonomous",
+        taskCount: 0,
+        tasks: [],
+        pendingConfirmations: 0,
+      });
+      return true;
+    }
+
+    try {
+      const tasks = await orchestratorService.getTasks();
+
+      // Map tasks to the CodingAgentSession format expected by frontend
+      const mappedTasks = tasks.map((task) => {
+        const meta = task.metadata ?? {};
+        // Map orchestrator status to frontend status
+        let status: string = "active";
+        switch (meta.status) {
+          case "completed":
+            status = "completed";
+            break;
+          case "failed":
+          case "error":
+            status = "error";
+            break;
+          case "cancelled":
+            status = "stopped";
+            break;
+          case "paused":
+            status = "blocked";
+            break;
+          case "running":
+            status = "active";
+            break;
+          case "pending":
+            status = "active";
+            break;
+          default:
+            status = "active";
+        }
+
+        return {
+          sessionId: task.id ?? "",
+          agentType: meta.providerId ?? "eliza",
+          label: meta.providerLabel ?? task.name ?? "Task",
+          originalTask: task.description ?? task.name ?? "",
+          workdir: meta.workingDirectory ?? process.cwd(),
+          status,
+          decisionCount: meta.steps?.length ?? 0,
+          autoResolvedCount:
+            meta.steps?.filter((s) => s.status === "completed").length ?? 0,
+        };
+      });
+
+      json(res, {
+        supervisionLevel: "autonomous",
+        taskCount: mappedTasks.length,
+        tasks: mappedTasks,
+        pendingConfirmations: 0,
+      });
+      return true;
+    } catch (e) {
+      error(res, `Failed to get coding agent status: ${e}`, 500);
+      return true;
+    }
+  }
+
+  // POST /api/coding-agents/:sessionId/stop - Stop a coding agent task
+  const stopMatch = pathname.match(/^\/api\/coding-agents\/([^/]+)\/stop$/);
+  if (method === "POST" && stopMatch) {
+    const sessionId = decodeURIComponent(stopMatch[1]);
+    const orchestratorService = runtime.getService("CODE_TASK") as {
+      cancelTask?: (taskId: string) => Promise<void>;
+    } | null;
+
+    if (!orchestratorService?.cancelTask) {
+      error(res, "Orchestrator service not available", 503);
+      return true;
+    }
+
+    try {
+      await orchestratorService.cancelTask(sessionId);
+      json(res, { ok: true });
+      return true;
+    } catch (e) {
+      error(res, `Failed to stop task: ${e}`, 500);
+      return true;
+    }
+  }
+
+  // Not handled by fallback
+  return false;
 }
 
 /**
@@ -11165,11 +11312,35 @@ async function handleRequest(
       pathname.startsWith("/api/workspace") ||
       pathname.startsWith("/api/issues"))
   ) {
-    const coordinator = getCoordinator(state.runtime) as Parameters<
-      typeof createCodingAgentRouteHandler
-    >[1];
-    const handler = createCodingAgentRouteHandler(state.runtime, coordinator);
-    const handled = await handler(req, res, pathname);
+    // Try to dynamically load the route handler from the plugin
+    let handled = false;
+    try {
+      const orchestratorPlugin = await import(
+        "@elizaos/plugin-agent-orchestrator"
+      );
+      if (orchestratorPlugin.createCodingAgentRouteHandler) {
+        const coordinator = orchestratorPlugin.getCoordinator?.(state.runtime);
+        const handler = orchestratorPlugin.createCodingAgentRouteHandler(
+          state.runtime,
+          coordinator,
+        );
+        handled = await handler(req, res, pathname);
+      }
+    } catch {
+      // Plugin doesn't export these functions - skip routing
+    }
+
+    // Fallback: Handle coding-agents routes using AgentOrchestratorService
+    if (!handled && pathname.startsWith("/api/coding-agents")) {
+      handled = await handleCodingAgentsFallback(
+        state.runtime,
+        pathname,
+        method,
+        req,
+        res,
+      );
+    }
+
     if (handled) return;
   }
 
@@ -13489,7 +13660,7 @@ export async function startApiServer(opts?: {
   };
 
   // ── WebSocket Server ─────────────────────────────────────────────────────
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
   const wsClients = new Set<WebSocket>();
   const wsClientIds = new WeakMap<WebSocket, string>();
   /** Per-WS-client PTY output subscriptions: sessionId → unsubscribe */
@@ -13641,6 +13812,10 @@ export async function startApiServer(opts?: {
           if (!subs?.has(msg.sessionId)) {
             logger.warn(
               `[milady-api] pty-input rejected: client not subscribed to session ${msg.sessionId}`,
+            );
+          } else if (msg.data.length > 4096) {
+            logger.warn(
+              `[milady-api] pty-input rejected: payload too large (${msg.data.length} bytes) for session ${msg.sessionId}`,
             );
           } else {
             const bridge = getPtyConsoleBridge(state);

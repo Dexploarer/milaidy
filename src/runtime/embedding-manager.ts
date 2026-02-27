@@ -23,13 +23,28 @@ import { detectEmbeddingPreset } from "./embedding-presets.js";
 // Lazy-imported to keep the module lightweight at parse time.
 // node-llama-cpp pulls in native binaries — importing at the top would slow
 // down every CLI invocation even when embeddings aren't needed.
-type LlamaInstance = Awaited<
-  ReturnType<typeof import("node-llama-cpp")["getLlama"]>
->;
-type LlamaModelInstance = Awaited<ReturnType<LlamaInstance["loadModel"]>>;
-type LlamaEmbeddingContextInstance = Awaited<
-  ReturnType<LlamaModelInstance["createEmbeddingContext"]>
->;
+//
+// IMPORTANT: We use `unknown` types here instead of `typeof import("node-llama-cpp")`
+// to prevent bundlers from hoisting the dynamic import to a static one.
+// The native module must remain a runtime-only import for Electron packaging.
+
+// biome-ignore lint/suspicious/noExplicitAny: Prevents bundler from hoisting dynamic import
+type LlamaInstance = any;
+// biome-ignore lint/suspicious/noExplicitAny: Prevents bundler from hoisting dynamic import
+type LlamaModelInstance = any;
+// biome-ignore lint/suspicious/noExplicitAny: Prevents bundler from hoisting dynamic import
+type LlamaEmbeddingContextInstance = any;
+
+/**
+ * Dynamically import node-llama-cpp at runtime.
+ * Uses indirection to prevent bundlers from converting to static import.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Required for dynamic import indirection
+async function importNodeLlamaCpp(): Promise<any> {
+  // The string concatenation prevents static analysis by bundlers
+  const moduleName = ["node", "llama", "cpp"].join("-");
+  return import(moduleName);
+}
 
 export class MiladyEmbeddingManager {
   private readonly model: string;
@@ -144,7 +159,7 @@ export class MiladyEmbeddingManager {
       this.model,
     );
 
-    const { getLlama, LlamaLogLevel } = await import("node-llama-cpp");
+    const { getLlama, LlamaLogLevel } = await importNodeLlamaCpp();
 
     log.info(
       `[milaidy] Initializing embedding model: ${this.model} ` +
@@ -154,7 +169,7 @@ export class MiladyEmbeddingManager {
     if (!this.llama) {
       this.llama = await getLlama({
         logLevel: LlamaLogLevel.error,
-        logger: (level, message) => {
+        logger: (level: string, message: string) => {
           if (level === "error" || level === "fatal") {
             const text = message.trim();
             if (text) {
