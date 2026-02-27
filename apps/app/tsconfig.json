@@ -18,8 +18,8 @@
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
     "useUnknownInCatchVariables": true,
-    "types": ["vite/client"]
+    "types": ["vite/client", "bun-types"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
   "exclude": ["node_modules", "dist", "ios", "android", "electron"]
 }

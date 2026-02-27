@@ -36,24 +36,15 @@ describe("Header", () => {
       lifecycleAction: null,
       handlePauseResume: vi.fn(),
       handleRestart: vi.fn(),
-      copyToClipboard: vi.fn(),
       setTab: vi.fn(),
       dropStatus: null,
       loadDropStatus: vi.fn(),
       registryStatus: null,
+      copyToClipboard: vi.fn(), // Needed for CopyButton
     };
 
     // @ts-expect-error - test uses a narrowed subset of the full app context type.
     vi.spyOn(AppContext, "useApp").mockReturnValue(mockUseApp);
-
-    // We need to render the component.
-    // Note: Since we are in a non-browser environment (happy-dom/jsdom might not be set up fully for standard React testing library in this repo's specific config),
-    // we will check if we can use react-test-renderer or if we should rely on a basic snapshot/class check.
-    // However, the user's package.json includes "react-test-renderer".
-    // Let's try react-test-renderer first as it avoids DOM emulation issues if not configured.
-
-    // Actually, let's stick to the plan of using what's available.
-    // The previous check showed "react-test-renderer": "^19.0.0".
 
     let testRenderer: ReactTestRenderer | null = null;
     await act(async () => {
@@ -68,7 +59,6 @@ describe("Header", () => {
       node.props.className.includes(className);
 
     // Find the wallet wrapper
-    // It has className "wallet-wrapper relative inline-flex shrink-0 group"
     const walletWrapper = root.findAll((node: ReactTestInstance) =>
       hasClass(node, "wallet-wrapper"),
     );
@@ -77,12 +67,23 @@ describe("Header", () => {
     expect(walletWrapper[0].props.className).toContain("group");
 
     // Find the wallet tooltip
-    // It should have className containing "group-hover:block"
     const walletTooltip = root.findAll((node: ReactTestInstance) =>
       hasClass(node, "wallet-tooltip"),
     );
 
     expect(walletTooltip.length).toBe(1);
     expect(walletTooltip[0].props.className).toContain("group-hover:block");
+
+    // Verify CopyButtons are rendered
+    const copyButtons = root.findAll((node: ReactTestInstance) => {
+      return (
+        node.type === "button" &&
+        node.props["aria-label"] &&
+        node.props["aria-label"].startsWith("Copy")
+      );
+    });
+
+    // Should find 2 copy buttons (one for EVM, one for SOL)
+    expect(copyButtons.length).toBe(2);
   });
 });

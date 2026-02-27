@@ -10,6 +10,7 @@ import {
 import { useEffect } from "react";
 import { useApp } from "../AppContext";
 import { useBugReport } from "../hooks/useBugReport";
+import { CopyButton } from "./shared/CopyButton";
 
 export function Header() {
   const {
@@ -25,7 +26,6 @@ export function Header() {
     lifecycleAction,
     handlePauseResume,
     handleRestart,
-    copyToClipboard,
     setTab,
     dropStatus,
     loadDropStatus,
@@ -204,19 +204,10 @@ export function Header() {
                       <code className="font-mono flex-1 truncate">
                         {evmShort}
                       </code>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const evmAddress = walletAddresses?.evmAddress;
-                          if (evmAddress) {
-                            copyToClipboard(evmAddress);
-                          }
-                        }}
-                        className="px-1.5 py-1 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent"
-                      >
-                        copy
-                      </button>
+                      <CopyButton
+                        value={walletAddresses?.evmAddress ?? ""}
+                        label="copy"
+                      />
                     </div>
                   )}
                   {solShort && (
@@ -227,19 +218,10 @@ export function Header() {
                       <code className="font-mono flex-1 truncate">
                         {solShort}
                       </code>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const solanaAddress = walletAddresses?.solanaAddress;
-                          if (solanaAddress) {
-                            copyToClipboard(solanaAddress);
-                          }
-                        }}
-                        className="px-1.5 py-1 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent"
-                      >
-                        copy
-                      </button>
+                      <CopyButton
+                        value={walletAddresses?.solanaAddress ?? ""}
+                        label="copy"
+                      />
                     </div>
                   )}
                 </div>
