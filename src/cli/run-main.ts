@@ -34,6 +34,10 @@ export async function runCli(argv: string[] = process.argv) {
   const { buildProgram } = await import("./program");
   const program = buildProgram();
 
+  // Prevent Commander from calling process.exit() directly so that piped stdio (vitest etc)
+  // has a chance to flush cleanly before the process spins down.
+  program.exitOverride();
+
   process.on("unhandledRejection", (reason) => {
     console.error("[milady] Unhandled rejection:", formatUncaughtError(reason));
     process.exit(1);
@@ -49,5 +53,14 @@ export async function runCli(argv: string[] = process.argv) {
     await registerSubCliByName(program, primary);
   }
 
-  await program.parseAsync(argv);
+  try {
+    await program.parseAsync(argv);
+  } catch (err) {
+    // If commander threw because of an early exit (e.g. --help, --version), don't crash.
+    if (err && typeof err === "object" && "code" in err && "exitCode" in err) {
+      process.exitCode = (err as { exitCode: number }).exitCode ?? 1;
+      return;
+    }
+    throw err;
+  }
 }

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +25,7 @@ type WsPayload = Record<
 
 const { mockClientFns, mockUseApp } = vi.hoisted(() => ({
   mockClientFns: {
+    getCodingAgentStatus: vi.fn(async () => null),
     getTrainingStatus: vi.fn(),
     listTrainingTrajectories: vi.fn(),
     listTrainingDatasets: vi.fn(),

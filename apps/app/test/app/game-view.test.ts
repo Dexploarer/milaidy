@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +11,10 @@ interface GameContextStub {
   activeGameSandbox: string;
   activeGamePostMessageAuth: boolean;
   activeGamePostMessagePayload: AppViewerAuthMessage | null;
+  gameOverlayEnabled: boolean;
+  plugins: { id: string; enabled: boolean }[];
+  logs: unknown[];
+  loadLogs: () => Promise<void>;
   setState: (
     key: string,
     value: string | boolean | AppViewerAuthMessage | null,
@@ -23,6 +28,7 @@ interface GameContextStub {
 
 const { mockClientFns, mockUseApp } = vi.hoisted(() => ({
   mockClientFns: {
+    getCodingAgentStatus: vi.fn(async () => null),
     stopApp: vi.fn(),
   },
   mockUseApp: vi.fn(),
@@ -45,6 +51,10 @@ function createContext(overrides?: Partial<GameContextStub>): GameContextStub {
     activeGameSandbox: "allow-scripts allow-same-origin",
     activeGamePostMessageAuth: false,
     activeGamePostMessagePayload: null,
+    gameOverlayEnabled: false,
+    plugins: [],
+    logs: [],
+    loadLogs: vi.fn(async () => {}),
     setState: vi.fn<GameContextStub["setState"]>(),
     setActionNotice: vi.fn<GameContextStub["setActionNotice"]>(),
     ...overrides,

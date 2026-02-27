@@ -1,7 +1,7 @@
 {
   "$schema": "plugin-index-v1",
   "generatedAt": "2026-02-09T20:23:38.561Z",
-  "count": 98,
+  "count": 99,
   "plugins": [
     {
       "id": "acp",
@@ -1464,10 +1464,71 @@
       }
     },
     {
+      "id": "clawbal",
+      "dirName": "app-clawbal",
+      "name": "Clawbal Chat",
+      "npmName": "@iqlabs-official/plugin-clawbal",
+      "description": "On-chain AI chatrooms on Solana — agents chat, trade, launch tokens, and compete on PnL leaderboards",
+      "category": "app",
+      "envKey": "SOLANA_PRIVATE_KEY",
+      "configKeys": [
+        "SOLANA_PRIVATE_KEY",
+        "SOLANA_RPC_URL",
+        "CLAWBAL_CHATROOM",
+        "MOLTBOOK_TOKEN",
+        "BAGS_API_KEY",
+        "IMAGE_API_KEY",
+        "MILADY_ASSETS_PATH"
+      ],
+      "version": "1.0.0",
+      "gitUrl": "https://github.com/IQCoreTeam/milady-clawbal.git",
+      "pluginParameters": {
+        "SOLANA_PRIVATE_KEY": {
+          "type": "string",
+          "description": "Solana wallet private key (base58 or JSON array)",
+          "required": true,
+          "sensitive": true
+        },
+        "SOLANA_RPC_URL": {
+          "type": "string",
+          "description": "Solana RPC endpoint (default: mainnet)",
+          "required": false
+        },
+        "CLAWBAL_CHATROOM": {
+          "type": "string",
+          "description": "Default chatroom (default: Trenches)",
+          "required": false
+        },
+        "MOLTBOOK_TOKEN": {
+          "type": "string",
+          "description": "Moltbook API token for posting",
+          "required": false,
+          "sensitive": true
+        },
+        "BAGS_API_KEY": {
+          "type": "string",
+          "description": "bags.fm API key for token launches",
+          "required": false,
+          "sensitive": true
+        },
+        "IMAGE_API_KEY": {
+          "type": "string",
+          "description": "Image generation API key (auto-detects provider from prefix)",
+          "required": false,
+          "sensitive": true
+        },
+        "MILADY_ASSETS_PATH": {
+          "type": "string",
+          "description": "Path to milady-image-generator assets for unique PFP generation",
+          "required": false
+        }
+      }
+    },
+    {
       "id": "coding-agent",
       "dirName": "plugin-coding-agent",
       "name": "Coding Agent Swarms",
-      "npmName": "@milaidy/plugin-coding-agent",
+      "npmName": "@elizaos/plugin-coding-agent",
       "description": "Orchestrate CLI coding agents (Claude Code, Gemini CLI, Codex, Aider) via PTY sessions with workspace and issue management",
       "category": "feature",
       "envKey": null,
@@ -8546,6 +8607,173 @@
       }
     },
     {
+      "id": "retake",
+      "dirName": "plugin-retake",
+      "name": "Retake.tv",
+      "npmName": "@milady/plugin-retake",
+      "description": "Live video streaming connector for retake.tv",
+      "category": "connector",
+      "envKey": "RETAKE_ACCESS_TOKEN",
+      "configKeys": [
+        "RETAKE_ACCESS_TOKEN",
+        "RETAKE_API_URL",
+        "RETAKE_CAPTURE_URL"
+      ],
+      "pluginParameters": {
+        "RETAKE_ACCESS_TOKEN": {
+          "type": "string",
+          "description": "Access token for retake.tv API",
+          "required": false,
+          "sensitive": true
+        },
+        "RETAKE_API_URL": {
+          "type": "string",
+          "description": "Retake.tv API base URL",
+          "required": false,
+          "sensitive": false
+        },
+        "RETAKE_CAPTURE_URL": {
+          "type": "string",
+          "description": "Capture URL for retake.tv stream",
+          "required": false,
+          "sensitive": false
+        }
+      },
+      "configUiHints": {
+        "RETAKE_ACCESS_TOKEN": {
+          "label": "Access Token",
+          "group": "Authentication",
+          "width": "full"
+        },
+        "RETAKE_API_URL": {
+          "label": "API URL",
+          "group": "Connection",
+          "width": "half"
+        },
+        "RETAKE_CAPTURE_URL": {
+          "label": "Capture URL",
+          "group": "Connection",
+          "width": "half"
+        }
+      }
+    },
+    {
+      "id": "streaming-base",
+      "dirName": "plugin-streaming-base",
+      "name": "Streaming",
+      "npmName": "@milady/plugin-streaming-base",
+      "description": "Enable live streaming controls — adds the Stream tab for managing RTMP destinations",
+      "category": "streaming",
+      "envKey": null,
+      "configKeys": [],
+      "pluginParameters": {}
+    },
+    {
+      "id": "twitch-streaming",
+      "dirName": "plugin-twitch",
+      "name": "Twitch Streaming",
+      "npmName": "@milady/plugin-twitch-streaming",
+      "description": "Twitch RTMP streaming destination for live broadcasts",
+      "category": "streaming",
+      "envKey": "TWITCH_STREAM_KEY",
+      "configKeys": [
+        "TWITCH_STREAM_KEY"
+      ],
+      "pluginParameters": {
+        "TWITCH_STREAM_KEY": {
+          "type": "string",
+          "description": "Twitch stream key for RTMP ingest",
+          "required": true,
+          "sensitive": true
+        }
+      },
+      "configUiHints": {
+        "TWITCH_STREAM_KEY": {
+          "label": "Stream Key",
+          "group": "Authentication",
+          "width": "full"
+        }
+      }
+    },
+    {
+      "id": "youtube-streaming",
+      "dirName": "plugin-youtube",
+      "name": "YouTube Streaming",
+      "npmName": "@milady/plugin-youtube-streaming",
+      "description": "YouTube RTMP streaming destination for live broadcasts",
+      "category": "streaming",
+      "envKey": "YOUTUBE_STREAM_KEY",
+      "configKeys": [
+        "YOUTUBE_STREAM_KEY",
+        "YOUTUBE_RTMP_URL"
+      ],
+      "pluginParameters": {
+        "YOUTUBE_STREAM_KEY": {
+          "type": "string",
+          "description": "YouTube stream key for RTMP ingest",
+          "required": true,
+          "sensitive": true
+        },
+        "YOUTUBE_RTMP_URL": {
+          "type": "string",
+          "description": "YouTube RTMP ingest URL (default: rtmp://a.rtmp.youtube.com/live2)",
+          "required": false,
+          "sensitive": false
+        }
+      },
+      "configUiHints": {
+        "YOUTUBE_STREAM_KEY": {
+          "label": "Stream Key",
+          "group": "Authentication",
+          "width": "full"
+        },
+        "YOUTUBE_RTMP_URL": {
+          "label": "RTMP URL",
+          "group": "Connection",
+          "width": "full"
+        }
+      }
+    },
+    {
+      "id": "custom-rtmp",
+      "dirName": "custom-rtmp",
+      "name": "Custom RTMP",
+      "npmName": null,
+      "description": "Stream to any RTMP destination with a custom URL and key",
+      "category": "streaming",
+      "envKey": "CUSTOM_RTMP_URL",
+      "configKeys": [
+        "CUSTOM_RTMP_URL",
+        "CUSTOM_RTMP_KEY"
+      ],
+      "pluginParameters": {
+        "CUSTOM_RTMP_URL": {
+          "type": "string",
+          "description": "RTMP ingest URL for your streaming platform",
+          "required": true,
+          "sensitive": false
+        },
+        "CUSTOM_RTMP_KEY": {
+          "type": "string",
+          "description": "RTMP stream key",
+          "required": true,
+          "sensitive": true
+        }
+      },
+      "configUiHints": {
+        "CUSTOM_RTMP_URL": {
+          "label": "RTMP URL",
+          "group": "Connection",
+          "width": "full"
+        },
+        "CUSTOM_RTMP_KEY": {
+          "label": "Stream Key",
+          "group": "Authentication",
+          "width": "full"
+        }
+      }
+    },
+    {
       "id": "vercel-ai-gateway",
       "dirName": "plugin-vercel-ai-gateway",
       "name": "Vercel Ai Gateway",
@@ -8743,7 +8971,7 @@
       "id": "whatsapp",
       "dirName": "plugin-whatsapp",
       "name": "Whatsapp",
-      "npmName": "@elizaos/plugin-whatsapp",
+      "npmName": "@milady/plugin-whatsapp",
       "description": "WhatsApp plugin for ElizaOS — supports Baileys (QR code) and Cloud API",
       "category": "connector",
       "envKey": "WHATSAPP_ACCESS_TOKEN",

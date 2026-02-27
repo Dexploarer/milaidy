@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +14,7 @@ import type {
 const { mockUseApp, mockClientFns } = vi.hoisted(() => ({
   mockUseApp: vi.fn(),
   mockClientFns: {
+    getCodingAgentStatus: vi.fn(async () => null),
     getTrajectories: vi.fn(),
     getTrajectoryStats: vi.fn(),
     getTrajectoryConfig: vi.fn(),

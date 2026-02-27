@@ -1,8 +1,9 @@
+// @vitest-environment jsdom
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tab } from "../../src/navigation";
-import { TAB_GROUPS } from "../../src/navigation";
+import { getTabGroups } from "../../src/navigation";
 
 const { mockUseApp, noop } = vi.hoisted(() => ({
   mockUseApp: vi.fn(),
@@ -39,6 +40,10 @@ vi.mock("../../src/components/OnboardingWizard", () => ({
 
 vi.mock("../../src/components/ChatView", () => ({
   ChatView: () => React.createElement("section", null, "ChatView Ready"),
+}));
+
+vi.mock("../../src/components/StreamView", () => ({
+  StreamView: () => React.createElement("section", null, "StreamView Ready"),
 }));
 
 vi.mock("../../src/components/ConversationsSidebar", () => ({
@@ -237,6 +242,7 @@ describe("pages navigation smoke (e2e)", () => {
       onboardingComplete: true,
       tab: "chat",
       actionNotice: null,
+      plugins: [],
       setTab: (tab: Tab) => {
         state.tab = tab;
       },
@@ -257,6 +263,7 @@ describe("pages navigation smoke (e2e)", () => {
 
     const expectedByPrimaryTab: Record<Tab, string> = {
       chat: "ChatView Ready",
+      stream: "StreamView Ready",
       character: "CharacterView Ready",
       wallets: "InventoryView Ready",
       knowledge: "KnowledgeView Ready",
@@ -276,7 +283,7 @@ describe("pages navigation smoke (e2e)", () => {
       voice: "SettingsView Ready",
     };
 
-    for (const group of TAB_GROUPS) {
+    for (const group of getTabGroups(false)) {
       await clickAndRerender(renderedTree, group.label);
       const nextTab = group.tabs[0];
       const content = mainContent(renderedTree);
@@ -456,6 +463,7 @@ describe("pages navigation smoke (e2e)", () => {
         onboardingComplete: true,
         tab: "chat",
         actionNotice: null,
+        plugins: [],
         setTab: (tab: Tab) => {
           state.tab = tab;
         },

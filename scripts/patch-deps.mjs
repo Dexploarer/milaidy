@@ -524,3 +524,117 @@ if (!existsSync(twitterTarget)) {
     );
   }
 }
+
+/**
+ * Patch @elizaos/plugin-pdf to fix ESM compatibility with pdfjs-dist.
+ *
+ * pdfjs-dist doesn't provide a default export in ESM mode, so
+ * `import pkg from "pdfjs-dist"` fails. We patch it to use namespace import.
+ *
+ * Remove once plugin-pdf publishes a fix for ESM compatibility.
+ */
+function findAllPluginPdfDists() {
+  const targets = [];
+  const distPaths = [
+    "dist/node/index.node.js",
+    "dist/browser/index.browser.js",
+  ];
+
+  const searchRoots = [root];
+  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+  const homeNodeModules = resolve(homeDir, "node_modules");
+  if (existsSync(homeNodeModules)) {
+    searchRoots.push(resolve(homeNodeModules, ".."));
+  }
+
+  for (const searchRoot of searchRoots) {
+    for (const distPath of distPaths) {
+      const npmTarget = resolve(
+        searchRoot,
+        `node_modules/@elizaos/plugin-pdf/${distPath}`,
+      );
+      if (existsSync(npmTarget) && !targets.includes(npmTarget)) {
+        targets.push(npmTarget);
+      }
+    }
+
+    const bunCacheDir = resolve(searchRoot, "node_modules/.bun");
+    if (existsSync(bunCacheDir)) {
+      try {
+        const entries = readdirSync(bunCacheDir);
+        for (const entry of entries) {
+          if (entry.startsWith("@elizaos+plugin-pdf@")) {
+            for (const distPath of distPaths) {
+              const bunTarget = resolve(
+                bunCacheDir,
+                entry,
+                `node_modules/@elizaos/plugin-pdf/${distPath}`,
+              );
+              if (existsSync(bunTarget) && !targets.includes(bunTarget)) {
+                targets.push(bunTarget);
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore errors reading bun cache
+      }
+    }
+  }
+
+  return targets;
+}
+
+const pdfTargets = findAllPluginPdfDists();
+
+if (pdfTargets.length === 0) {
+  console.log("[patch-deps] plugin-pdf dist not found, skipping patch.");
+} else {
+  console.log(
+    `[patch-deps] Found ${pdfTargets.length} plugin-pdf dist file(s) to patch.`,
+  );
+
+  // Use regex to match various minified patterns of the default import
+  // Pattern: import <var> from "pdfjs-dist" or import <var> from"pdfjs-dist"
+  const pdfBuggyImportRegex = /import\s+(\w+)\s+from\s*"pdfjs-dist"/g;
+
+  for (const target of pdfTargets) {
+    console.log(`[patch-deps] Patching plugin-pdf: ${target}`);
+    let src = readFileSync(target, "utf8");
+    let patched = false;
+
+    if (src.includes("import * as") && src.includes("pdfjs-dist")) {
+      console.log("  - pdfjs-dist ESM import patch already present.");
+    } else {
+      // Find all default imports from pdfjs-dist and replace with namespace imports
+      const matches = [...src.matchAll(pdfBuggyImportRegex)];
+      if (matches.length > 0) {
+        for (const match of matches) {
+          const varName = match[1];
+          const originalImport = match[0];
+          const fixedImport = `import * as ${varName} from "pdfjs-dist"`;
+          src = src.replace(originalImport, fixedImport);
+          patched = true;
+        }
+        if (patched) {
+          console.log(
+            `  - Applied pdfjs-dist ESM namespace import patch (${matches.length} occurrence(s)).`,
+          );
+        }
+      } else if (src.includes("pdfjs-dist")) {
+        console.log(
+          "  - pdfjs-dist import pattern changed — patch may need updating.",
+        );
+      } else {
+        console.log(
+          "  - pdfjs-dist import not found — patch may no longer be needed.",
+        );
+      }
+    }
+
+    if (patched) {
+      writeFileSync(target, src, "utf8");
+      console.log("  - Wrote pdfjs-dist ESM patch.");
+    }
+  }
+}

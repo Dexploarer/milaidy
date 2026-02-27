@@ -160,6 +160,14 @@ export type AgentState =
   | "restarting"
   | "error";
 
+export interface AgentStartupDiagnostics {
+  phase: string;
+  attempt: number;
+  lastError?: string;
+  lastErrorAt?: number;
+  nextRetryAt?: number;
+}
+
 export interface AgentStatus {
   state: AgentState;
   agentName: string;
@@ -168,6 +176,40 @@ export interface AgentStatus {
   startedAt: number | undefined;
   pendingRestart?: boolean;
   pendingRestartReasons?: string[];
+  startup?: AgentStartupDiagnostics;
+}
+
+export type ApiErrorKind = "timeout" | "network" | "http";
+
+export class ApiError extends Error {
+  readonly kind: ApiErrorKind;
+  readonly status?: number;
+  readonly path: string;
+
+  constructor(options: {
+    kind: ApiErrorKind;
+    path: string;
+    message: string;
+    status?: number;
+    cause?: unknown;
+  }) {
+    super(options.message);
+    this.name = "ApiError";
+    this.kind = options.kind;
+    this.path = options.path;
+    this.status = options.status;
+    if (options.cause !== undefined) {
+      (
+        this as Error & {
+          cause?: unknown;
+        }
+      ).cause = options.cause;
+    }
+  }
+}
+
+export function isApiError(value: unknown): value is ApiError {
+  return value instanceof ApiError;
 }
 
 export interface RuntimeOrderItem {
@@ -483,7 +525,13 @@ export interface PluginInfo {
   enabled: boolean;
   configured: boolean;
   envKey: string | null;
-  category: "ai-provider" | "connector" | "database" | "app" | "feature";
+  category:
+    | "ai-provider"
+    | "connector"
+    | "streaming"
+    | "database"
+    | "app"
+    | "feature";
   source: "bundled" | "store";
   parameters: PluginParamDef[];
   validationErrors: Array<{ field: string; message: string }>;
@@ -582,6 +630,8 @@ export interface ConversationMessage {
   blocks?: ContentBlock[];
   /** Source channel when forwarded from another channel (e.g. "autonomy"). */
   source?: string;
+  /** Username of the sender (e.g. retake viewer username, discord username). */
+  from?: string;
 }
 
 export type ConversationChannelType =
@@ -1051,6 +1101,33 @@ export interface WorkbenchOverview {
   };
 }
 
+// Coding Agent Sessions
+export interface CodingAgentSession {
+  sessionId: string;
+  agentType: string;
+  label: string;
+  originalTask: string;
+  workdir: string;
+  status:
+    | "active"
+    | "blocked"
+    | "completed"
+    | "stopped"
+    | "error"
+    | "tool_running";
+  decisionCount: number;
+  autoResolvedCount: number;
+  /** Description of the active tool when status is "tool_running". */
+  toolDescription?: string;
+}
+
+export interface CodingAgentStatus {
+  supervisionLevel: string;
+  taskCount: number;
+  tasks: CodingAgentSession[];
+  pendingConfirmations: number;
+}
+
 // MCP
 export interface McpServerConfig {
   type: "stdio" | "streamable-http" | "sse";
@@ -1510,6 +1587,53 @@ export interface KnowledgeUploadResult {
   warnings?: string[];
 }
 
+export interface KnowledgeBulkUploadItemResult {
+  index: number;
+  ok: boolean;
+  filename: string;
+  documentId?: string;
+  fragmentCount?: number;
+  error?: string;
+  warnings?: string[];
+}
+
+export interface KnowledgeBulkUploadResult {
+  ok: boolean;
+  total: number;
+  successCount: number;
+  failureCount: number;
+  results: KnowledgeBulkUploadItemResult[];
+}
+
+// Memory / context command types
+export interface MemorySearchResult {
+  id: string;
+  text: string;
+  createdAt: number;
+  score: number;
+}
+
+export interface MemorySearchResponse {
+  query: string;
+  results: MemorySearchResult[];
+  count: number;
+  limit: number;
+}
+
+export interface MemoryRememberResponse {
+  ok: boolean;
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface QuickContextResponse {
+  query: string;
+  answer: string;
+  memories: MemorySearchResult[];
+  knowledge: KnowledgeSearchResult[];
+}
+
 // WebSocket
 
 export type WsEventHandler = (data: Record<string, unknown>) => void;
@@ -1574,6 +1698,7 @@ declare global {
 const GENERIC_NO_RESPONSE_TEXT =
   "Sorry, I couldn't generate a response right now. Please try again.";
 const AGENT_TRANSFER_MIN_PASSWORD_LENGTH = 4;
+const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 
 export class MiladyClient {
   private _baseUrl: string;
@@ -1683,20 +1808,60 @@ export class MiladyClient {
 
   // --- REST API ---
 
-  private async fetch<T>(path: string, init?: RequestInit): Promise<T> {
+  private async rawRequest(
+    path: string,
+    init?: RequestInit,
+    options?: { allowNonOk?: boolean },
+  ): Promise<Response> {
     if (!this.apiAvailable) {
-      throw new Error("API not available (no HTTP origin)");
-    }
-    const makeRequest = (token: string | null) =>
-      fetch(`${this.baseUrl}${path}`, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          "X-Milady-Client-Id": this.clientId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...init?.headers,
-        },
+      throw new ApiError({
+        kind: "network",
+        path,
+        message: "API not available (no HTTP origin)",
       });
+    }
+    const makeRequest = async (token: string | null): Promise<Response> => {
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        timeoutController.abort();
+      }, DEFAULT_FETCH_TIMEOUT_MS);
+      const signal =
+        init?.signal && typeof AbortSignal.any === "function"
+          ? AbortSignal.any([init.signal, timeoutController.signal])
+          : (init?.signal ?? timeoutController.signal);
+
+      try {
+        return await fetch(`${this.baseUrl}${path}`, {
+          ...init,
+          signal,
+          headers: {
+            "X-Milady-Client-Id": this.clientId,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...init?.headers,
+          },
+        });
+      } catch (err) {
+        if (timeoutController.signal.aborted) {
+          throw new ApiError({
+            kind: "timeout",
+            path,
+            message: `Request timed out after ${DEFAULT_FETCH_TIMEOUT_MS}ms`,
+            cause: err,
+          });
+        }
+        throw new ApiError({
+          kind: "network",
+          path,
+          message:
+            err instanceof Error && err.message
+              ? err.message
+              : "Network request failed",
+          cause: err,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
 
     const token = this.apiToken;
     let res = await makeRequest(token);
@@ -1706,14 +1871,28 @@ export class MiladyClient {
         res = await makeRequest(retryToken);
       }
     }
-    if (!res.ok) {
+    if (!res.ok && !options?.allowNonOk) {
       const body = (await res
         .json()
         .catch(() => ({ error: res.statusText }))) as Record<string, string>;
-      const err = new Error(body.error ?? `HTTP ${res.status}`);
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
+      throw new ApiError({
+        kind: "http",
+        path,
+        status: res.status,
+        message: body.error ?? `HTTP ${res.status}`,
+      });
     }
+    return res;
+  }
+
+  private async fetch<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await this.rawRequest(path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
     return res.json() as Promise<T>;
   }
 
@@ -1984,11 +2163,11 @@ export class MiladyClient {
   /** Uses raw fetch instead of this.fetch() because HEAD returns no JSON body. */
   async hasCustomVrm(): Promise<boolean> {
     try {
-      const token = this.apiToken;
-      const res = await fetch(`${this.baseUrl}/api/avatar/vrm`, {
-        method: "HEAD",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await this.rawRequest(
+        "/api/avatar/vrm",
+        { method: "HEAD" },
+        { allowNonOk: true },
+      );
       return res.ok;
     } catch {
       return false;
@@ -2395,11 +2574,16 @@ export class MiladyClient {
   async getAgentEvents(opts?: {
     afterEventId?: string;
     limit?: number;
+    runId?: string;
+    fromSeq?: number;
   }): Promise<AgentEventsResponse> {
     const params = new URLSearchParams();
     if (opts?.afterEventId) params.set("after", opts.afterEventId);
     if (typeof opts?.limit === "number")
       params.set("limit", String(opts.limit));
+    if (opts?.runId) params.set("runId", opts.runId);
+    if (typeof opts?.fromSeq === "number")
+      params.set("fromSeq", String(Math.trunc(opts.fromSeq)));
     const qs = params.toString();
     return this.fetch(`/api/agent/events${qs ? `?${qs}` : ""}`);
   }
@@ -2535,27 +2719,13 @@ export class MiladyClient {
         `Password must be at least ${AGENT_TRANSFER_MIN_PASSWORD_LENGTH} characters.`,
       );
     }
-    if (!this.apiAvailable) {
-      throw new Error("API not available (no HTTP origin)");
-    }
-    const token = this.apiToken;
-    const res = await fetch(`${this.baseUrl}/api/agent/export`, {
+    return this.rawRequest("/api/agent/export", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ password, includeLogs }),
     });
-    if (!res.ok) {
-      const body = (await res
-        .json()
-        .catch(() => ({ error: res.statusText }))) as Record<string, string>;
-      const err = new Error(body.error ?? `HTTP ${res.status}`);
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
-    }
-    return res;
   }
 
   /** Get an estimate of the export size. */
@@ -2588,9 +2758,6 @@ export class MiladyClient {
         `Password must be at least ${AGENT_TRANSFER_MIN_PASSWORD_LENGTH} characters.`,
       );
     }
-    if (!this.apiAvailable) {
-      throw new Error("API not available (no HTTP origin)");
-    }
     const passwordBytes = new TextEncoder().encode(password);
     const envelope = new Uint8Array(
       4 + passwordBytes.length + fileBuffer.byteLength,
@@ -2600,12 +2767,10 @@ export class MiladyClient {
     envelope.set(passwordBytes, 4);
     envelope.set(new Uint8Array(fileBuffer), 4 + passwordBytes.length);
 
-    const token = this.apiToken;
-    const res = await fetch(`${this.baseUrl}/api/agent/import`, {
+    const res = await this.rawRequest("/api/agent/import", {
       method: "POST",
       headers: {
         "Content-Type": "application/octet-stream",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: envelope,
     });
@@ -2617,7 +2782,7 @@ export class MiladyClient {
       agentName?: string;
       counts?: Record<string, number>;
     };
-    if (!res.ok || !data.success) {
+    if (!data.success) {
       throw new Error(data.error ?? `Import failed (${res.status})`);
     }
     return data as {
@@ -3120,6 +3285,20 @@ export class MiladyClient {
     });
   }
 
+  async uploadKnowledgeDocumentsBulk(data: {
+    documents: Array<{
+      content: string;
+      filename: string;
+      contentType?: string;
+      metadata?: Record<string, unknown>;
+    }>;
+  }): Promise<KnowledgeBulkUploadResult> {
+    return this.fetch("/api/knowledge/documents/bulk", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   async uploadKnowledgeFromUrl(
     url: string,
     metadata?: Record<string, unknown>,
@@ -3148,6 +3327,35 @@ export class MiladyClient {
     return this.fetch(
       `/api/knowledge/fragments/${encodeURIComponent(documentId)}`,
     );
+  }
+
+  // Memory commands
+
+  async rememberMemory(text: string): Promise<MemoryRememberResponse> {
+    return this.fetch("/api/memory/remember", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  async searchMemory(
+    query: string,
+    options?: { limit?: number },
+  ): Promise<MemorySearchResponse> {
+    const params = new URLSearchParams({ q: query });
+    if (options?.limit !== undefined)
+      params.set("limit", String(options.limit));
+    return this.fetch(`/api/memory/search?${params}`);
+  }
+
+  async quickContext(
+    query: string,
+    options?: { limit?: number },
+  ): Promise<QuickContextResponse> {
+    const params = new URLSearchParams({ q: query });
+    if (options?.limit !== undefined)
+      params.set("limit", String(options.limit));
+    return this.fetch(`/api/context/quick?${params}`);
   }
 
   // MCP
@@ -3352,17 +3560,11 @@ export class MiladyClient {
     signal?: AbortSignal,
     images?: ImageAttachment[],
   ): Promise<{ text: string; agentName: string }> {
-    if (!this.apiAvailable) {
-      throw new Error("API not available (no HTTP origin)");
-    }
-
-    const token = this.apiToken;
-    const res = await fetch(`${this.baseUrl}${path}`, {
+    const res = await this.rawRequest(path, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "text/event-stream",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         text,
@@ -3371,15 +3573,6 @@ export class MiladyClient {
       }),
       signal,
     });
-
-    if (!res.ok) {
-      const body = (await res
-        .json()
-        .catch(() => ({ error: res.statusText }))) as Record<string, string>;
-      const err = new Error(body.error ?? `HTTP ${res.status}`);
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
-    }
 
     if (!res.body) {
       throw new Error("Streaming not supported by this browser");
@@ -3778,24 +3971,13 @@ export class MiladyClient {
   }
 
   async exportTrajectories(options: TrajectoryExportOptions): Promise<Blob> {
-    if (!this.apiAvailable) {
-      throw new Error("API not available (no HTTP origin)");
-    }
-    const token = this.apiToken;
-    const res = await fetch(`${this.baseUrl}/api/trajectories/export`, {
+    const res = await this.rawRequest("/api/trajectories/export", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(options),
     });
-    if (!res.ok) {
-      const body = (await res
-        .json()
-        .catch(() => ({ error: res.statusText }))) as Record<string, string>;
-      throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
     return res.blob();
   }
 
@@ -4035,6 +4217,290 @@ export class MiladyClient {
     return this.fetch("/api/custom-actions/generate", {
       method: "POST",
       body: JSON.stringify({ prompt }),
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  WhatsApp Pairing
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async getWhatsAppStatus(accountId = "default"): Promise<{
+    accountId: string;
+    status: string;
+    authExists: boolean;
+    serviceConnected: boolean;
+    servicePhone: string | null;
+  }> {
+    return this.fetch(
+      `/api/whatsapp/status?accountId=${encodeURIComponent(accountId)}`,
+    );
+  }
+
+  async startWhatsAppPairing(accountId = "default"): Promise<{
+    ok: boolean;
+    accountId: string;
+    status: string;
+    error?: string;
+  }> {
+    return this.fetch("/api/whatsapp/pair", {
+      method: "POST",
+      body: JSON.stringify({ accountId }),
+    });
+  }
+
+  async stopWhatsAppPairing(accountId = "default"): Promise<{
+    ok: boolean;
+    accountId: string;
+    status: string;
+  }> {
+    return this.fetch("/api/whatsapp/pair/stop", {
+      method: "POST",
+      body: JSON.stringify({ accountId }),
+    });
+  }
+
+  async disconnectWhatsApp(accountId = "default"): Promise<{
+    ok: boolean;
+    accountId: string;
+  }> {
+    return this.fetch("/api/whatsapp/disconnect", {
+      method: "POST",
+      body: JSON.stringify({ accountId }),
+    });
+  }
+
+  // --- Bug Report ---
+
+  async checkBugReportInfo(): Promise<{
+    nodeVersion?: string;
+    platform?: string;
+  }> {
+    return this.fetch("/api/bug-report/info");
+  }
+
+  async submitBugReport(report: {
+    description: string;
+    stepsToReproduce: string;
+    expectedBehavior?: string;
+    actualBehavior?: string;
+    environment?: string;
+    nodeVersion?: string;
+    modelProvider?: string;
+    logs?: string;
+  }): Promise<{ url?: string; fallback?: string }> {
+    return this.fetch("/api/bug-report", {
+      method: "POST",
+      body: JSON.stringify(report),
+    });
+  }
+
+  // ── Coding Agents ───────────────────────────────────────────────────
+
+  async getCodingAgentStatus(): Promise<CodingAgentStatus | null> {
+    try {
+      return await this.fetch<CodingAgentStatus>(
+        "/api/coding-agents/coordinator/status",
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async stopCodingAgent(sessionId: string): Promise<boolean> {
+    try {
+      await this.fetch(
+        `/api/coding-agents/${encodeURIComponent(sessionId)}/stop`,
+        { method: "POST" },
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ── PTY Terminal (xterm.js bridge) ─────────────────────────────────────
+
+  /** Subscribe to live PTY output for a session over WebSocket. */
+  subscribePtyOutput(sessionId: string): void {
+    this.sendWsMessage({ type: "pty-subscribe", sessionId });
+  }
+
+  /** Unsubscribe from live PTY output for a session. */
+  unsubscribePtyOutput(sessionId: string): void {
+    this.sendWsMessage({ type: "pty-unsubscribe", sessionId });
+  }
+
+  /** Send raw keyboard input to a PTY session. */
+  sendPtyInput(sessionId: string, data: string): void {
+    this.sendWsMessage({ type: "pty-input", sessionId, data });
+  }
+
+  /** Resize a PTY session's terminal dimensions. */
+  resizePty(sessionId: string, cols: number, rows: number): void {
+    this.sendWsMessage({ type: "pty-resize", sessionId, cols, rows });
+  }
+
+  /** Fetch buffered terminal output (raw ANSI) for xterm.js hydration. */
+  async getPtyBufferedOutput(sessionId: string): Promise<string> {
+    try {
+      const res = await this.fetch<{ output: string }>(
+        `/api/coding-agents/${encodeURIComponent(sessionId)}/buffered-output`,
+      );
+      return res.output ?? "";
+    } catch {
+      return "";
+    }
+  }
+
+  // ── Stream controls ─────────────────────────────────────────────────────
+
+  async streamGoLive(): Promise<{
+    ok: boolean;
+    live: boolean;
+    rtmpUrl?: string;
+    inputMode?: string;
+    audioSource?: string;
+    message?: string;
+    destination?: string;
+  }> {
+    return this.fetch("/api/stream/live", { method: "POST" });
+  }
+
+  async streamGoOffline(): Promise<{ ok: boolean; live: boolean }> {
+    return this.fetch("/api/stream/offline", { method: "POST" });
+  }
+
+  async streamStatus(): Promise<{
+    ok: boolean;
+    running: boolean;
+    ffmpegAlive: boolean;
+    uptime: number;
+    frameCount: number;
+    volume: number;
+    muted: boolean;
+    audioSource: string;
+    inputMode: string | null;
+    destination?: { id: string; name: string } | null;
+  }> {
+    return this.fetch("/api/stream/status");
+  }
+
+  async getStreamingDestinations(): Promise<{
+    ok: boolean;
+    destinations: Array<{ id: string; name: string }>;
+  }> {
+    return this.fetch("/api/streaming/destinations");
+  }
+
+  async setActiveDestination(destinationId: string): Promise<{
+    ok: boolean;
+    destination?: { id: string; name: string };
+  }> {
+    return this.fetch("/api/streaming/destination", {
+      method: "POST",
+      body: JSON.stringify({ destinationId }),
+    });
+  }
+
+  async setStreamVolume(
+    volume: number,
+  ): Promise<{ ok: boolean; volume: number; muted: boolean }> {
+    return this.fetch("/api/stream/volume", {
+      method: "POST",
+      body: JSON.stringify({ volume }),
+    });
+  }
+
+  async muteStream(): Promise<{ ok: boolean; muted: boolean; volume: number }> {
+    return this.fetch("/api/stream/mute", { method: "POST" });
+  }
+
+  async unmuteStream(): Promise<{
+    ok: boolean;
+    muted: boolean;
+    volume: number;
+  }> {
+    return this.fetch("/api/stream/unmute", { method: "POST" });
+  }
+
+  // ── Stream voice (TTS) ───────────────────────────────────────────────
+
+  async getStreamVoice(): Promise<{
+    ok: boolean;
+    enabled: boolean;
+    autoSpeak: boolean;
+    provider: string | null;
+    configuredProvider: string | null;
+    hasApiKey: boolean;
+    isSpeaking: boolean;
+    isAttached: boolean;
+  }> {
+    return this.fetch("/api/stream/voice");
+  }
+
+  async saveStreamVoice(settings: {
+    enabled?: boolean;
+    autoSpeak?: boolean;
+    provider?: string;
+  }): Promise<{
+    ok: boolean;
+    voice: { enabled: boolean; autoSpeak: boolean };
+  }> {
+    return this.fetch("/api/stream/voice", {
+      method: "POST",
+      body: JSON.stringify(settings),
+    });
+  }
+
+  async streamVoiceSpeak(
+    text: string,
+  ): Promise<{ ok: boolean; speaking: boolean }> {
+    return this.fetch("/api/stream/voice/speak", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  // ── Overlay layout ────────────────────────────────────────────────────
+
+  async getOverlayLayout(
+    destinationId?: string | null,
+  ): Promise<{ ok: boolean; layout: unknown; destinationId?: string }> {
+    const qs = destinationId
+      ? `?destination=${encodeURIComponent(destinationId)}`
+      : "";
+    return this.fetch(`/api/stream/overlay-layout${qs}`);
+  }
+
+  async saveOverlayLayout(
+    layout: unknown,
+    destinationId?: string | null,
+  ): Promise<{ ok: boolean; layout: unknown; destinationId?: string }> {
+    const qs = destinationId
+      ? `?destination=${encodeURIComponent(destinationId)}`
+      : "";
+    return this.fetch(`/api/stream/overlay-layout${qs}`, {
+      method: "POST",
+      body: JSON.stringify({ layout }),
+    });
+  }
+
+  // ── Stream visual settings (theme, avatar for headless parity) ────────
+
+  async getStreamSettings(): Promise<{
+    ok: boolean;
+    settings: { theme?: string; avatarIndex?: number };
+  }> {
+    return this.fetch("/api/stream/settings");
+  }
+
+  async saveStreamSettings(settings: {
+    theme?: string;
+    avatarIndex?: number;
+  }): Promise<{ ok: boolean; settings: unknown }> {
+    return this.fetch("/api/stream/settings", {
+      method: "POST",
+      body: JSON.stringify({ settings }),
     });
   }
 }

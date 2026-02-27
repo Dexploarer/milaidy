@@ -32,6 +32,7 @@ interface ChatViewContextStub {
 
 const { mockClient, mockUseApp, mockUseVoiceChat } = vi.hoisted(() => ({
   mockClient: {
+    getCodingAgentStatus: vi.fn(async () => null),
     getConfig: vi.fn(),
   },
   mockUseApp: vi.fn(),
@@ -427,6 +428,48 @@ describe("ChatView", () => {
     );
     expect(micButton.props["aria-pressed"]).toBe(false);
   });
+
+  it("disables send when chat input is empty or whitespace", async () => {
+    mockUseApp.mockReturnValue(createContext({ chatInput: "   " }));
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(React.createElement(ChatView));
+    });
+    await flush();
+
+    // Find send button by title since we now use an icon instead of text
+    const sendButton = tree?.root.find(
+      (node) => node.type === "button" && node.props.title === "Send message",
+    );
+    expect(sendButton.props.disabled).toBe(true);
+  });
+
+  it("renders a labeled pending-image remove button that stays visible on mobile", async () => {
+    mockUseApp.mockReturnValue(
+      createContext({
+        chatPendingImages: [
+          { data: "abc123", mimeType: "image/png", name: "receipt.png" },
+        ],
+      }),
+    );
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(React.createElement(ChatView));
+    });
+    await flush();
+
+    const removeButton = tree?.root.find(
+      (node) =>
+        node.type === "button" &&
+        node.props["aria-label"] === "Remove image receipt.png",
+    );
+
+    expect(removeButton.props["aria-label"]).toBe("Remove image receipt.png");
+    expect(String(removeButton.props.className)).toContain("opacity-100");
+    expect(String(removeButton.props.className)).toContain("sm:opacity-0");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -440,6 +483,19 @@ describe("addImageFiles functional updater", () => {
   });
 
   it("calls setChatPendingImages with a functional updater, not a static array", async () => {
+    mockUseVoiceChat.mockReturnValue({
+      supported: false,
+      isListening: false,
+      interimTranscript: "",
+      toggleListening: vi.fn(),
+      mouthOpen: 0,
+      isSpeaking: false,
+      usingAudioAnalysis: false,
+      speak: vi.fn(),
+      queueAssistantSpeech: vi.fn(),
+      stopSpeaking: vi.fn(),
+    });
+
     // Synchronous FileReader mock — calls onload immediately so we don't need
     // to wait for real async I/O inside the test.
     class MockFileReader {

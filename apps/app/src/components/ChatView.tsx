@@ -6,6 +6,7 @@
  * Input row at bottom with mic + textarea + send button.
  */
 
+import { Mic, Paperclip, Send, Square } from "lucide-react";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -22,7 +23,7 @@ import {
   useVoiceChat,
   type VoicePlaybackStartEvent,
 } from "../hooks/useVoiceChat";
-import { MessageContent } from "./MessageContent";
+import { ChatEmptyState, ChatMessage, TypingIndicator } from "./ChatMessage";
 
 function nowMs(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -179,7 +180,6 @@ export function ChatView() {
   );
   const agentAvatarSrc =
     selectedVrmIndex > 0 ? getVrmPreviewUrl(selectedVrmIndex) : null;
-  const agentInitial = agentName.trim().charAt(0).toUpperCase() || "A";
 
   useEffect(() => {
     if (agentVoiceMuted) return;
@@ -366,91 +366,29 @@ export function ChatView() {
         style={{ zIndex: 1, scrollbarGutter: "stable both-edges" }}
       >
         {visibleMsgs.length === 0 && !chatSending ? (
-          <div className="text-center py-10 text-muted italic">
-            Send a message to start chatting.
-          </div>
+          <ChatEmptyState agentName={agentName} />
         ) : (
-          <div className="w-full pr-2 sm:pr-3">
+          <div className="w-full pr-2 sm:pr-3 space-y-1">
             {visibleMsgs.map((msg, i) => {
               const prev = i > 0 ? visibleMsgs[i - 1] : null;
-              const grouped = prev?.role === msg.role;
-              const isUser = msg.role === "user";
+              const isGrouped = prev?.role === msg.role;
 
               return (
-                <div
+                <ChatMessage
                   key={msg.id}
-                  className={`flex items-start gap-1.5 sm:gap-2 ${isUser ? "justify-end" : "justify-start"} ${grouped ? "mt-1" : "mt-3"}`}
-                  data-testid="chat-message"
-                  data-role={msg.role}
-                >
-                  {!isUser &&
-                    (grouped ? (
-                      <div className="w-7 h-7 shrink-0" aria-hidden />
-                    ) : (
-                      <div className="w-7 h-7 shrink-0 rounded-full overflow-hidden border border-border bg-bg-hover">
-                        {agentAvatarSrc ? (
-                          <img
-                            src={agentAvatarSrc}
-                            alt={`${agentName} avatar`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-[11px] font-bold text-muted">
-                            {agentInitial}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  <div
-                    className={`max-w-[92%] sm:max-w-[85%] min-w-0 px-0 py-1 text-sm leading-relaxed whitespace-pre-wrap break-words ${isUser ? "mr-1 sm:mr-2" : ""}`}
-                  >
-                    {!grouped && (
-                      <div className="font-bold text-[12px] mb-1 text-accent">
-                        {isUser ? "You" : agentName}
-                        {!isUser &&
-                          typeof msg.source === "string" &&
-                          msg.source &&
-                          msg.source !== "client_chat" && (
-                            <span className="ml-1.5 text-[10px] font-normal text-muted opacity-40">
-                              via {msg.source}
-                            </span>
-                          )}
-                      </div>
-                    )}
-                    <div>
-                      <MessageContent message={msg} />
-                    </div>
-                  </div>
-                </div>
+                  message={msg}
+                  isGrouped={isGrouped}
+                  agentName={agentName}
+                  agentAvatarSrc={agentAvatarSrc}
+                />
               );
             })}
 
             {chatSending && !chatFirstTokenReceived && (
-              <div className="mt-3 flex items-start gap-2 justify-start">
-                <div className="w-7 h-7 shrink-0 rounded-full overflow-hidden border border-border bg-bg-hover">
-                  {agentAvatarSrc ? (
-                    <img
-                      src={agentAvatarSrc}
-                      alt={`${agentName} avatar`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[11px] font-bold text-muted">
-                      {agentInitial}
-                    </div>
-                  )}
-                </div>
-                <div className="max-w-[92%] sm:max-w-[85%] min-w-0 px-0 py-1 pr-1 sm:pr-2 text-sm leading-relaxed">
-                  <div className="font-bold text-[12px] mb-1 text-accent">
-                    {agentName}
-                  </div>
-                  <div className="flex gap-1 py-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-muted-strong animate-[typing-bounce_1.2s_ease-in-out_infinite]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-muted-strong animate-[typing-bounce_1.2s_ease-in-out_infinite_0.2s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-muted-strong animate-[typing-bounce_1.2s_ease-in-out_infinite_0.4s]" />
-                  </div>
-                </div>
-              </div>
+              <TypingIndicator
+                agentName={agentName}
+                agentAvatarSrc={agentAvatarSrc}
+              />
             )}
           </div>
         )}
@@ -494,8 +432,9 @@ export function ChatView() {
               <button
                 type="button"
                 title="Remove image"
+                aria-label={`Remove image ${img.name}`}
                 onClick={() => removeImage(i)}
-                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger text-white text-[10px] flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
               >
                 ×
               </button>
@@ -536,7 +475,7 @@ export function ChatView() {
         {/* Paperclip / image attach button */}
         <button
           type="button"
-          className={`h-[38px] w-[38px] shrink-0 flex items-center justify-center border rounded cursor-pointer transition-all self-end ${
+          className={`h-[38px] w-[38px] shrink-0 flex items-center justify-center border rounded cursor-pointer transition-all duration-200 hover:shadow-sm self-end ${
             chatPendingImages.length > 0
               ? "border-accent bg-accent/10 text-accent"
               : "border-border bg-card text-muted hover:border-accent hover:text-accent"
@@ -546,19 +485,7 @@ export function ChatView() {
           title="Attach image"
           disabled={chatSending}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <title>Attach image</title>
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
+          <Paperclip className="w-4 h-4" />
         </button>
 
         {/* Mic button — user voice input */}
@@ -577,31 +504,11 @@ export function ChatView() {
             aria-pressed={voice.isListening}
             title={voice.isListening ? "Stop listening" : "Voice input"}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill={voice.isListening ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth={voice.isListening ? "0" : "2"}
-            >
-              <title>
-                {voice.isListening ? "Stop listening" : "Voice input"}
-              </title>
-              {voice.isListening ? (
-                <>
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                </>
-              ) : (
-                <>
-                  <path d="M12 1a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </>
-              )}
-            </svg>
+            {voice.isListening ? (
+              <Mic className="w-4 h-4 fill-current" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
           </button>
         )}
 
@@ -630,29 +537,34 @@ export function ChatView() {
         {chatSending ? (
           <button
             type="button"
-            className="h-[38px] shrink-0 px-3 sm:px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 self-end"
+            className="h-[38px] shrink-0 px-3 sm:px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 transition-all duration-200 hover:shadow-sm self-end flex items-center gap-1.5"
             onClick={handleChatStop}
             title="Stop generation"
           >
-            Stop
+            <Square className="w-3 h-3 fill-current" />
+            <span>Stop</span>
           </button>
         ) : voice.isSpeaking ? (
           <button
             type="button"
-            className="h-[38px] shrink-0 px-3 sm:px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 self-end"
+            className="h-[38px] shrink-0 px-3 sm:px-4 py-2 border border-danger bg-danger/10 text-danger text-sm cursor-pointer hover:bg-danger/20 transition-all duration-200 hover:shadow-sm self-end flex items-center gap-1.5"
             onClick={stopSpeaking}
             title="Stop speaking"
           >
-            Stop Voice
+            <Square className="w-3 h-3 fill-current" />
+            <span>Stop Voice</span>
           </button>
         ) : (
           <button
             type="button"
-            className="h-[38px] shrink-0 px-4 sm:px-6 py-2 border border-accent bg-accent text-accent-fg text-sm cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed self-end"
+            className="h-[38px] shrink-0 px-4 sm:px-5 py-2 border border-accent bg-accent text-accent-fg text-sm cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-sm self-end flex items-center gap-1.5"
             onClick={() => void handleChatSend()}
-            disabled={chatSending}
+            disabled={chatSending || !chatInput.trim()}
+            aria-label="Send message"
+            title="Send message"
           >
-            Send
+            <Send className="w-4 h-4" />
+            <span>Send</span>
           </button>
         )}
       </div>

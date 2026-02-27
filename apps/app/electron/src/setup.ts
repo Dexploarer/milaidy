@@ -22,6 +22,7 @@ import {
 import electronIsDev from "electron-is-dev";
 import electronServe from "electron-serve";
 import windowStateKeeper from "electron-window-state";
+import { getScreenCaptureManager } from "./native/screencapture";
 import {
   buildMissingWebAssetsMessage,
   resolveWebAssetDirectory,
@@ -367,8 +368,60 @@ export class ElectronCapacitorApp {
         openExternal(details.url);
         return { action: "deny" };
       }
+      // Popout stream windows get always-on-top, PIP-friendly, frameless treatment.
+      // Only match same-origin URLs (isAllowedUrl passed above) with ?popout param.
+      if (new URL(details.url).searchParams.has("popout")) {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            alwaysOnTop: true,
+            visibleOnAllWorkspaces: true,
+            frame: false,
+            titleBarStyle: "hidden",
+            backgroundColor: "#0a0a0a",
+            fullscreenable: false,
+            minimizable: false,
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: preloadPath,
+            },
+          },
+        };
+      }
       return { action: "allow" };
     });
+
+    // When a popout child window is created, configure PIP behavior and
+    // switch frame capture so retake.tv streams the pop-out StreamView.
+    this.MainWindow.webContents.on(
+      "did-create-window",
+      (childWindow, { url }) => {
+        if (!new URL(url).searchParams.has("popout")) return;
+
+        console.log(
+          "[Setup] Popout window created — configuring PIP + capture target",
+        );
+
+        // PIP: stay above all other windows including fullscreen apps
+        childWindow.setAlwaysOnTop(true, "floating");
+        childWindow.setVisibleOnAllWorkspaces(true, {
+          visibleOnFullScreen: true,
+        });
+
+        // Switch stream capture to the popout window
+        const scm = getScreenCaptureManager();
+        scm.setCaptureTarget(childWindow);
+
+        childWindow.on("closed", () => {
+          console.log(
+            "[Setup] Popout window closed — reverting capture to main window",
+          );
+          scm.setCaptureTarget(null);
+        });
+      },
+    );
+
     this.MainWindow.webContents.on("will-navigate", (event, newURL) => {
       if (!isAllowedUrl(newURL)) {
         event.preventDefault();
@@ -482,7 +535,7 @@ export class ElectronCapacitorApp {
         menuItems.push(
           {
             label: "Open Link in Browser",
-            click: () => shell.openExternal(params.linkURL),
+            click: () => openExternal(params.linkURL),
           },
           {
             label: "Copy Link Address",
@@ -563,6 +616,8 @@ export function setupContentSecurityPolicy(customScheme: string): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     // For sub-frame requests (iframes), strip frame-ancestors so embedded
     // apps like Privy auth can load inside our GameView iframe.
+    // Also strip COOP/COEP headers that break popup-based auth flows
+    // (e.g. Base Smart Wallet SDK requires COOP to NOT be 'same-origin').
     // This is safe because Electron windows are native containers and
     // aren't vulnerable to clickjacking via frame-ancestors.
     if (details.resourceType === "subFrame") {
@@ -579,6 +634,14 @@ export function setupContentSecurityPolicy(customScheme: string): void {
               v.replace(/frame-ancestors\s+[^;]+(;|$)/gi, ""),
             );
           }
+        }
+        // Strip COOP/COEP from subframes — these headers prevent embedded
+        // apps from opening popups for auth flows (Privy, Base Wallet SDK).
+        if (
+          lk === "cross-origin-opener-policy" ||
+          lk === "cross-origin-embedder-policy"
+        ) {
+          delete headers[key];
         }
       }
       callback({ responseHeaders: headers });
@@ -602,11 +665,16 @@ export function setupContentSecurityPolicy(customScheme: string): void {
       `worker-src 'self' blob:`,
     ].join("; ");
 
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        "Content-Security-Policy": [base],
-      },
-    });
+    // For main-frame responses, use 'same-origin-allow-popups' instead of
+    // 'same-origin' for COOP. This allows embedded apps to open popup
+    // windows for auth flows (Privy, Base Smart Wallet SDK) while still
+    // maintaining cross-origin isolation for the main window.
+    const responseHeaders = {
+      ...details.responseHeaders,
+      "Content-Security-Policy": [base],
+      "Cross-Origin-Opener-Policy": ["same-origin-allow-popups"],
+    };
+
+    callback({ responseHeaders });
   });
 }

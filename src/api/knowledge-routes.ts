@@ -1,5 +1,12 @@
 import { lookup as dnsLookup } from "node:dns/promises";
+import {
+  type RequestOptions as HttpRequestOptions,
+  type IncomingMessage,
+  request as requestHttp,
+} from "node:http";
+import { request as requestHttps } from "node:https";
 import net from "node:net";
+import { Readable } from "node:stream";
 import type { AgentRuntime, Memory, UUID } from "@elizaos/core";
 import {
   isBlockedPrivateOrLinkLocalIp,
@@ -61,6 +68,8 @@ interface KnowledgeServiceLike {
 }
 
 const FRAGMENT_COUNT_BATCH_SIZE = 500;
+const KNOWLEDGE_UPLOAD_MAX_BODY_BYTES = 32 * 1_048_576; // 32 MB
+const MAX_BULK_DOCUMENTS = 100;
 const MAX_URL_IMPORT_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_YOUTUBE_WATCH_PAGE_BYTES = 2 * 1024 * 1024; // 2 MB
 const MAX_YOUTUBE_TRANSCRIPT_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -240,30 +249,174 @@ function isBlockedIp(ip: string): boolean {
   return isBlockedPrivateOrLinkLocalIp(ip);
 }
 
-async function resolveUrlSafetyRejection(url: string): Promise<string | null> {
+type ResolvedUrlTarget = {
+  parsed: URL;
+  hostname: string;
+  pinnedAddress: string;
+};
+
+type PinnedFetchInput = {
+  url: URL;
+  init: RequestInit;
+  target: ResolvedUrlTarget;
+  timeoutMs: number;
+};
+
+type PinnedFetchImpl = (input: PinnedFetchInput) => Promise<Response>;
+
+function toRequestHeaders(headers: Headers): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    normalized[key] = value;
+  });
+  return normalized;
+}
+
+function responseFromIncomingMessage(response: IncomingMessage): Response {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(response.headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(key, item);
+    } else if (typeof value === "string") {
+      headers.set(key, value);
+    }
+  }
+
+  const status = response.statusCode ?? 500;
+  const body =
+    status === 204 || status === 205 || status === 304
+      ? null
+      : (Readable.toWeb(response) as ReadableStream<Uint8Array>);
+
+  return new Response(body, {
+    status,
+    statusText: response.statusMessage,
+    headers,
+  });
+}
+
+async function requestWithPinnedAddress(
+  input: PinnedFetchInput,
+): Promise<Response> {
+  const { url, init, target, timeoutMs } = input;
+
+  if (init.body !== undefined && init.body !== null) {
+    throw new Error("URL fetch request body is not supported");
+  }
+
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = toRequestHeaders(new Headers(init.headers));
+  const requestFn = url.protocol === "https:" ? requestHttps : requestHttp;
+  const family = net.isIP(target.pinnedAddress) === 6 ? 6 : 4;
+
+  return await new Promise<Response>((resolve, reject) => {
+    let settled = false;
+    const signal = init.signal;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+      signal?.removeEventListener("abort", onAbort);
+      callback();
+    };
+
+    const onAbort = () => {
+      request.destroy(new DOMException("Aborted", "AbortError"));
+    };
+
+    const requestOptions: HttpRequestOptions = {
+      protocol: url.protocol,
+      hostname: target.hostname,
+      port: url.port ? Number(url.port) : undefined,
+      method,
+      path: `${url.pathname}${url.search}`,
+      headers,
+      lookup: (_hostname, _options, callback) => {
+        callback(null, target.pinnedAddress, family);
+      },
+      ...(url.protocol === "https:"
+        ? { servername: target.hostname }
+        : undefined),
+    };
+
+    const request = requestFn(requestOptions, (response) => {
+      settle(() => resolve(responseFromIncomingMessage(response)));
+    });
+
+    request.on("error", (error) => {
+      settle(() => reject(error));
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
+
+    timeoutHandle = setTimeout(() => {
+      request.destroy(new Error(`URL fetch timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    request.end();
+  });
+}
+
+let pinnedFetchImpl: PinnedFetchImpl = requestWithPinnedAddress;
+
+// Test hook for deterministic network simulation without sockets.
+export function __setPinnedFetchImplForTests(
+  impl: PinnedFetchImpl | null,
+): void {
+  pinnedFetchImpl = impl ?? requestWithPinnedAddress;
+}
+
+async function resolveSafeUrlTarget(url: string): Promise<{
+  rejection: string | null;
+  target: ResolvedUrlTarget | null;
+}> {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return "Invalid URL format";
+    return { rejection: "Invalid URL format", target: null };
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return "Only http:// and https:// URLs are allowed";
+    return {
+      rejection: "Only http:// and https:// URLs are allowed",
+      target: null,
+    };
   }
 
   const hostname = normalizeHostLike(parsed.hostname);
-  if (!hostname) return "URL hostname is required";
+  if (!hostname) return { rejection: "URL hostname is required", target: null };
 
   if (BLOCKED_HOST_LITERALS.has(hostname)) {
-    return `URL host "${hostname}" is blocked for security reasons`;
+    return {
+      rejection: `URL host "${hostname}" is blocked for security reasons`,
+      target: null,
+    };
   }
 
   if (net.isIP(hostname)) {
     if (isBlockedIp(hostname)) {
-      return `URL host "${hostname}" is blocked for security reasons`;
+      return {
+        rejection: `URL host "${hostname}" is blocked for security reasons`,
+        target: null,
+      };
     }
-    return null;
+    return {
+      rejection: null,
+      target: {
+        parsed,
+        hostname,
+        pinnedAddress: hostname,
+      },
+    };
   }
 
   let addresses: Array<{ address: string }>;
@@ -271,19 +424,60 @@ async function resolveUrlSafetyRejection(url: string): Promise<string | null> {
     const resolved = await dnsLookup(hostname, { all: true });
     addresses = Array.isArray(resolved) ? resolved : [resolved];
   } catch {
-    return `Could not resolve URL host "${hostname}"`;
+    return {
+      rejection: `Could not resolve URL host "${hostname}"`,
+      target: null,
+    };
   }
 
   if (addresses.length === 0) {
-    return `Could not resolve URL host "${hostname}"`;
+    return {
+      rejection: `Could not resolve URL host "${hostname}"`,
+      target: null,
+    };
   }
   for (const entry of addresses) {
     if (isBlockedIp(entry.address)) {
-      return `URL host "${hostname}" resolves to blocked address ${entry.address}`;
+      return {
+        rejection: `URL host "${hostname}" resolves to blocked address ${entry.address}`,
+        target: null,
+      };
     }
   }
 
-  return null;
+  return {
+    rejection: null,
+    target: {
+      parsed,
+      hostname,
+      pinnedAddress: addresses[0]?.address ?? "",
+    },
+  };
+}
+
+async function fetchWithSafety(
+  url: string,
+  init: RequestInit,
+  timeoutMs = URL_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const { rejection, target } = await resolveSafeUrlTarget(url);
+  if (rejection || !target || !target.pinnedAddress) {
+    throw new Error(rejection ?? "URL validation failed");
+  }
+
+  try {
+    return await pinnedFetchImpl({
+      url: target.parsed,
+      init,
+      target,
+      timeoutMs,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error(`URL fetch timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -313,7 +507,7 @@ function extractYouTubeVideoId(url: string): string | null {
 async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
   // Fetch the video page to get transcript data
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const response = await fetchWithTimeout(watchUrl, {
+  const response = await fetchWithSafety(watchUrl, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -355,7 +549,7 @@ async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
     .replace(/\\\//g, "/");
 
   // Fetch the transcript
-  const transcriptResponse = await fetchWithTimeout(captionUrl, {});
+  const transcriptResponse = await fetchWithSafety(captionUrl, {});
   if (!transcriptResponse.ok) {
     return null;
   }
@@ -406,42 +600,6 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException
     ? error.name === "AbortError"
     : error instanceof Error && error.name === "AbortError";
-}
-
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs = URL_FETCH_TIMEOUT_MS,
-): Promise<Response> {
-  const controller = new AbortController();
-  const upstreamSignal = init.signal;
-  const onAbort = () => controller.abort();
-
-  if (upstreamSignal) {
-    if (upstreamSignal.aborted) {
-      controller.abort();
-    } else {
-      upstreamSignal.addEventListener("abort", onAbort, { once: true });
-    }
-  }
-
-  const timeoutHandle = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw new Error(`URL fetch timed out after ${timeoutMs}ms`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutHandle);
-    if (upstreamSignal) {
-      upstreamSignal.removeEventListener("abort", onAbort);
-    }
-  }
 }
 
 async function readResponseBodyWithLimit(
@@ -526,7 +684,7 @@ async function fetchUrlContent(
   }
 
   // Regular URL fetch
-  const response = await fetchWithTimeout(url, {
+  const response = await fetchWithSafety(url, {
     redirect: "manual",
     headers: {
       "User-Agent":
@@ -741,15 +899,53 @@ export async function handleKnowledgeRoutes(
     return true;
   }
 
+  type KnowledgeUploadDocumentBody = {
+    content: string;
+    filename: string;
+    contentType?: string;
+    metadata?: Record<string, unknown>;
+  };
+
+  async function addKnowledgeDocument(
+    service: KnowledgeServiceLike,
+    document: KnowledgeUploadDocumentBody,
+  ): Promise<{
+    documentId: UUID;
+    fragmentCount: number;
+    warnings?: string[];
+  }> {
+    const result = await service.addKnowledge({
+      agentId,
+      worldId: agentId,
+      roomId: agentId,
+      entityId: agentId,
+      clientDocumentId: "" as UUID, // Will be generated
+      contentType: document.contentType || "text/plain",
+      originalFilename: document.filename,
+      content: document.content,
+      metadata: document.metadata,
+    });
+
+    const warningsValue = (result as { warnings?: unknown }).warnings;
+    const warnings = Array.isArray(warningsValue)
+      ? warningsValue.filter(
+          (warning): warning is string => typeof warning === "string",
+        )
+      : undefined;
+
+    return {
+      documentId: result.clientDocumentId,
+      fragmentCount: result.fragmentCount,
+      warnings,
+    };
+  }
+
   // ── POST /api/knowledge/documents ───────────────────────────────────────
   // Upload document from base64 content or text
   if (method === "POST" && pathname === "/api/knowledge/documents") {
-    const body = await readJsonBody<{
-      content: string;
-      filename: string;
-      contentType?: string;
-      metadata?: Record<string, unknown>;
-    }>(req, res);
+    const body = await readJsonBody<KnowledgeUploadDocumentBody>(req, res, {
+      maxBytes: KNOWLEDGE_UPLOAD_MAX_BODY_BYTES,
+    });
     if (!body) return true;
 
     if (!body.content || !body.filename) {
@@ -757,22 +953,105 @@ export async function handleKnowledgeRoutes(
       return true;
     }
 
-    const result = await knowledgeService.addKnowledge({
-      agentId,
-      worldId: agentId,
-      roomId: agentId,
-      entityId: agentId,
-      clientDocumentId: "" as UUID, // Will be generated
-      contentType: body.contentType || "text/plain",
-      originalFilename: body.filename,
-      content: body.content,
-      metadata: body.metadata,
-    });
+    const result = await addKnowledgeDocument(knowledgeService, body);
 
     json(res, {
       ok: true,
-      documentId: result.clientDocumentId,
+      documentId: result.documentId,
       fragmentCount: result.fragmentCount,
+      warnings: result.warnings,
+    });
+    return true;
+  }
+
+  // ── POST /api/knowledge/documents/bulk ──────────────────────────────────
+  if (method === "POST" && pathname === "/api/knowledge/documents/bulk") {
+    const body = await readJsonBody<{
+      documents?: KnowledgeUploadDocumentBody[];
+    }>(req, res, {
+      maxBytes: KNOWLEDGE_UPLOAD_MAX_BODY_BYTES,
+    });
+    if (!body) return true;
+
+    if (!Array.isArray(body.documents) || body.documents.length === 0) {
+      error(res, "documents array is required");
+      return true;
+    }
+
+    if (body.documents.length > MAX_BULK_DOCUMENTS) {
+      error(
+        res,
+        `documents array exceeds limit (${MAX_BULK_DOCUMENTS} per request)`,
+      );
+      return true;
+    }
+
+    const results: Array<{
+      index: number;
+      ok: boolean;
+      filename: string;
+      documentId?: UUID;
+      fragmentCount?: number;
+      error?: string;
+      warnings?: string[];
+    }> = [];
+
+    for (const [index, document] of body.documents.entries()) {
+      const filename = document?.filename || `document-${index + 1}`;
+      if (
+        typeof document?.content !== "string" ||
+        typeof document?.filename !== "string" ||
+        document.content.trim().length === 0 ||
+        document.filename.trim().length === 0
+      ) {
+        results.push({
+          index,
+          ok: false,
+          filename,
+          error: "content and filename must be non-empty strings",
+        });
+        continue;
+      }
+
+      const normalizedDocument: KnowledgeUploadDocumentBody = {
+        ...document,
+        content: document.content,
+        filename: document.filename.trim(),
+      };
+
+      try {
+        const uploadResult = await addKnowledgeDocument(
+          knowledgeService,
+          normalizedDocument,
+        );
+        results.push({
+          index,
+          ok: true,
+          filename,
+          documentId: uploadResult.documentId,
+          fragmentCount: uploadResult.fragmentCount,
+          warnings: uploadResult.warnings,
+        });
+      } catch (err) {
+        results.push({
+          index,
+          ok: false,
+          filename,
+          error:
+            err instanceof Error ? err.message : "Failed to upload document",
+        });
+      }
+    }
+
+    const successCount = results.filter((item) => item.ok).length;
+    const failureCount = results.length - successCount;
+
+    json(res, {
+      ok: failureCount === 0,
+      total: results.length,
+      successCount,
+      failureCount,
+      results,
     });
     return true;
   }
@@ -792,11 +1071,6 @@ export async function handleKnowledgeRoutes(
     }
 
     const urlToFetch = body.url.trim();
-    const safetyRejection = await resolveUrlSafetyRejection(urlToFetch);
-    if (safetyRejection) {
-      error(res, safetyRejection);
-      return true;
-    }
 
     // Fetch and process the URL content
     let content: string;

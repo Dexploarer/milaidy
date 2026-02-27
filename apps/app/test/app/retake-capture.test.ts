@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,21 +18,25 @@ function HookHost({
 }
 
 describe("useRetakeCapture", () => {
-  let setIntervalSpy: ReturnType<typeof vi.spyOn>;
-  let clearIntervalSpy: ReturnType<typeof vi.spyOn>;
+  const mockInvoke = vi.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
-    vi.useFakeTimers();
-    setIntervalSpy = vi.spyOn(globalThis, "setInterval");
-    clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    // The hook now uses window.electron?.ipcRenderer.invoke
+    Object.defineProperty(window, "electron", {
+      value: { ipcRenderer: { invoke: mockInvoke } },
+      writable: true,
+      configurable: true,
+    });
+    mockInvoke.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
+    // @ts-expect-error cleanup electron stub
+    delete window.electron;
   });
 
-  it("does not create an interval when active is false", () => {
+  it("does not start capture when active is false", () => {
     const iframeRef = {
       current: null,
     } as React.RefObject<HTMLIFrameElement | null>;
@@ -42,10 +47,13 @@ describe("useRetakeCapture", () => {
       );
     });
 
-    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "screencapture:startFrameCapture",
+      expect.anything(),
+    );
   });
 
-  it("cleans up interval on unmount", () => {
+  it("cleans up capture on unmount", () => {
     const iframeRef = {
       current: null,
     } as React.RefObject<HTMLIFrameElement | null>;
@@ -57,12 +65,15 @@ describe("useRetakeCapture", () => {
       );
     });
 
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(mockInvoke).toHaveBeenCalledWith(
+      "screencapture:startFrameCapture",
+      expect.objectContaining({ fps: expect.any(Number) }),
+    );
 
     act(() => {
       renderer.unmount();
     });
 
-    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(mockInvoke).toHaveBeenCalledWith("screencapture:stopFrameCapture");
   });
 });

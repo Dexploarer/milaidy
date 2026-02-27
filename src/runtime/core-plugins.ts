@@ -15,6 +15,7 @@ export const CORE_PLUGINS: readonly string[] = [
   "@elizaos/plugin-rolodex", // contact graph and relationship/social memory
   "@elizaos/plugin-trajectory-logger", // trajectory logging for debugging and RL training
   "@elizaos/plugin-agent-orchestrator", // multi-agent orchestration
+  "@elizaos/plugin-coding-agent", // coding agent PTY/SwarmCoordinator
   "@elizaos/plugin-cron", // scheduled jobs and automation
   "@elizaos/plugin-shell", // shell command execution
   "@elizaos/plugin-plugin-manager", // dynamic plugin management
@@ -34,6 +35,7 @@ export const OPTIONAL_CORE_PLUGINS: readonly string[] = [
   // "@elizaos/plugin-cli", // CLI interface
   "@elizaos/plugin-code", // code writing and file operations
   "@elizaos/plugin-repoprompt", // RepoPrompt CLI integration and workflow orchestration
+  "@elizaos/plugin-claude-code-workbench", // Claude Code companion workflows for this monorepo
   // "@elizaos/plugin-edge-tts", // text-to-speech
   // "@elizaos/plugin-mcp", // MCP protocol support
   // "@elizaos/plugin-computeruse", // computer use automation

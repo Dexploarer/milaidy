@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React, { useEffect } from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,6 +48,7 @@ const { mockClient } = vi.hoisted(() => ({
     getWalletAddresses: vi.fn(async () => null),
     getConfig: vi.fn(async () => ({})),
     getCloudStatus: vi.fn(async () => ({ enabled: false, connected: false })),
+    getCodingAgentStatus: vi.fn(async () => null),
     getWorkbenchOverview: vi.fn(async () => ({
       tasks: [],
       triggers: [],
@@ -94,10 +96,15 @@ function Probe(props: { onReady: (api: ProbeApi) => void }) {
 
 describe("pairing submit locking", () => {
   beforeEach(() => {
-    Object.assign(window.location, {
-      protocol: "file:",
-      pathname: "/chat",
-      reload: vi.fn(),
+    Object.defineProperty(window, "location", {
+      value: {
+        ...window.location,
+        protocol: "file:",
+        pathname: "/chat",
+        reload: vi.fn(),
+      },
+      writable: true,
+      configurable: true,
     });
     Object.assign(window, {
       setTimeout: globalThis.setTimeout,

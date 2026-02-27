@@ -231,9 +231,12 @@ describe("Token auth gate (MILADY_API_TOKEN set)", () => {
   let close: () => Promise<void>;
   let envBackup: { restore: () => void };
 
+  const TERMINAL_TOKEN = "test-terminal-token-def456";
+
   beforeAll(async () => {
-    envBackup = saveEnv("MILADY_API_TOKEN", "MILADY_PAIRING_DISABLED");
+    envBackup = saveEnv("MILADY_API_TOKEN", "MILADY_PAIRING_DISABLED", "MILADY_TERMINAL_RUN_TOKEN");
     process.env.MILADY_API_TOKEN = TEST_TOKEN;
+    process.env.MILADY_TERMINAL_RUN_TOKEN = TERMINAL_TOKEN;
     delete process.env.MILADY_PAIRING_DISABLED;
 
     const server = await startApiServer({ port: 0 });
@@ -390,11 +393,67 @@ describe("Token auth gate (MILADY_API_TOKEN set)", () => {
       port,
       "POST",
       "/api/terminal/run",
-      { command: "echo auth-gate" },
+      { command: "echo auth-gate", terminalToken: TERMINAL_TOKEN },
       auth,
     );
     // shell policy may still deny execution, but auth gate must pass
     expect(status).not.toBe(401);
+  });
+
+  it("protects sensitive config mutation surfaces with token auth", async () => {
+    const auth = { headers: { Authorization: `Bearer ${TEST_TOKEN}` } };
+
+    const mutationRequests: Array<{
+      method: string;
+      path: string;
+      body?: Record<string, unknown>;
+      expectedWithAuth: number;
+    }> = [
+      {
+        method: "PUT",
+        path: "/api/config",
+        body: { features: { browser: true } },
+        expectedWithAuth: 200,
+      },
+      {
+        method: "PUT",
+        path: "/api/secrets",
+        body: { secrets: {} },
+        expectedWithAuth: 200,
+      },
+      {
+        method: "POST",
+        path: "/api/connectors",
+        body: { name: "auth-gate-test", config: { enabled: true } },
+        expectedWithAuth: 200,
+      },
+      {
+        method: "DELETE",
+        path: "/api/connectors/auth-gate-test",
+        expectedWithAuth: 200,
+      },
+      // Note: MCP config endpoints have additional security gates (terminal auth, URL validation)
+      // that are tested separately in server.mcp-config-validation.test.ts
+    ];
+
+    for (const testCase of mutationRequests) {
+      const { status: noAuthStatus } = await req(
+        port,
+        testCase.method,
+        testCase.path,
+        testCase.body,
+      );
+      expect(noAuthStatus).toBe(401);
+
+      const { status: withAuthStatus } = await req(
+        port,
+        testCase.method,
+        testCase.path,
+        testCase.body,
+        auth,
+      );
+      expect(withAuthStatus).toBe(testCase.expectedWithAuth);
+    }
   });
 });
 

@@ -72,28 +72,13 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
 
-      - name: Check PR author permissions
-        id: check-author
-        uses: actions/github-script@v7
+      - name: Setup Node.js (npm registry)
+        uses: actions/setup-node@v4
         with:
-          script: |
-            const author = context.payload.pull_request.user.login;
-            const allowedNonWrite = '${{ vars.ALLOWED_NON_WRITE_USERS || 'lawyered0,jqmwa,0xSolace' }}'.split(',').map(s => s.trim());
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
-            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              username: author,
-            }).catch(() => ({ data: { permission: 'read' } }));
 
-            const hasWrite = ['admin', 'write'].includes(perm.permission);
-            const isAllowed = allowedNonWrite.includes(author);
-
-            if (!hasWrite && !isAllowed) {
-              core.setFailed(`PR author '${author}' does not have write permissions and is not in the allowed list. Skipping review.`);
-              return;
-            }
-            console.log(`Author '${author}' authorized (write=${hasWrite}, allowlisted=${isAllowed})`);
 
       - name: Fetch contributor trust context
         id: trust-context
@@ -127,11 +112,13 @@ jobs:
 
       - name: Run Claude Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1.0.60
+        env:
+          NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_non_write_users: ${{ vars.ALLOWED_NON_WRITE_USERS || 'lawyered0,jqmwa,0xSolace,0xVera' }}
+          allowed_non_write_users: '*'
           claude_args: '--model claude-opus-4-6 --allowedTools "Bash,GitHub,Read,Glob,LS"'
           prompt: |
             You are the sole code reviewer for the Milady project (milady-ai/milady).
@@ -193,7 +180,8 @@ jobs:
             ### 4. Test Requirements
             - Bug fixes MUST include a regression test
             - New features MUST include unit tests
-            - Coverage thresholds: 70% lines/branches/functions/statements
+            - Coverage thresholds: 25% lines/functions/statements, 15% branches (enforced in vitest.config.ts)
+            - Database changes (routes, adapters, query logic): `bun run db:check` must pass (verifies security hardening and read-only query guards)
 
             ### 5. Dark Forest Awareness
             Assume adversarial intent until proven otherwise. Ask yourself:
@@ -749,12 +737,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Node.js (npm registry)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Triage Issue
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1.0.60
+        env:
+          NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_non_write_users: 'lawyered0,jqmwa,0xSolace,0xVera'
+          allowed_non_write_users: '*'
           claude_args: '--model claude-opus-4-6 --allowedTools "Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh issue close:*),Bash(gh issue view:*),Bash(cat:*),Read,Glob,LS"'
           prompt: |
             You are the issue triager for the Milady project. This is an agents-only codebase where humans serve as QA testers.

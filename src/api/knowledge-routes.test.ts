@@ -1,8 +1,11 @@
 import * as dns from "node:dns/promises";
 import type { AgentRuntime, Memory, UUID } from "@elizaos/core";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createRouteInvoker } from "../test-support/route-test-helpers.js";
-import { handleKnowledgeRoutes } from "./knowledge-routes.js";
+import {
+  __setPinnedFetchImplForTests,
+  handleKnowledgeRoutes,
+} from "./knowledge-routes.js";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(),
@@ -34,6 +37,9 @@ describe("knowledge routes", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    __setPinnedFetchImplForTests(({ url, init }) => {
+      return fetch(url.toString(), init);
+    });
     addKnowledgeMock = vi.fn(async () => ({
       clientDocumentId: uuid(1111),
       storedDocumentMemoryId: uuid(1112),
@@ -56,6 +62,10 @@ describe("knowledge routes", () => {
         name === "knowledge" ? knowledgeService : null,
       getServiceLoadPromise: async () => undefined,
     } as unknown as AgentRuntime;
+  });
+
+  afterEach(() => {
+    __setPinnedFetchImplForTests(null);
   });
 
   const invoke = createRouteInvoker<
@@ -401,6 +411,160 @@ describe("knowledge routes", () => {
     expect(result.payload).toMatchObject({ ok: true, deletedFragments: 1 });
   });
 
+  test("bulk document upload ingests valid documents and reports validation errors", async () => {
+    addKnowledgeMock
+      .mockResolvedValueOnce({
+        clientDocumentId: uuid(3001),
+        storedDocumentMemoryId: uuid(3101),
+        fragmentCount: 2,
+      })
+      .mockResolvedValueOnce({
+        clientDocumentId: uuid(3002),
+        storedDocumentMemoryId: uuid(3102),
+        fragmentCount: 1,
+      });
+
+    const result = await invoke({
+      method: "POST",
+      pathname: "/api/knowledge/documents/bulk",
+      body: {
+        documents: [
+          {
+            content: "alpha",
+            filename: "docs/alpha.md",
+            contentType: "text/markdown",
+          },
+          {
+            content: "missing filename",
+            filename: "",
+          },
+          {
+            content: "beta",
+            filename: "docs/beta.txt",
+            contentType: "text/plain",
+          },
+        ],
+      },
+    });
+
+    expect(result.status).toBe(200);
+    expect(addKnowledgeMock).toHaveBeenCalledTimes(2);
+    expect(addKnowledgeMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        originalFilename: "docs/alpha.md",
+        content: "alpha",
+      }),
+    );
+    expect(addKnowledgeMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        originalFilename: "docs/beta.txt",
+        content: "beta",
+      }),
+    );
+    expect(result.payload).toMatchObject({
+      ok: false,
+      total: 3,
+      successCount: 2,
+      failureCount: 1,
+    });
+    expect(
+      (result.payload as { results: Array<{ index: number; ok: boolean }> })
+        .results,
+    ).toEqual([
+      expect.objectContaining({
+        index: 0,
+        ok: true,
+        filename: "docs/alpha.md",
+      }),
+      expect.objectContaining({
+        index: 1,
+        ok: false,
+        error: "content and filename must be non-empty strings",
+      }),
+      expect.objectContaining({
+        index: 2,
+        ok: true,
+        filename: "docs/beta.txt",
+      }),
+    ]);
+  });
+
+  test("bulk document upload continues when one document fails", async () => {
+    addKnowledgeMock
+      .mockResolvedValueOnce({
+        clientDocumentId: uuid(3201),
+        storedDocumentMemoryId: uuid(3301),
+        fragmentCount: 2,
+      })
+      .mockRejectedValueOnce(new Error("embedding service unavailable"));
+
+    const result = await invoke({
+      method: "POST",
+      pathname: "/api/knowledge/documents/bulk",
+      body: {
+        documents: [
+          {
+            content: "first",
+            filename: "batch/first.md",
+            contentType: "text/markdown",
+          },
+          {
+            content: "second",
+            filename: "batch/second.md",
+            contentType: "text/markdown",
+          },
+        ],
+      },
+    });
+
+    expect(result.status).toBe(200);
+    expect(addKnowledgeMock).toHaveBeenCalledTimes(2);
+    expect(result.payload).toMatchObject({
+      ok: false,
+      total: 2,
+      successCount: 1,
+      failureCount: 1,
+    });
+    expect(
+      (result.payload as { results: Array<{ index: number; ok: boolean }> })
+        .results,
+    ).toEqual([
+      expect.objectContaining({
+        index: 0,
+        ok: true,
+        filename: "batch/first.md",
+      }),
+      expect.objectContaining({
+        index: 1,
+        ok: false,
+        filename: "batch/second.md",
+        error: "embedding service unavailable",
+      }),
+    ]);
+  });
+
+  test("bulk document upload rejects requests exceeding max document count", async () => {
+    const result = await invoke({
+      method: "POST",
+      pathname: "/api/knowledge/documents/bulk",
+      body: {
+        documents: Array.from({ length: 101 }, (_, index) => ({
+          content: `doc-${index}`,
+          filename: `doc-${index}.md`,
+          contentType: "text/markdown",
+        })),
+      },
+    });
+
+    expect(result.status).toBe(400);
+    expect((result.payload as { error?: string }).error).toContain(
+      "exceeds limit",
+    );
+    expect(addKnowledgeMock).not.toHaveBeenCalled();
+  });
+
   test("blocks URL import to loopback hosts", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -447,6 +611,37 @@ describe("knowledge routes", () => {
     expect((result.payload as { error?: string }).error).toContain("blocked");
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(addKnowledgeMock).not.toHaveBeenCalled();
+  });
+
+  test("pins URL import connection to the validated DNS address", async () => {
+    const lookupSpy = vi
+      .spyOn(dns, "lookup")
+      .mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    const transportSpy = vi.fn(async () => {
+      return new Response("hello", {
+        status: 200,
+        headers: new Headers({ "content-type": "text/plain; charset=utf-8" }),
+      });
+    });
+    __setPinnedFetchImplForTests(transportSpy);
+
+    const result = await invoke({
+      method: "POST",
+      pathname: "/api/knowledge/documents/url",
+      body: { url: "https://example.com/rebind" },
+    });
+
+    expect(result.status).toBe(200);
+    expect(lookupSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(transportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: expect.objectContaining({
+          hostname: "example.com",
+          pinnedAddress: "93.184.216.34",
+        }),
+      }),
+    );
+    expect(addKnowledgeMock).toHaveBeenCalledTimes(1);
   });
 
   test("allows URL import for public hosts", async () => {

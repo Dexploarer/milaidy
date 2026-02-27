@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useApp } from "../AppContext";
 import type {
@@ -7,6 +8,7 @@ import type {
   WorkbenchTodo,
 } from "../api-client";
 import { ChatAvatar } from "./ChatAvatar";
+import { CodingAgentsSection } from "./CodingAgentsSection";
 import { formatTime } from "./shared/format";
 
 function getEventText(event: StreamEventEnvelope): string {
@@ -45,6 +47,37 @@ function isActionStream(stream: string | undefined): boolean {
   return stream === "action" || stream === "tool" || stream === "provider";
 }
 
+function formatRunId(runId: string): string {
+  if (runId.length <= 16) return runId;
+  return `${runId.slice(0, 8)}…${runId.slice(-6)}`;
+}
+
+function getRunHealthBadgeClasses(status: string): string {
+  switch (status) {
+    case "gap_detected":
+      return "border-danger text-danger bg-danger/10";
+    case "partial":
+      return "border-accent text-accent bg-accent/10";
+    case "recovered":
+      return "border-ok text-ok bg-ok/10";
+    default:
+      return "border-border text-muted bg-card";
+  }
+}
+
+function getRunHealthLabel(status: string): string {
+  switch (status) {
+    case "gap_detected":
+      return "Gap detected";
+    case "partial":
+      return "Partial";
+    case "recovered":
+      return "Recovered";
+    default:
+      return "OK";
+  }
+}
+
 interface AutonomousPanelProps {
   mobile?: boolean;
   onClose?: () => void;
@@ -57,6 +90,8 @@ export function AutonomousPanel({
   const {
     agentStatus,
     autonomousEvents,
+    autonomousRunHealthByRunId,
+    ptySessions,
     workbench,
     workbenchLoading,
     workbenchTasksAvailable,
@@ -92,6 +127,22 @@ export function AutonomousPanel({
         .reverse()
         .find((event) => isActionStream(event.stream)),
     [autonomousEvents],
+  );
+  const runHealthRows = useMemo(
+    () =>
+      Object.values(autonomousRunHealthByRunId).sort((left, right) => {
+        const unresolvedLeft = left.missingSeqs.length > 0 ? 1 : 0;
+        const unresolvedRight = right.missingSeqs.length > 0 ? 1 : 0;
+        if (unresolvedLeft !== unresolvedRight) {
+          return unresolvedRight - unresolvedLeft;
+        }
+        return left.runId.localeCompare(right.runId);
+      }),
+    [autonomousRunHealthByRunId],
+  );
+  const unresolvedRunCount = useMemo(
+    () => runHealthRows.filter((row) => row.missingSeqs.length > 0).length,
+    [runHealthRows],
   );
 
   const isAgentStopped = agentStatus?.state === "stopped" || !agentStatus;
@@ -155,7 +206,61 @@ export function AutonomousPanel({
                 </div>
               </div>
             </div>
+            <div className="mt-3 border border-border rounded bg-card/60 px-2 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] text-muted uppercase">
+                  Replay Health
+                </div>
+                <span
+                  className={`px-1.5 py-0.5 text-[10px] border ${unresolvedRunCount > 0 ? "border-danger text-danger" : "border-ok text-ok"}`}
+                >
+                  {unresolvedRunCount > 0
+                    ? `Gaps ${unresolvedRunCount}`
+                    : "No gaps"}
+                </span>
+              </div>
+              {runHealthRows.length === 0 ? (
+                <div className="mt-1 text-[11px] text-muted">
+                  No replay diagnostics yet
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-col gap-1 max-h-[120px] overflow-y-auto">
+                  {runHealthRows.map((row) => (
+                    <div
+                      key={row.runId}
+                      className="flex items-center justify-between gap-2 text-[11px]"
+                    >
+                      <span className="text-muted font-mono">
+                        {formatRunId(row.runId)}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {row.lastSeq !== null && (
+                          <span className="px-1.5 py-0.5 border border-border text-muted">
+                            seq {row.lastSeq}
+                          </span>
+                        )}
+                        {row.missingSeqs.length > 0 && (
+                          <span className="px-1.5 py-0.5 border border-danger text-danger">
+                            missing {row.missingSeqs.slice(0, 3).join(",")}
+                            {row.missingSeqs.length > 3 ? ",…" : ""}
+                          </span>
+                        )}
+                        <span
+                          className={`px-1.5 py-0.5 border ${getRunHealthBadgeClasses(row.status)}`}
+                        >
+                          {getRunHealthLabel(row.status)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {ptySessions.length > 0 && (
+            <CodingAgentsSection sessions={ptySessions} />
+          )}
 
           <div className="border-b border-border">
             <button
@@ -164,7 +269,13 @@ export function AutonomousPanel({
               onClick={() => setEventsCollapsed(!eventsCollapsed)}
             >
               <span>Event Stream ({events.length})</span>
-              <span>{eventsCollapsed ? "▶" : "▼"}</span>
+              <span>
+                {eventsCollapsed ? (
+                  <ChevronRight className="w-3 h-3" />
+                ) : (
+                  <ChevronDown className="w-3 h-3" />
+                )}
+              </span>
             </button>
             {!eventsCollapsed && (
               <div className="px-3 pb-2 max-h-[320px] overflow-y-auto space-y-2">
@@ -185,6 +296,31 @@ export function AutonomousPanel({
                         <span className="text-[11px] text-muted">
                           {formatTime(event.ts, { fallback: "—" })}
                         </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1 flex-wrap">
+                        {typeof event.runId === "string" && event.runId && (
+                          <span className="px-1.5 py-0.5 text-[10px] border border-border text-muted font-mono">
+                            run {formatRunId(event.runId)}
+                          </span>
+                        )}
+                        {typeof event.seq === "number" &&
+                          Number.isFinite(event.seq) && (
+                            <span className="px-1.5 py-0.5 text-[10px] border border-border text-muted">
+                              seq {Math.trunc(event.seq)}
+                            </span>
+                          )}
+                        {typeof event.runId === "string" &&
+                          autonomousRunHealthByRunId[event.runId] && (
+                            <span
+                              className={`px-1.5 py-0.5 text-[10px] border ${getRunHealthBadgeClasses(
+                                autonomousRunHealthByRunId[event.runId].status,
+                              )}`}
+                            >
+                              {getRunHealthLabel(
+                                autonomousRunHealthByRunId[event.runId].status,
+                              )}
+                            </span>
+                          )}
                       </div>
                       <div className="text-[12px] text-txt mt-1 break-words">
                         {getEventText(event)}
@@ -210,7 +346,13 @@ export function AutonomousPanel({
                     onClick={() => setTasksCollapsed(!tasksCollapsed)}
                   >
                     <span>Tasks ({tasks.length})</span>
-                    <span>{tasksCollapsed ? "▶" : "▼"}</span>
+                    <span>
+                      {tasksCollapsed ? (
+                        <ChevronRight className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </span>
                   </button>
                   {!tasksCollapsed && (
                     <div className="px-3 py-2">
@@ -264,7 +406,13 @@ export function AutonomousPanel({
                     onClick={() => setTriggersCollapsed(!triggersCollapsed)}
                   >
                     <span>Triggers ({triggers.length})</span>
-                    <span>{triggersCollapsed ? "▶" : "▼"}</span>
+                    <span>
+                      {triggersCollapsed ? (
+                        <ChevronRight className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </span>
                   </button>
                   {!triggersCollapsed && (
                     <div className="px-3 py-2">
@@ -299,7 +447,13 @@ export function AutonomousPanel({
                     onClick={() => setTodosCollapsed(!todosCollapsed)}
                   >
                     <span>Todos ({todos.length})</span>
-                    <span>{todosCollapsed ? "▶" : "▼"}</span>
+                    <span>
+                      {todosCollapsed ? (
+                        <ChevronRight className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </span>
                   </button>
                   {!todosCollapsed && (
                     <div className="px-3 py-2">

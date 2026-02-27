@@ -12,10 +12,15 @@ apps/app/electron/build/
 # Build artifacts
 *.bun-build
 **/*.bun-build
+*.tsbuildinfo
+apps/app/electron/tsc-out/
+
+# TypeScript declaration build outputs inside source dirs
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
 
 # Lock files (managed at repo root)
 package-lock.json
-bun.lock
 bun.lockb
 !deploy/cloud-agent-template/package-lock.json
 
@@ -29,11 +34,13 @@ apps/ui/test-results/
 
 # Vendored repos (clone separately if needed)
 vendor/
+plugins/plugin-blooio/
 
 # Local untracked files
 .local/
 .vscode/
 .claude/settings.local.json
+.claude/skills/
 .git-workspace/
 IDENTITY.md
 USER.md
@@ -41,18 +48,27 @@ USER.md
 .eliza/
 .eliza.broken.*/
 .turbo/
-skills/
+skills/*
+!skills/README.md
+!skills/integration-dod-map/
+skills/integration-dod-map/*
+!skills/integration-dod-map/SKILL.md
 apps/app/electron/.eliza
 apps/app/electron/skills/
 
 # Local workspace clones / scratch dirs
 milady-workspace/
+assets/
 
 # Temporary capture files
 temp_capture_*.jpg
 knip_output*.txt
 src/benchmark/mock-plugin.ts
 biome-report.json
+
+# Test/build log files
+*.log
+!docs/**/*.log
 
 # Local audit outputs
 report/
@@ -68,3 +84,10 @@ apps/app/test-results/
 benchmarks/
 plugins/
 !docs/plugins/
+
+# Electron build directories
+apps/app/electron/app-build/
+apps/app/electron/milady-dist/
+
+# External plugin repos (not submodules)
+elizaos-plugins/

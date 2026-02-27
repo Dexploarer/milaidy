@@ -3,6 +3,15 @@
  */
 
 import {
+  AlertTriangle,
+  CheckCircle,
+  Cloud,
+  Lock,
+  Minus,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import {
   type ChangeEvent,
   useCallback,
   useEffect,
@@ -110,6 +119,7 @@ export function OnboardingWizard() {
     setState,
     setTheme,
     handleCloudLogin,
+    mintFromDrop,
   } = useApp();
 
   const [openaiOAuthStarted, setOpenaiOAuthStarted] = useState(false);
@@ -580,6 +590,43 @@ export function OnboardingWizard() {
           </div>
         );
 
+      case "mint":
+        return (
+          <div className="max-w-[520px] mx-auto mt-10 text-center font-body">
+            <img
+              src="/android-chrome-512x512.png"
+              alt="Avatar"
+              className="w-[140px] h-[140px] rounded-full object-cover border-[3px] border-border mx-auto mb-5 block"
+            />
+            <div className="onboarding-speech bg-card border border-border rounded-xl px-5 py-4 mx-auto mb-6 max-w-[600px] relative text-[15px] text-txt leading-relaxed">
+              <h2 className="text-[28px] font-normal mb-1 text-txt-strong">
+                mint ur drop!
+              </h2>
+              <p className="text-[13px] text-txt mt-1 opacity-70">
+                claim ur character to get started
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 max-w-[460px] mx-auto">
+              <button
+                type="button"
+                className="px-4 py-3 bg-accent text-accent-fg font-bold rounded-lg cursor-pointer"
+                onClick={() => {
+                  mintFromDrop(false).then(() => handleOnboardingNext());
+                }}
+              >
+                Mint Character
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 bg-card border border-border text-txt font-bold rounded-lg hover:border-accent cursor-pointer"
+                onClick={() => handleOnboardingNext()}
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        );
+
       case "runMode":
         // On mobile (iOS/Android), only cloud is available
         if (isMobilePlatform) {
@@ -605,7 +652,9 @@ export function OnboardingWizard() {
               </div>
               <div className="flex flex-col gap-3 max-w-[460px] mx-auto">
                 <div className="px-4 py-4 border border-accent bg-accent text-accent-fg rounded-lg text-left">
-                  <div className="font-bold text-sm">☁️ cloud</div>
+                  <div className="font-bold text-sm flex items-center gap-1.5">
+                    <Cloud className="w-4 h-4" /> cloud
+                  </div>
                   <div className="text-[12px] mt-1 opacity-80">
                     always on, works from any device, easiest setup
                   </div>
@@ -640,7 +689,9 @@ export function OnboardingWizard() {
                 }`}
                 onClick={() => handleRunModeSelect("cloud")}
               >
-                <div className="font-bold text-sm">☁️ cloud</div>
+                <div className="font-bold text-sm flex items-center gap-1.5">
+                  <Cloud className="w-4 h-4" /> cloud
+                </div>
                 <div className="text-[12px] mt-1 opacity-70">
                   i run on eliza cloud. easiest setup, always on, can still use
                   ur browser &amp; computer if u let me
@@ -655,7 +706,9 @@ export function OnboardingWizard() {
                 }`}
                 onClick={() => handleRunModeSelect("local-sandbox")}
               >
-                <div className="font-bold text-sm">🔒 local (sandbox)</div>
+                <div className="font-bold text-sm flex items-center gap-1.5">
+                  <Lock className="w-4 h-4" /> local (sandbox)
+                </div>
                 <div className="text-[12px] mt-1 opacity-70">
                   i run on ur machine in a secure container. ur api keys stay
                   hidden even from me. needs docker
@@ -670,7 +723,9 @@ export function OnboardingWizard() {
                 }`}
                 onClick={() => handleRunModeSelect("local-rawdog")}
               >
-                <div className="font-bold text-sm">⚡ local (raw)</div>
+                <div className="font-bold text-sm flex items-center gap-1.5">
+                  <Zap className="w-4 h-4" /> local (raw)
+                </div>
                 <div className="text-[12px] mt-1 opacity-70">
                   i run directly on ur machine w full access. fastest &amp;
                   simplest but no sandbox protection
@@ -789,11 +844,13 @@ export function OnboardingWizard() {
                   onChange={handleSmallModelChange}
                   className="w-full px-3 py-2 border border-border bg-card text-sm mt-2 focus:border-accent focus:outline-none"
                 >
-                  {onboardingOptions?.models.small.map((model: ModelOption) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
+                  {onboardingOptions?.models?.small?.map(
+                    (model: ModelOption) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
               <div>
@@ -805,11 +862,13 @@ export function OnboardingWizard() {
                   onChange={handleLargeModelChange}
                   className="w-full px-3 py-2 border border-border bg-card text-sm mt-2 focus:border-accent focus:outline-none"
                 >
-                  {onboardingOptions?.models.large.map((model: ModelOption) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
+                  {onboardingOptions?.models?.large?.map(
+                    (model: ModelOption) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
             </div>
@@ -1411,7 +1470,7 @@ export function OnboardingWizard() {
                     Select Model:
                   </span>
                   <div className="flex flex-col gap-2">
-                    {onboardingOptions.openrouterModels.map(
+                    {onboardingOptions?.openrouterModels?.map(
                       (model: OpenRouterModelOption) => (
                         <button
                           type="button"
@@ -1497,7 +1556,7 @@ export function OnboardingWizard() {
                             }
                             className="w-full px-3 py-2 border border-border bg-card text-sm mt-2 focus:border-accent focus:outline-none"
                           >
-                            {provider.rpcProviders.map(
+                            {provider.rpcProviders?.map(
                               (rpc: RpcProviderOption) => (
                                 <option key={rpc.id} value={rpc.id}>
                                   {rpc.name}
@@ -2131,7 +2190,13 @@ function DockerSetupStep() {
               : "bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200"
           }`}
         >
-          <span>{isInstalled ? "✅" : "❌"}</span>
+          <span>
+            {isInstalled ? (
+              <CheckCircle className="w-4 h-4" />
+            ) : (
+              <XCircle className="w-4 h-4" />
+            )}
+          </span>
           <span>Docker {isInstalled ? "installed" : "not found"}</span>
         </div>
 
@@ -2143,7 +2208,13 @@ function DockerSetupStep() {
                 : "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-200"
             }`}
           >
-            <span>{isRunning ? "✅" : "⚠️"}</span>
+            <span>
+              {isRunning ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : (
+                <AlertTriangle className="w-4 h-4" />
+              )}
+            </span>
             <span>Docker daemon {isRunning ? "running" : "not running"}</span>
           </div>
         )}
@@ -2156,7 +2227,13 @@ function DockerSetupStep() {
                 : "bg-card border-border text-txt opacity-60"
             }`}
           >
-            <span>{hasAppleContainer ? "✅" : "➖"}</span>
+            <span>
+              {hasAppleContainer ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : (
+                <Minus className="w-4 h-4" />
+              )}
+            </span>
             <span>
               Apple Container{" "}
               {hasAppleContainer

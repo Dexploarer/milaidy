@@ -14,6 +14,25 @@ export default defineConfig({
         "stubs",
         "empty-module.mjs",
       ),
+      "@elizaos/plugin-agent-orchestrator": path.join(
+        repoRoot,
+        "test",
+        "stubs",
+        "coding-agent-module.ts",
+      ),
+      "@elizaos/plugin-coding-agent": path.join(
+        repoRoot,
+        "test",
+        "stubs",
+        "coding-agent-module.ts",
+      ),
+      "@elizaos/plugin-pi-ai": path.join(
+        repoRoot,
+        "test",
+        "stubs",
+        "pi-ai-module.ts",
+      ),
+      electron: path.join(repoRoot, "test", "stubs", "electron-module.ts"),
     },
   },
   test: {

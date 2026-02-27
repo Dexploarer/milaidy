@@ -2,8 +2,28 @@
  * Navigation — tabs + onboarding.
  */
 
+import type { LucideIcon } from "lucide-react";
+import {
+  Bot,
+  Brain,
+  Gamepad2,
+  MessageSquare,
+  Radio,
+  Settings,
+  Share2,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
+
+/** Apps are only enabled in dev mode; production builds hide this feature. */
+export const APPS_ENABLED = import.meta.env.DEV;
+
+/** Stream tab — enabled when the "streaming-base" plugin is active (or in dev mode). */
+export const STREAM_ENABLED = import.meta.env.DEV;
+
 export type Tab =
   | "chat"
+  | "stream"
   | "apps"
   | "character"
   | "wallets"
@@ -23,14 +43,62 @@ export type Tab =
   | "logs"
   | "security";
 
-export const TAB_GROUPS = [
-  { label: "Chat", tabs: ["chat"] as Tab[] },
-  { label: "Character", tabs: ["character"] as Tab[] },
-  { label: "Wallets", tabs: ["wallets"] as Tab[] },
-  { label: "Knowledge", tabs: ["knowledge"] as Tab[] },
-  { label: "Social", tabs: ["connectors"] as Tab[] },
-  { label: "Apps", tabs: ["apps"] as Tab[] },
-  { label: "Settings", tabs: ["settings"] as Tab[] },
+export interface TabGroup {
+  label: string;
+  tabs: Tab[];
+  icon: LucideIcon;
+  description?: string;
+}
+
+export const ALL_TAB_GROUPS: TabGroup[] = [
+  {
+    label: "Chat",
+    tabs: ["chat"],
+    icon: MessageSquare,
+    description: "Conversations and messaging",
+  },
+  {
+    label: "Stream",
+    tabs: ["stream"],
+    icon: Radio,
+    description: "Live streaming controls",
+  },
+  {
+    label: "Character",
+    tabs: ["character"],
+    icon: Bot,
+    description: "AI personality and behavior",
+  },
+  {
+    label: "Wallets",
+    tabs: ["wallets"],
+    icon: Wallet,
+    description: "Crypto wallets and inventory",
+  },
+  {
+    label: "Knowledge",
+    tabs: ["knowledge"],
+    icon: Brain,
+    description: "Documents and memory",
+  },
+  {
+    label: "Social",
+    tabs: ["connectors"],
+    icon: Share2,
+    description: "Platform connections",
+  },
+  {
+    label: "Apps",
+    tabs: ["apps"],
+    icon: Gamepad2,
+    description: "Games and integrations",
+  },
+  {
+    label: "Settings",
+    tabs: ["settings"],
+    icon: Settings,
+    description: "Configuration and preferences",
+  },
   {
     label: "Advanced",
     tabs: [
@@ -45,12 +113,24 @@ export const TAB_GROUPS = [
       "database",
       "logs",
       "security",
-    ] as Tab[],
+    ],
+    icon: Sparkles,
+    description: "Developer and power user tools",
   },
-] as const;
+];
+
+/** Compute visible tab groups. Pass streamEnabled explicitly for React reactivity. */
+export function getTabGroups(streamEnabled = STREAM_ENABLED): TabGroup[] {
+  return ALL_TAB_GROUPS.filter(
+    (g) =>
+      (APPS_ENABLED || g.label !== "Apps") &&
+      (streamEnabled || g.label !== "Stream"),
+  );
+}
 
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
+  stream: "/stream",
   apps: "/apps",
   character: "/character",
   triggers: "/triggers",
@@ -103,6 +183,14 @@ export function tabFromPath(pathname: string, basePath = ""): Tab | null {
   if (normalized.endsWith("/index.html")) normalized = "/";
   if (normalized === "/") return "chat";
   if (normalized === "/voice") return "settings";
+  // Apps disabled in production builds — redirect to chat
+  if (!APPS_ENABLED && (normalized === "/apps" || normalized === "/game")) {
+    return "chat";
+  }
+  // Stream tab hidden — redirect to chat
+  if (!STREAM_ENABLED && normalized === "/stream") {
+    return "chat";
+  }
   // Check current paths first, then legacy redirects
   return PATH_TO_TAB.get(normalized) ?? LEGACY_PATHS[normalized] ?? null;
 }
@@ -163,6 +251,8 @@ export function titleForTab(tab: Tab): string {
       return "Settings";
     case "logs":
       return "Logs";
+    case "stream":
+      return "Stream";
     case "security":
       return "Security";
     default:

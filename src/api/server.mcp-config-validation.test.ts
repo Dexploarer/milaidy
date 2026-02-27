@@ -1,7 +1,9 @@
 import { lookup as dnsLookup } from "node:dns/promises";
+import type http from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   resolveMcpServersRejection,
+  resolveMcpTerminalAuthorizationRejection,
   validateMcpServerConfig,
 } from "./server.js";
 
@@ -82,6 +84,16 @@ describe("validateMcpServerConfig", () => {
       command: "node",
       args: ["-e", "console.log('pwn')"],
     });
+    const nodePrint = await validateMcpServerConfig({
+      type: "stdio",
+      command: "node",
+      args: ["-p", "process.version"],
+    });
+    const nodePrintLong = await validateMcpServerConfig({
+      type: "stdio",
+      command: "node",
+      args: ["--print", "process.version"],
+    });
     const pythonEval = await validateMcpServerConfig({
       type: "stdio",
       command: "python3",
@@ -99,9 +111,27 @@ describe("validateMcpServerConfig", () => {
     });
 
     expect(nodeEval).toContain('Flag "-e" is not allowed');
+    expect(nodePrint).toContain('Flag "-p" is not allowed');
+    expect(nodePrintLong).toContain('Flag "--print" is not allowed');
     expect(pythonEval).toContain('Flag "-c" is not allowed');
     expect(pythonAttachedEval).toContain('Flag "-c" is not allowed');
     expect(uvEval).toContain('Flag "-c" is not allowed');
+  });
+
+  it("rejects interpreter bootstrap flags that can execute preload code", async () => {
+    const nodeImport = await validateMcpServerConfig({
+      type: "stdio",
+      command: "node",
+      args: ["--import", "data:text/javascript,console.log('pwn')"],
+    });
+    const nodeRequireAttached = await validateMcpServerConfig({
+      type: "stdio",
+      command: "node",
+      args: ["-r./bootstrap.js", "server.js"],
+    });
+
+    expect(nodeImport).toContain('Flag "--import" is not allowed');
+    expect(nodeRequireAttached).toContain('Flag "-r" is not allowed');
   });
 
   it("rejects inline-exec flags for package runner commands", async () => {
@@ -185,6 +215,104 @@ describe("validateMcpServerConfig", () => {
 
     expect(rejection).toContain('Could not resolve URL host "mcp.example.com"');
   });
+
+  it("rejects invalid config type", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "invalid-type",
+    });
+
+    expect(rejection).toContain("Invalid config type");
+  });
+
+  it("rejects missing command for stdio type", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+    });
+
+    expect(rejection).toBe("Command is required for stdio servers");
+  });
+
+  it("rejects missing URL for remote server type", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "streamable-http",
+    });
+
+    expect(rejection).toBe("URL is required for remote servers");
+  });
+
+  it("rejects non-array args", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "npx",
+      args: "not-an-array",
+    });
+
+    expect(rejection).toBe("args must be an array of strings");
+  });
+
+  it("rejects --inspect flag for node (V8 inspector)", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "node",
+      args: ["--inspect", "server.js"],
+    });
+
+    expect(rejection).toContain('Flag "--inspect" is not allowed');
+  });
+
+  it("rejects --inspect-brk flag for node (V8 inspector)", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "node",
+      args: ["--inspect-brk", "server.js"],
+    });
+
+    expect(rejection).toContain('Flag "--inspect-brk" is not allowed');
+  });
+
+  it("rejects --inspect flag for bun (V8 inspector)", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "bun",
+      args: ["--inspect", "server.js"],
+    });
+
+    expect(rejection).toContain('Flag "--inspect" is not allowed');
+  });
+
+  it("rejects $include as env key", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "npx",
+      env: { $include: "./secrets.json" },
+    });
+
+    expect(rejection).toContain("blocked for security reasons");
+  });
+
+  it("rejects non-object env (array)", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "npx",
+      env: ["FOO=bar"],
+    });
+
+    expect(rejection).toBe(
+      "env must be a plain object of string key-value pairs",
+    );
+  });
+
+  it("rejects non-object env (null)", async () => {
+    const rejection = await validateMcpServerConfig({
+      type: "stdio",
+      command: "npx",
+      env: null,
+    });
+
+    expect(rejection).toBe(
+      "env must be a plain object of string key-value pairs",
+    );
+  });
 });
 
 describe("resolveMcpServersRejection", () => {
@@ -223,6 +351,35 @@ describe("resolveMcpServersRejection", () => {
     expect(rejection).toContain('Server "filesystem":');
   });
 
+  it("rejects __proto__ server name", async () => {
+    // JSON.parse creates __proto__ as a real own property, matching the
+    // actual attack vector (untrusted JSON from API callers).
+    const servers = JSON.parse(
+      '{"__proto__": {"type": "stdio", "command": "npx"}}',
+    );
+    const rejection = await resolveMcpServersRejection(servers);
+
+    expect(rejection).toContain('Invalid server name: "__proto__"');
+  });
+
+  it("rejects $include server name", async () => {
+    const rejection = await resolveMcpServersRejection({
+      $include: { type: "stdio", command: "npx" },
+    });
+
+    expect(rejection).toContain('Invalid server name: "$include"');
+  });
+
+  it("rejects deeply nested blocked keys in server config", async () => {
+    // JSON.parse creates __proto__ as a real own property at any depth.
+    const servers = JSON.parse(
+      '{"safe": {"type": "stdio", "command": "npx", "nested": {"__proto__": {}}}}',
+    );
+    const rejection = await resolveMcpServersRejection(servers);
+
+    expect(rejection).toContain("contains blocked object keys");
+  });
+
   it("accepts safe server maps", async () => {
     const rejection = await resolveMcpServersRejection({
       files: {
@@ -236,6 +393,68 @@ describe("resolveMcpServersRejection", () => {
         url: "https://93.184.216.34/mcp",
       },
     });
+
+    expect(rejection).toBeNull();
+  });
+});
+
+describe("resolveMcpTerminalAuthorizationRejection", () => {
+  afterEach(() => {
+    delete process.env.MILADY_API_TOKEN;
+    delete process.env.MILADY_TERMINAL_RUN_TOKEN;
+  });
+
+  it("requires terminal authorization for stdio MCP server configs", () => {
+    process.env.MILADY_API_TOKEN = "api-secret";
+    const req: Pick<http.IncomingMessage, "headers"> = { headers: {} };
+    const rejection = resolveMcpTerminalAuthorizationRejection(
+      req,
+      {
+        local: {
+          type: "stdio",
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        },
+      },
+      {},
+    );
+
+    expect(rejection?.status).toBe(403);
+    expect(rejection?.reason).toContain("Terminal run is disabled");
+  });
+
+  it("does not require terminal authorization for remote-only MCP configs", () => {
+    process.env.MILADY_API_TOKEN = "api-secret";
+    const req: Pick<http.IncomingMessage, "headers"> = { headers: {} };
+    const rejection = resolveMcpTerminalAuthorizationRejection(
+      req,
+      {
+        remote: {
+          type: "streamable-http",
+          url: "https://mcp.example.com",
+        },
+      },
+      {},
+    );
+
+    expect(rejection).toBeNull();
+  });
+
+  it("accepts stdio MCP config when terminal token is provided", () => {
+    process.env.MILADY_API_TOKEN = "api-secret";
+    process.env.MILADY_TERMINAL_RUN_TOKEN = "terminal-secret";
+    const req: Pick<http.IncomingMessage, "headers"> = { headers: {} };
+    const rejection = resolveMcpTerminalAuthorizationRejection(
+      req,
+      {
+        local: {
+          type: "stdio",
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        },
+      },
+      { terminalToken: "terminal-secret" },
+    );
 
     expect(rejection).toBeNull();
   });
