@@ -161,6 +161,7 @@ export function ConversationsSidebar({
                   <input
                     ref={inputRef}
                     className="w-full px-1.5 py-1 border border-accent rounded bg-card text-txt text-[13px] outline-none"
+                    aria-label="Edit conversation title"
                     value={editingTitle}
                     onChange={(e) => setEditingTitle(e.target.value)}
                     onBlur={() => void handleEditSubmit(conv.id)}
