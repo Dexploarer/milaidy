@@ -221,6 +221,14 @@ class StreamManager {
   }
 
   async start(config: StreamConfig): Promise<void> {
+    if (
+      !config.rtmpUrl ||
+      (!config.rtmpUrl.startsWith("rtmp://") &&
+        !config.rtmpUrl.startsWith("rtmps://"))
+    ) {
+      throw new Error("Invalid RTMP URL: Must start with rtmp:// or rtmps://");
+    }
+
     if (this._running || this._starting) {
       logger.warn(`${TAG} Already running or starting — stop first`);
       return;
