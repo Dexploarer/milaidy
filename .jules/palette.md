@@ -1,0 +1,3 @@
+## 2024-06-03 - [Missing Accessible Names on Sidebar Actions]
+**Learning:** Found an accessibility issue pattern where icon-only text buttons (like close `&times;` or delete `×`) use a `title` attribute for tooltips but lack an `aria-label` or keep the special text character visible to screen readers (missing `aria-hidden="true"`). Without `aria-hidden`, screen readers may announce the mathematical or punctuation symbol (e.g. "times" or "multiply") instead of the intended action.
+**Action:** Always wrap visual symbol characters (`×`, `&times;`) in a `<span aria-hidden="true">` inside buttons, and ensure the `<button>` itself has an `aria-label` describing its action, rather than relying solely on the `title` attribute.
