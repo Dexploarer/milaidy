@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing ARIA Labels on Dynamic Inputs
+**Learning:** Dynamic input elements that appear conditionally (e.g., inline editing inputs or search bars without visible labels) are prone to missing accessible names, making them difficult for screen reader users to identify their purpose.
+**Action:** Always verify that input fields have either a visible `<label>` with an `htmlFor` attribute matching the input's `id`, or an `aria-label` attribute clearly describing the input's purpose when a visible label is intentionally omitted by design.

@@ -308,6 +308,7 @@ export function CommandPalette() {
           type="text"
           className="w-full px-4 py-3.5 border-b border-border bg-transparent text-[15px] text-txt outline-none font-body"
           placeholder="Type to search commands..."
+          aria-label="Search commands"
           value={commandQuery}
           onChange={(e) => setState("commandQuery", e.target.value)}
         />
