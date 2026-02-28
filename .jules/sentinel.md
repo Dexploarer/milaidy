@@ -1,0 +1,4 @@
+## 2025-05-15 - Stream Manager RTMP URL Injection
+**Vulnerability:** The `streamManager.start` function accepted an arbitrary `rtmpUrl` string from the configuration without validation. This user-provided URL was directly appended and passed as an argument (`-f flv <url>`) to `ffmpeg` via `child_process.spawn()`. If an attacker provided a value like `file:///etc/passwd`, FFmpeg could overwrite arbitrary files or exfiltrate data.
+**Learning:** Argument injection vulnerabilities can occur even when using safer execution functions like `spawn` (which do not invoke a shell) if the underlying executable (like `ffmpeg`) supports powerful features based on parameter strings (e.g. writing to local files, network requests). Input validation is necessary before passing strings to shell commands or `spawn`.
+**Prevention:** Validate protocol schemes explicitly (e.g. ensure `rtmpUrl` starts with `rtmp://` or `rtmps://`) before passing them to the external process.
