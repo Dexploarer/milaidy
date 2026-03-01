@@ -1,0 +1,4 @@
+## 2024-05-20 - Argument Injection via Unvalidated FFmpeg Inputs
+**Vulnerability:** The `streamManager.start` function in `src/services/stream-manager.ts` takes an `rtmpUrl` parameter that is passed directly to an FFmpeg command via `spawn` without strict validation. This could allow argument injection or arbitrary command execution if an attacker controls the `rtmpUrl`.
+**Learning:** Functions that construct command-line arguments (like spawning `ffmpeg` or other system tools) from user input must explicitly validate the input format. In this case, `rtmpUrl` needs to be validated to ensure it starts with `rtmp://` or `rtmps://`.
+**Prevention:** Always validate and sanitize external inputs before using them in shell commands or `spawn` arguments. Implement strict URL scheme checking (e.g., `startsWith("rtmp://")`) to limit allowed formats.
