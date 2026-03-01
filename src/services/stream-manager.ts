@@ -234,6 +234,11 @@ class StreamManager {
   }
 
   private async _startInner(config: StreamConfig): Promise<void> {
+    // Defense-in-depth: validate RTMP scheme to prevent output manipulation
+    if (!/^rtmps?:\/\//i.test(config.rtmpUrl)) {
+      throw new Error("RTMP URL must use rtmp:// or rtmps:// scheme");
+    }
+
     // Pre-flight: ensure FFmpeg is installed
     try {
       execSync("ffmpeg -version", { stdio: "ignore", timeout: 5000 });

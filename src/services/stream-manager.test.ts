@@ -153,6 +153,22 @@ describe("FFmpeg pre-flight check", () => {
       }),
     ).rejects.toThrow(/FFmpeg not found/);
   });
+
+  it("throws an error when rtmpUrl scheme is invalid", async () => {
+    await expect(
+      streamManager.start({
+        rtmpUrl: "-f x11grab -i :0", // Malicious payload
+        rtmpKey: "key",
+      }),
+    ).rejects.toThrow(/RTMP URL must use rtmp:\/\/ or rtmps:\/\/ scheme/);
+
+    await expect(
+      streamManager.start({
+        rtmpUrl: "http://example.com/live",
+        rtmpKey: "key",
+      }),
+    ).rejects.toThrow(/RTMP URL must use rtmp:\/\/ or rtmps:\/\/ scheme/);
+  });
 });
 
 // ===========================================================================
