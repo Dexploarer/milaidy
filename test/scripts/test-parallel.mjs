@@ -27,7 +27,7 @@ const shouldRunPlaywright =
  *
  * - `vitest: true` entries receive --maxWorkers and vitest-specific CI flags.
  * - Entries may specify a `cwd` to run from a different directory.
- * - Entries may specify a `cmd` to override the default (`bunx`).
+ * - Entries may specify a `cmd` to override the default (`npx`).
  * - `forceSerial: true` entries always run after parallel groups.
  * - `maxWorkers` lets a suite pin worker concurrency.
  */
@@ -120,7 +120,7 @@ const runOnce = (entry, extraArgs = []) =>
       (acc, flag) => (acc.includes(flag) ? acc : `${acc} ${flag}`.trim()),
       nodeOptions,
     );
-    const cmd = entry.cmd ?? "bunx";
+    const cmd = entry.cmd ?? "npx";
     const child = spawn(cmd, args, {
       stdio: "inherit",
       ...(entry.cwd ? { cwd: entry.cwd } : {}),

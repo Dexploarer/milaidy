@@ -119,7 +119,7 @@ export function ConversationsSidebar({
             onClick={onClose}
             aria-label="Close chats panel"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
       )}
@@ -220,9 +220,10 @@ export function ConversationsSidebar({
                           e.stopPropagation();
                           setConfirmDeleteId(conv.id);
                         }}
+                        aria-label="Delete conversation"
                         title="Delete conversation"
                       >
-                        ×
+                        <span aria-hidden="true">×</span>
                       </button>
                     )}
                   </>
