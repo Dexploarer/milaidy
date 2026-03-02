@@ -1712,8 +1712,9 @@ function TableFieldInner(props: FieldRenderProps) {
                       className="text-[var(--muted)] hover:text-[var(--destructive)] text-[14px] px-1"
                       onClick={() => removeRow(ri)}
                       title="Remove row"
+                      aria-label="Remove row"
                     >
-                      &times;
+                      <span aria-hidden="true">&times;</span>
                     </button>
                   )}
                 </td>

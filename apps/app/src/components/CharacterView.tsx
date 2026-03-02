@@ -93,8 +93,9 @@ function TagEditor({
               type="button"
               className="text-[var(--muted)] hover:text-[var(--danger,#e74c3c)] cursor-pointer text-[10px] leading-none"
               onClick={() => removeItem(i)}
+              aria-label="Remove item"
             >
-              &times;
+              <span aria-hidden="true">&times;</span>
             </button>
           </span>
         ))}
@@ -1358,8 +1359,9 @@ export function CharacterView() {
                       updated.splice(pi, 1);
                       handleFieldEdit("postExamples", updated);
                     }}
+                    aria-label="Remove post example"
                   >
-                    &times;
+                    <span aria-hidden="true">&times;</span>
                   </button>
                 </div>
               ))}
