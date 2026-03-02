@@ -1285,7 +1285,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
   // Check if docker binary exists (installed)
   try {
     const which = os === "win32" ? "where" : "which";
-    execSync(`${which} docker`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, ["docker"], { stdio: "ignore", timeout: 3000 });
     dockerInstalled = true;
   } catch {
     /* not installed */
@@ -1294,7 +1294,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
   // Check if docker daemon is running (docker info succeeds only when daemon is up)
   if (dockerInstalled) {
     try {
-      execSync("docker info", { stdio: "ignore", timeout: 5000 });
+      execFileSync("docker", ["info"], { stdio: "ignore", timeout: 5000 });
       dockerRunning = true;
     } catch {
       /* installed but not running */
@@ -1303,7 +1303,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
 
   if (os === "darwin") {
     try {
-      execSync("which container", { stdio: "ignore", timeout: 3000 });
+      execFileSync("which", ["container"], { stdio: "ignore", timeout: 3000 });
       appleContainerAvailable = true;
     } catch {
       /* */
@@ -1326,7 +1326,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
 
 function isWsl2Available(): boolean {
   try {
-    execSync("wsl --status", { stdio: "ignore", timeout: 5000 });
+    execFileSync("wsl", ["--status"], { stdio: "ignore", timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -1444,7 +1444,7 @@ function attemptDockerStart(): {
 function commandExists(cmd: string): boolean {
   try {
     const which = platform() === "win32" ? "where" : "which";
-    execSync(`${which} ${cmd}`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, [cmd], { stdio: "ignore", timeout: 3000 });
     return true;
   } catch {
     return false;

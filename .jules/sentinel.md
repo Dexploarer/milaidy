@@ -1,0 +1,4 @@
+## 2025-03-01 - Prevent Command Injection via `execSync`
+**Vulnerability:** Shell command injection (CWE-78) via `execSync` usage. Wait, the usage of `execSync(which + " " + cmd)` where `cmd` was dynamic could potentially evaluate shell commands if `cmd` was tainted.
+**Learning:** Avoid using `execSync` because it spawns a shell to evaluate strings. Even with "trusted" or hardcoded inputs today, future refactoring could unknowingly introduce user input to these functions.
+**Prevention:** Use `execFileSync` (or `execFile` for async) instead of `execSync`. It accepts an executable and an array of arguments, completely bypassing the shell and avoiding the interpretation of shell metacharacters.
