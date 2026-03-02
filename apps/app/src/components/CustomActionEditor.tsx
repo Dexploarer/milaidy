@@ -716,8 +716,9 @@ export function CustomActionEditor({
             type="button"
             onClick={onClose}
             className="text-muted hover:text-txt text-xl leading-none cursor-pointer"
+            aria-label="Close action editor"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
 
@@ -898,8 +899,9 @@ export function CustomActionEditor({
                       type="button"
                       onClick={() => removeHeader(i)}
                       className="px-2 text-muted hover:text-txt cursor-pointer"
+                      aria-label="Remove header"
                     >
-                      &times;
+                      <span aria-hidden="true">&times;</span>
                     </button>
                   </div>
                 ))}
@@ -1006,8 +1008,9 @@ export function CustomActionEditor({
                   type="button"
                   onClick={() => removeParameter(i)}
                   className="px-2 text-muted hover:text-txt cursor-pointer"
+                  aria-label="Remove parameter"
                 >
-                  &times;
+                  <span aria-hidden="true">&times;</span>
                 </button>
               </div>
             ))}

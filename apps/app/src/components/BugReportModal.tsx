@@ -206,8 +206,9 @@ export function BugReportModal() {
               type="button"
               className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
               onClick={close}
+              aria-label="Close success message"
             >
-              &times;
+              <span aria-hidden="true">&times;</span>
             </button>
           </div>
           <div className="px-5 py-6 text-center">
@@ -247,8 +248,9 @@ export function BugReportModal() {
             type="button"
             className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
             onClick={close}
+            aria-label="Close bug report modal"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
 

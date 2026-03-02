@@ -1406,8 +1406,9 @@ const DialogComponent: ComponentFn = (props, children, ctx) => {
             type="button"
             className="text-[var(--muted)] hover:text-[var(--text)] text-lg leading-none px-1 cursor-pointer"
             onClick={close}
+            aria-label="Close UI dialog"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
         {children}

@@ -2012,8 +2012,9 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
               className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-muted cursor-pointer text-sm px-1.5 py-px leading-none hover:text-txt"
               onClick={() => setState("pluginSearch", "")}
               title="Clear search"
+              aria-label="Clear search"
             >
-              &times;
+              <span aria-hidden="true">&times;</span>
             </button>
           )}
         </div>
@@ -2173,8 +2174,9 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
                     type="button"
                     className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
                     onClick={() => toggleSettings(p.id)}
+                    aria-label="Close settings"
                   >
-                    &times;
+                    <span aria-hidden="true">&times;</span>
                   </button>
                 </div>
 
@@ -2335,8 +2337,9 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
                   setAddDirOpen(false);
                   setAddDirPath("");
                 }}
+                aria-label="Close dialog"
               >
-                &times;
+                <span aria-hidden="true">&times;</span>
               </button>
             </div>
 
