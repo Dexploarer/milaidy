@@ -156,12 +156,12 @@ test("electron app startup: onboarding -> chat -> all pages", async () => {
       });
       throw new Error(
         `Onboarding welcome did not appear. apiBase=${String(apiBase)}.\n` +
-        `Body text:\n${onboardingStatus}\n\n` +
-        `Mock requests:\n${api.requests.join("\n")}\n\n` +
-        `Console logs:\n${consoleLogs.join("\n")}\n\n` +
-        `Page errors:\n${pageErrors.join("\n")}\n\n` +
-        `Request failures:\n${requestFailures.join("\n")}\n\n` +
-        `Original error: ${error instanceof Error ? error.message : String(error)}`,
+          `Body text:\n${onboardingStatus}\n\n` +
+          `Mock requests:\n${api.requests.join("\n")}\n\n` +
+          `Console logs:\n${consoleLogs.join("\n")}\n\n` +
+          `Page errors:\n${pageErrors.join("\n")}\n\n` +
+          `Request failures:\n${requestFailures.join("\n")}\n\n` +
+          `Original error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 

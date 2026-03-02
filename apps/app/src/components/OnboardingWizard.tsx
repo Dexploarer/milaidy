@@ -1130,7 +1130,9 @@ export function OnboardingWizard() {
                         ? "border-accent text-accent"
                         : "border-transparent text-muted hover:text-txt"
                     }`}
-                    onClick={() => setState("onboardingElizaCloudTab", "apikey")}
+                    onClick={() =>
+                      setState("onboardingElizaCloudTab", "apikey")
+                    }
                   >
                     API Key
                   </button>
@@ -1198,7 +1200,8 @@ export function OnboardingWizard() {
                       className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-card text-txt focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                     <p className="text-xs text-muted mt-2">
-                      Use this if browser login doesn't work. Get your API key from{" "}
+                      Use this if browser login doesn't work. Get your API key
+                      from{" "}
                       <a
                         href="https://elizacloud.ai/dashboard/settings"
                         target="_blank"
