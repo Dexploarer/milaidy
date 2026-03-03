@@ -122,15 +122,15 @@ jobs:
 
       - name: Run Claude Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1.0.66
+        uses: anthropics/claude-code-action@v1
         env:
           NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: '*'
+          show_full_output: true
           claude_args: |
-            --model claude-sonnet-4-6
             --allowedTools "Read,Glob,Grep,LS,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(cat:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(wc:*),Bash(head:*),Bash(tail:*)"
           prompt: |
             You are the sole code reviewer for the Milady project (milady-ai/milady).
@@ -756,15 +756,15 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Triage Issue
-        uses: anthropics/claude-code-action@v1.0.66
+        uses: anthropics/claude-code-action@v1
         env:
           NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: '*'
+          show_full_output: true
           claude_args: |
-            --model claude-sonnet-4-6
             --allowedTools "Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh issue close:*),Bash(gh issue view:*),Bash(cat:*),Read,Glob,Grep,LS"
           prompt: |
             You are the issue triager for the Milady project. This is an agents-only codebase where humans serve as QA testers.
