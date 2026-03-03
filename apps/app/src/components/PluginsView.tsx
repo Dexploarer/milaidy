@@ -2012,6 +2012,7 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
               className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-muted cursor-pointer text-sm px-1.5 py-px leading-none hover:text-txt"
               onClick={() => setState("pluginSearch", "")}
               title="Clear search"
+              aria-label="Clear search"
             >
               &times;
             </button>
