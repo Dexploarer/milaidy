@@ -1,44 +1,5 @@
 import { describe, expect, it } from "vitest";
-
-// ── Type definition (from @elizaos/plugin-agent-orchestrator) ───────────
-interface CoordinationLLMResponse {
-  action: "respond" | "escalate" | "ignore" | "complete";
-  response?: string;
-  useKeys?: boolean;
-  keys?: string[];
-  reasoning: string;
-}
-
-// Copied from server.ts for unit testing
-function parseActionBlock(text: string): CoordinationLLMResponse | null {
-  if (!text) return null;
-  // Try fenced ```json block first, then bare JSON with "action" key
-  const fenced = text.match(/```(?:json)?\s*\n?(\{[\s\S]*?\})\s*\n?```/);
-  const jsonStr = fenced?.[1] ?? text.match(/\{[\s\S]*"action"[\s\S]*\}/)?.[0];
-  if (!jsonStr) return null;
-  try {
-    const parsed = JSON.parse(jsonStr);
-    if (!["respond", "escalate", "ignore", "complete"].includes(parsed.action))
-      return null;
-    const result: CoordinationLLMResponse = {
-      action: parsed.action,
-      reasoning: parsed.reasoning || "",
-    };
-    if (parsed.action === "respond") {
-      if (parsed.useKeys && Array.isArray(parsed.keys)) {
-        result.useKeys = true;
-        result.keys = parsed.keys.map(String);
-      } else if (typeof parsed.response === "string") {
-        result.response = parsed.response;
-      } else return null;
-    }
-    return result;
-  } catch {
-    return null;
-  }
-}
-
-// ── Tests ───────────────────────────────────────────────────────────────
+import { parseActionBlock } from "./parse-action-block";
 
 describe("parseActionBlock", () => {
   it("returns null for empty/falsy input", () => {
@@ -196,5 +157,15 @@ That should resolve the blocking prompt.`;
     expect(
       parseActionBlock("Just some plain text with no JSON blocks."),
     ).toBeNull();
+  });
+
+  it("does not greedily match across multiple JSON-like blocks", () => {
+    const input = `Some text {"not": "an action"} and then {"action": "ignore", "reasoning": "test"} done.`;
+
+    const result = parseActionBlock(input);
+    expect(result).toEqual({
+      action: "ignore",
+      reasoning: "test",
+    });
   });
 });

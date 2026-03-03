@@ -27,12 +27,6 @@ import {
   type Task,
   type UUID,
 } from "@elizaos/core";
-import type {
-  CoordinationLLMResponse,
-  PTYService,
-  SwarmEvent,
-  TaskContext,
-} from "@elizaos/plugin-agent-orchestrator";
 import { listPiAiModelOptions } from "@elizaos/plugin-pi-ai";
 import { type WebSocket, WebSocketServer } from "ws";
 import type { CloudManager } from "../cloud/cloud-manager";
@@ -123,6 +117,12 @@ import { handleMemoryRoutes } from "./memory-routes";
 import { buildWhitelistTree, generateProof } from "./merkle-tree";
 import { handleModelsRoutes } from "./models-routes";
 import { verifyAndWhitelistHolder } from "./nft-verify";
+import type {
+  CoordinationLLMResponse,
+  PTYService,
+  SwarmEvent,
+  TaskContext,
+} from "./parse-action-block";
 import { handlePermissionRoutes } from "./permissions-routes";
 import {
   type PluginParamInfo,
@@ -5466,39 +5466,7 @@ function wireCodingAgentWsBridge(st: ServerState): boolean {
 }
 
 // ── Parse Action Block from Milaidy's Response ─────────────────────────
-
-/**
- * Parse a JSON action block from Milaidy's natural language response.
- * Looks for a fenced ```json block first, then bare JSON with "action" key.
- * Returns null if no valid action block is found.
- */
-function parseActionBlock(text: string): CoordinationLLMResponse | null {
-  if (!text) return null;
-  // Try fenced ```json block first, then bare JSON with "action" key
-  const fenced = text.match(/```(?:json)?\s*\n?(\{[\s\S]*?\})\s*\n?```/);
-  const jsonStr = fenced?.[1] ?? text.match(/\{[\s\S]*"action"[\s\S]*\}/)?.[0];
-  if (!jsonStr) return null;
-  try {
-    const parsed = JSON.parse(jsonStr);
-    if (!["respond", "escalate", "ignore", "complete"].includes(parsed.action))
-      return null;
-    const result: CoordinationLLMResponse = {
-      action: parsed.action,
-      reasoning: parsed.reasoning || "",
-    };
-    if (parsed.action === "respond") {
-      if (parsed.useKeys && Array.isArray(parsed.keys)) {
-        result.useKeys = true;
-        result.keys = parsed.keys.map(String);
-      } else if (typeof parsed.response === "string") {
-        result.response = parsed.response;
-      } else return null;
-    }
-    return result;
-  } catch {
-    return null;
-  }
-}
+import { parseActionBlock } from "./parse-action-block";
 
 // ── Coordinator Event Routing ───────────────────────────────────────────
 
@@ -5507,8 +5475,10 @@ function parseActionBlock(text: string): CoordinationLLMResponse | null {
  * (blocked prompts, turn completions) route through Milaidy's full
  * ElizaOS pipeline (memory, personality, actions) so she has conversation
  * context to make informed decisions. The pipeline's model size is
- * temporarily overridden to TEXT_SMALL via `runtime.llmModeOption` so
- * coordinator events don't timeout waiting for TEXT_LARGE.
+ * The pipeline's model size is temporarily overridden to TEXT_SMALL
+ * via the private `runtime.llmModeOption` (no public setter exists).
+ * This is intentional — coordinator decisions must be fast to avoid
+ * stalling CLI agents waiting for input.
  *
  * Events are serialized (one at a time) to prevent context confusion.
  * Milaidy's response appears in chat via WS broadcast, and the embedded
@@ -5591,8 +5561,9 @@ function wireCoordinatorEventRouting(st: ServerState): boolean {
             },
           });
 
-          // Temporarily force TEXT_SMALL through the full pipeline.
-          // Coordinator events are time-sensitive — TEXT_LARGE can timeout.
+          // Temporarily force TEXT_SMALL — coordinator events are time-sensitive
+          // and TEXT_LARGE can timeout while CLI agents stall waiting for input.
+          // llmModeOption is private with no public setter; cast is intentional.
           const rt = runtime as unknown as Record<string, unknown>;
           const prevLlmMode = rt.llmModeOption;
           rt.llmModeOption = "SMALL";
