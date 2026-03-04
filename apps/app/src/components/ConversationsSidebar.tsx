@@ -119,7 +119,7 @@ export function ConversationsSidebar({
             onClick={onClose}
             aria-label="Close chats panel"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
       )}
@@ -199,6 +199,7 @@ export function ConversationsSidebar({
                           className="px-1.5 py-0.5 text-[10px] border border-danger bg-danger text-white cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => void handleConfirmDelete(conv.id)}
                           disabled={deletingId === conv.id}
+                          aria-label="Confirm delete"
                         >
                           {deletingId === conv.id ? "..." : "Yes"}
                         </button>
@@ -207,6 +208,7 @@ export function ConversationsSidebar({
                           className="px-1.5 py-0.5 text-[10px] border border-border bg-card text-muted cursor-pointer hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => setConfirmDeleteId(null)}
                           disabled={deletingId === conv.id}
+                          aria-label="Cancel delete"
                         >
                           No
                         </button>
@@ -221,8 +223,9 @@ export function ConversationsSidebar({
                           setConfirmDeleteId(conv.id);
                         }}
                         title="Delete conversation"
+                        aria-label="Delete conversation"
                       >
-                        ×
+                        <span aria-hidden="true">×</span>
                       </button>
                     )}
                   </>
