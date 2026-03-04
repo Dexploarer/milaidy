@@ -2150,6 +2150,11 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
                             loading="lazy"
                             referrerPolicy="no-referrer"
                             crossOrigin="anonymous"
+                            onError={(e) => {
+                              (
+                                e.currentTarget as HTMLImageElement
+                              ).style.display = "none";
+                            }}
                           />
                         ) : (
                           <span className="text-sm">{icon}</span>
