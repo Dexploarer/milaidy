@@ -525,6 +525,222 @@ describe("handleSandboxRoute", () => {
         createdAt: 1710000000000,
       });
     });
+
+    it("POST /api/sandbox/sign should return 503 if signing service is not configured", async () => {
+      const req = createMockReq("POST", JSON.stringify(validSigningPayload));
+      const res = createMockRes();
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign", "POST", {
+        sandboxManager: mgr,
+        signingService: null,
+      });
+
+      expect(res._status).toBe(503);
+      expect(JSON.parse(res._body).error).toBe(
+        "Signing service not configured",
+      );
+    });
+
+    it("POST /api/sandbox/sign should return 403 when submitSigningRequest returns false", async () => {
+      const req = createMockReq("POST", JSON.stringify(validSigningPayload));
+      const res = createMockRes();
+      const submitSigningRequest = vi.fn().mockResolvedValue({
+        success: false,
+        policyDecision: {
+          allowed: false,
+          reason: "blocked",
+          requiresHumanConfirmation: false,
+          matchedRule: "blocked",
+        },
+        humanConfirmed: false,
+      });
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign", "POST", {
+        sandboxManager: mgr,
+        signingService: { submitSigningRequest },
+      });
+
+      expect(res._status).toBe(403);
+    });
+
+    it("POST /api/sandbox/sign should return 400 when submitSigningRequest throws", async () => {
+      const req = createMockReq("POST", JSON.stringify(validSigningPayload));
+      const res = createMockRes();
+      const submitSigningRequest = vi
+        .fn()
+        .mockRejectedValue(new Error("Test error"));
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign", "POST", {
+        sandboxManager: mgr,
+        signingService: { submitSigningRequest },
+      });
+
+      expect(res._status).toBe(400);
+      expect(JSON.parse(res._body).error).toContain("Test error");
+    });
+
+    it("POST /api/sandbox/sign/approve should approve request", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+      const approveRequest = vi.fn().mockResolvedValue({ success: true });
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/approve", "POST", {
+        sandboxManager: mgr,
+        signingService: { approveRequest },
+      });
+
+      expect(res._status).toBe(200);
+      expect(approveRequest).toHaveBeenCalledWith("req-1");
+    });
+
+    it("POST /api/sandbox/sign/approve should return 403 on failed approval", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+      const approveRequest = vi.fn().mockResolvedValue({ success: false });
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/approve", "POST", {
+        sandboxManager: mgr,
+        signingService: { approveRequest },
+      });
+
+      expect(res._status).toBe(403);
+    });
+
+    it("POST /api/sandbox/sign/approve should return 503 if not configured", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/approve", "POST", {
+        sandboxManager: mgr,
+        signingService: null,
+      });
+
+      expect(res._status).toBe(503);
+    });
+
+    it("POST /api/sandbox/sign/approve should return 400 when approveRequest throws", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+      const approveRequest = vi.fn().mockRejectedValue(new Error("approve error"));
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/approve", "POST", {
+        sandboxManager: mgr,
+        signingService: { approveRequest },
+      });
+
+      expect(res._status).toBe(400);
+      expect(JSON.parse(res._body).error).toContain("approve error");
+    });
+
+    it("POST /api/sandbox/sign/reject should reject request", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+      const rejectRequest = vi.fn().mockReturnValue(true);
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/reject", "POST", {
+        sandboxManager: mgr,
+        signingService: { rejectRequest },
+      });
+
+      expect(res._status).toBe(200);
+      expect(rejectRequest).toHaveBeenCalledWith("req-1");
+      expect(JSON.parse(res._body).rejected).toBe(true);
+    });
+
+    it("POST /api/sandbox/sign/reject should return 503 if not configured", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/reject", "POST", {
+        sandboxManager: mgr,
+        signingService: null,
+      });
+
+      expect(res._status).toBe(503);
+    });
+
+    it("POST /api/sandbox/sign/reject should return 400 when rejectRequest throws", async () => {
+      const req = createMockReq("POST", JSON.stringify({ requestId: "req-1" }));
+      const res = createMockRes();
+      const rejectRequest = vi.fn().mockImplementation(() => {
+        throw new Error("reject error");
+      });
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/reject", "POST", {
+        sandboxManager: mgr,
+        signingService: { rejectRequest },
+      });
+
+      expect(res._status).toBe(400);
+      expect(JSON.parse(res._body).error).toContain("reject error");
+    });
+
+    it("GET /api/sandbox/sign/pending should return pending requests", async () => {
+      const req = createMockReq("GET");
+      const res = createMockRes();
+      const pendingReqs = [{ requestId: "req-1", status: "pending" }];
+      const getPendingApprovals = vi.fn().mockReturnValue(pendingReqs);
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/pending", "GET", {
+        sandboxManager: mgr,
+        signingService: { getPendingApprovals },
+      });
+
+      expect(res._status).toBe(200);
+      expect(JSON.parse(res._body).pending).toEqual(pendingReqs);
+    });
+
+    it("GET /api/sandbox/sign/pending should return 503 if not configured", async () => {
+      const req = createMockReq("GET");
+      const res = createMockRes();
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/pending", "GET", {
+        sandboxManager: mgr,
+        signingService: null,
+      });
+
+      expect(res._status).toBe(503);
+    });
+
+    it("GET /api/sandbox/sign/address should return the signer address", async () => {
+      const req = createMockReq("GET");
+      const res = createMockRes();
+      const getAddress = vi.fn().mockResolvedValue("0x123");
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/address", "GET", {
+        sandboxManager: mgr,
+        signingService: { getAddress },
+      });
+
+      expect(res._status).toBe(200);
+      expect(JSON.parse(res._body).address).toBe("0x123");
+    });
+
+    it("GET /api/sandbox/sign/address should return 503 if not configured", async () => {
+      const req = createMockReq("GET");
+      const res = createMockRes();
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/address", "GET", {
+        sandboxManager: mgr,
+        signingService: null,
+      });
+
+      expect(res._status).toBe(503);
+    });
+
+    it("GET /api/sandbox/sign/address should return 500 when getAddress throws", async () => {
+      const req = createMockReq("GET");
+      const res = createMockRes();
+      const getAddress = vi.fn().mockRejectedValue(new Error("address error"));
+
+      await handleSandboxRoute(req, res, "/api/sandbox/sign/address", "GET", {
+        sandboxManager: mgr,
+        signingService: { getAddress },
+      });
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body).error).toContain("address error");
+    });
   });
 
   describe("Computer use bridge", () => {
