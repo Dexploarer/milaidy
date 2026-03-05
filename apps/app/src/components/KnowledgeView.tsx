@@ -599,7 +599,7 @@ function DocumentDetailModal({
 
 /* ── Main KnowledgeView Component ───────────────────────────────────── */
 
-export function KnowledgeView() {
+export function KnowledgeView({ inModal }: { inModal?: boolean } = {}) {
   const { setActionNotice } = useApp();
   const setActionNoticeRef = useRef(setActionNotice);
   setActionNoticeRef.current = setActionNotice;
@@ -1023,10 +1023,18 @@ export function KnowledgeView() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-xl font-semibold text-[var(--txt)] mb-6">
-        Knowledge Base
-      </h1>
+    <div
+      className={
+        inModal
+          ? "max-w-4xl mx-auto h-full overflow-y-auto pb-8"
+          : "max-w-4xl mx-auto"
+      }
+    >
+      {!inModal && (
+        <h1 className="text-xl font-semibold text-[var(--txt)] mb-6">
+          Knowledge Base
+        </h1>
+      )}
 
       <StatsCard
         stats={stats}
