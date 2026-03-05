@@ -1,0 +1,4 @@
+## 2025-03-05 - Fix Command Injection in Capability Detection
+**Vulnerability:** A command injection vulnerability (CWE-78) existed in `src/api/sandbox-routes.ts` where the `commandExists` function used `execSync` with string concatenation to evaluate whether a tool existed in the user's PATH. If `cmd` had malicious characters, it could be executed via the shell spawned by `execSync`.
+**Learning:** Avoid using `execSync` or `spawn` with `shell: true` and string concatenation when taking user input for a shell command. Even in helper functions that seem like they might only take static inputs, applying the principle of defense-in-depth is critical.
+**Prevention:** Using `execFileSync` avoids invoking a shell entirely and forces the first argument to be the executable and subsequent arguments to be an array, neutralizing shell metacharacters.
