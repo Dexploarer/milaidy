@@ -1286,7 +1286,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
   // Check if docker binary exists (installed)
   try {
     const which = os === "win32" ? "where" : "which";
-    execSync(`${which} docker`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, ["docker"], { stdio: "ignore", timeout: 3000 });
     dockerInstalled = true;
   } catch {
     /* not installed */
@@ -1295,7 +1295,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
   // Check if docker daemon is running (docker info succeeds only when daemon is up)
   if (dockerInstalled) {
     try {
-      execSync("docker info", { stdio: "ignore", timeout: 5000 });
+      execFileSync("docker", ["info"], { stdio: "ignore", timeout: 5000 });
       dockerRunning = true;
     } catch {
       /* installed but not running */
@@ -1304,7 +1304,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
 
   if (os === "darwin") {
     try {
-      execSync("which container", { stdio: "ignore", timeout: 3000 });
+      execFileSync("which", ["container"], { stdio: "ignore", timeout: 3000 });
       appleContainerAvailable = true;
     } catch {
       /* */
@@ -1327,7 +1327,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
 
 function isWsl2Available(): boolean {
   try {
-    execSync("wsl --status", { stdio: "ignore", timeout: 5000 });
+    execFileSync("wsl", ["--status"], { stdio: "ignore", timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -1343,7 +1343,10 @@ function attemptDockerStart(): {
 
   try {
     if (os === "darwin") {
-      execSync('open -a "Docker"', { timeout: 5000, stdio: "ignore" });
+      execFileSync("open", ["-a", "Docker"], {
+        timeout: 5000,
+        stdio: "ignore",
+      });
       return {
         success: true,
         message: "Docker Desktop is starting on macOS. Give it a moment~",
@@ -1354,16 +1357,15 @@ function attemptDockerStart(): {
     if (os === "win32") {
       // Try common install locations
       const paths = [
-        '"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe"',
-        '"C:\\Program Files (x86)\\Docker\\Docker\\Docker Desktop.exe"',
+        "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+        "C:\\Program Files (x86)\\Docker\\Docker\\Docker Desktop.exe",
       ];
       let started = false;
       for (const p of paths) {
         try {
-          execSync(`start "" ${p}`, {
+          execFileSync("cmd.exe", ["/c", "start", "", p], {
             timeout: 5000,
             stdio: "ignore",
-            shell: "cmd.exe",
           });
           started = true;
           break;
@@ -1373,10 +1375,9 @@ function attemptDockerStart(): {
       }
       if (!started) {
         // Try via start menu
-        execSync('start "" "Docker Desktop"', {
+        execFileSync("cmd.exe", ["/c", "start", "", "Docker Desktop"], {
           timeout: 5000,
           stdio: "ignore",
-          shell: "cmd.exe",
         });
       }
       return {
@@ -1390,7 +1391,7 @@ function attemptDockerStart(): {
     if (os === "linux") {
       // Try systemctl first (most common)
       try {
-        execSync("sudo systemctl start docker", {
+        execFileSync("sudo", ["systemctl", "start", "docker"], {
           timeout: 10000,
           stdio: "ignore",
         });
@@ -1405,7 +1406,7 @@ function attemptDockerStart(): {
 
       // Try service command
       try {
-        execSync("sudo service docker start", {
+        execFileSync("sudo", ["service", "docker", "start"], {
           timeout: 10000,
           stdio: "ignore",
         });
@@ -1445,7 +1446,7 @@ function attemptDockerStart(): {
 function commandExists(cmd: string): boolean {
   try {
     const which = platform() === "win32" ? "where" : "which";
-    execSync(`${which} ${cmd}`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, [cmd], { stdio: "ignore", timeout: 3000 });
     return true;
   } catch {
     return false;
