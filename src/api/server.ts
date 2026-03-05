@@ -125,6 +125,7 @@ import {
 import { handleMemoryRoutes } from "./memory-routes";
 import { buildWhitelistTree, generateProof } from "./merkle-tree";
 import { handleModelsRoutes } from "./models-routes";
+import { handleNfaRoutes } from "./nfa-routes";
 import { verifyAndWhitelistHolder } from "./nft-verify";
 import type {
   CoordinationLLMResponse,
@@ -7100,6 +7101,19 @@ async function handleRequest(
       readDir: fs.readdirSync,
       unlinkFile: fs.unlinkSync,
       joinPath: path.join,
+    })
+  ) {
+    return;
+  }
+
+  if (
+    await handleNfaRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      json,
+      error,
     })
   ) {
     return;
