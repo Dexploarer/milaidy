@@ -132,7 +132,7 @@ export function ConversationsSidebar({
             onClose?.();
           }}
         >
-          + New Chat
+          <span aria-hidden="true">+</span> New Chat
         </button>
       </div>
 
@@ -220,9 +220,10 @@ export function ConversationsSidebar({
                           e.stopPropagation();
                           setConfirmDeleteId(conv.id);
                         }}
+                        aria-label="Delete conversation"
                         title="Delete conversation"
                       >
-                        ×
+                        <span aria-hidden="true">×</span>
                       </button>
                     )}
                   </>
