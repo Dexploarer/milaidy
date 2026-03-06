@@ -5,8 +5,18 @@
  * and speech-to-text via Whisper (if available) or Web Speech API fallback.
  */
 
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { TalkModeConfig, TalkModeState } from "../rpc-schema";
-import { isWhisperAvailable } from "./whisper";
+import {
+  isWhisperAvailable,
+  transcribeBunSpawn,
+  writeWavFile,
+} from "./whisper";
+
+// 3 seconds of audio at 16kHz = 48000 Float32 samples = 192000 bytes
+const TALKMODE_AUDIO_BUFFER_THRESHOLD = 16000 * 3 * 4;
 
 type SendToWebview = (message: string, payload?: unknown) => void;
 
@@ -19,6 +29,9 @@ export class TalkModeManager {
     modelSize: "base",
     language: "en",
   };
+  private _audioBuffer: Buffer[] = [];
+  private _audioBufferSize = 0;
+  private _processing = false;
 
   setSendToWebview(fn: SendToWebview): void {
     this.sendToWebview = fn;
@@ -47,6 +60,8 @@ export class TalkModeManager {
   async stop(): Promise<void> {
     this.setState("idle");
     this.speaking = false;
+    this._audioBuffer = [];
+    this._audioBufferSize = 0;
   }
 
   async speak(options: {
@@ -78,8 +93,7 @@ export class TalkModeManager {
           },
           body: JSON.stringify({
             text: options.text,
-            model_id:
-              (options.directive?.modelId as string) ?? "eleven_turbo_v2",
+            model_id: (options.directive?.modelId as string) ?? "eleven_v3",
             voice_settings: {
               stability: (options.directive?.stability as number) ?? 0.5,
               similarity_boost:
@@ -153,14 +167,85 @@ export class TalkModeManager {
     Object.assign(this.config, config);
   }
 
-  async audioChunk(_options: { data: string }): Promise<void> {
-    // Process incoming audio chunk for STT
-    // Handled by Whisper if available, or forwarded to renderer for Web Speech API
+  async audioChunk(options: { data: string }): Promise<void> {
+    // Only process audio when actively listening or speaking (not idle/error)
+    if (this.state !== "listening" && this.state !== "speaking") return;
+
+    // Decode base64 Float32 PCM and accumulate
+    const chunkBuffer = Buffer.from(options.data, "base64");
+    this._audioBuffer.push(chunkBuffer);
+    this._audioBufferSize += chunkBuffer.length;
+
+    // Process when we have enough audio (~3 seconds)
+    if (
+      this._audioBufferSize >= TALKMODE_AUDIO_BUFFER_THRESHOLD &&
+      !this._processing
+    ) {
+      await this._processBuffer();
+    }
+  }
+
+  private async _processBuffer(): Promise<void> {
+    if (this._processing || this._audioBuffer.length === 0) return;
+    this._processing = true;
+
+    // Grab current buffer and clear for next window
+    const allBuffers = [...this._audioBuffer];
+    const combined = Buffer.concat(allBuffers);
+    this._audioBuffer = [];
+    this._audioBufferSize = 0;
+
+    try {
+      // Safe Float32 conversion — avoids alignment issues from Buffer pool offsets.
+      const numSamples = combined.byteLength >>> 2; // divide by 4
+      const float32 = new Float32Array(numSamples);
+      const dv = new DataView(
+        combined.buffer,
+        combined.byteOffset,
+        combined.byteLength,
+      );
+      for (let i = 0; i < numSamples; i++) {
+        float32[i] = dv.getFloat32(i * 4, true); // little-endian
+      }
+
+      // Write to temp WAV file
+      const tmpPath = path.join(
+        os.tmpdir(),
+        `milady-talkmode-${Date.now()}.wav`,
+      );
+      writeWavFile(tmpPath, float32, 16000, 1);
+
+      // Transcribe
+      const result = await transcribeBunSpawn(tmpPath);
+
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch {}
+
+      if (!result || !result.text.trim()) return;
+
+      // Emit transcript to renderer
+      this.sendToWebview?.("talkmode:transcript", {
+        text: result.text,
+        segments: result.segments.map((s) => ({
+          text: s.text,
+          start: s.start,
+          end: s.end,
+        })),
+      });
+    } catch (err) {
+      console.error("[TalkMode] _processBuffer error:", err);
+    } finally {
+      this._processing = false;
+    }
   }
 
   dispose(): void {
     this.speaking = false;
     this.state = "idle";
+    this._audioBuffer = [];
+    this._audioBufferSize = 0;
     this.sendToWebview = null;
   }
 }

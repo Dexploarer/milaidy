@@ -10,7 +10,7 @@ vi.mock("bonjour-service", () => {
 
 // Helper: access private methods for unit testing.
 // biome-ignore lint/suspicious/noExplicitAny: accessing private methods for unit testing
-type PrivateGateway = GatewayDiscovery & Record<string, any>;
+type PrivateGateway = Record<string, any>;
 
 interface BonjourServiceLike {
   name: string;
@@ -24,14 +24,14 @@ function callHandleServiceFound(
   d: GatewayDiscovery,
   service: BonjourServiceLike,
 ): void {
-  (d as PrivateGateway).handleServiceFound(service);
+  (d as unknown as PrivateGateway).handleServiceFound(service);
 }
 
 function callHandleServiceLost(
   d: GatewayDiscovery,
   service: BonjourServiceLike,
 ): void {
-  (d as PrivateGateway).handleServiceLost(service);
+  (d as unknown as PrivateGateway).handleServiceLost(service);
 }
 
 describe("GatewayDiscovery", () => {
