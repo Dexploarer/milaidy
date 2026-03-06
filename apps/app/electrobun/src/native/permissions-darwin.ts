@@ -4,10 +4,16 @@
  * Uses AppleScript and system_profiler to check TCC permission status.
  */
 
+import { existsSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import type {
   PermissionCheckResult,
   SystemPermissionId,
 } from "./permissions-shared";
+
+const APP_BUNDLE_ID = "com.miladyai.milady";
 
 async function runCommand(cmd: string): Promise<string> {
   try {
@@ -20,6 +26,75 @@ async function runCommand(cmd: string): Promise<string> {
     return output.trim();
   } catch {
     return "";
+  }
+}
+
+type PermissionStatus = "granted" | "denied" | "not-determined";
+
+async function checkMicrophonePermission(): Promise<PermissionStatus> {
+  // Query the user TCC database for microphone permission.
+  // Service name: kTCCServiceMicrophone
+  // auth_value: 0 = denied, 2 = granted, absent = not-determined
+  try {
+    const tccDb = path.join(
+      os.homedir(),
+      "Library/Application Support/com.apple.TCC/TCC.db",
+    );
+    if (!existsSync(tccDb)) return "not-determined";
+
+    const proc = Bun.spawn(
+      [
+        "sqlite3",
+        tccDb,
+        `SELECT auth_value FROM access WHERE service='kTCCServiceMicrophone' AND client='${APP_BUNDLE_ID}'`,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [stdout] = await Promise.all([
+      new Response(proc.stdout).text(),
+      proc.exited,
+    ]);
+    const val = stdout.trim();
+    if (val === "2") return "granted";
+    if (val === "0") return "denied";
+    return "not-determined";
+  } catch {
+    // If TCC DB is unreadable (sandboxed or locked), return not-determined
+    return "not-determined";
+  }
+}
+
+async function checkScreenRecordingPermission(): Promise<PermissionStatus> {
+  // Query the user TCC database for screen capture permission.
+  // Service name: kTCCServiceScreenCapture
+  // auth_value: 0 = denied, 2 = granted, absent = not-determined
+  // This is more reliable than the screencapture file-size heuristic which
+  // breaks on macOS 15+ (watermark images inflate denied-capture file sizes).
+  try {
+    const tccDb = path.join(
+      os.homedir(),
+      "Library/Application Support/com.apple.TCC/TCC.db",
+    );
+    if (!existsSync(tccDb)) return "not-determined";
+
+    const proc = Bun.spawn(
+      [
+        "sqlite3",
+        tccDb,
+        `SELECT auth_value FROM access WHERE service='kTCCServiceScreenCapture' AND client='${APP_BUNDLE_ID}'`,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [stdout] = await Promise.all([
+      new Response(proc.stdout).text(),
+      proc.exited,
+    ]);
+    const val = stdout.trim();
+    if (val === "2") return "granted";
+    if (val === "0") return "denied";
+    return "not-determined";
+  } catch {
+    return "not-determined";
   }
 }
 
@@ -36,23 +111,13 @@ export async function checkPermission(
     }
 
     case "screen-recording": {
-      // Check if screen recording permission is granted via CGWindowListCopyWindowInfo
-      const result = await runCommand(
-        "osascript -e 'tell application \"System Events\" to return (count of (every window of every process))' 2>&1",
-      );
-      const granted = !result.includes("error");
-      return { status: granted ? "granted" : "denied", canRequest: true };
+      const status = await checkScreenRecordingPermission();
+      return { status, canRequest: true };
     }
 
     case "microphone": {
-      const result = await runCommand(
-        'osascript -e \'tell application "System Events" to return "ok"\' 2>&1',
-      );
-      // Microphone permission is managed by the WebView at runtime
-      return {
-        status: result ? "granted" : "not-determined",
-        canRequest: true,
-      };
+      const status = await checkMicrophonePermission();
+      return { status, canRequest: true };
     }
 
     case "camera": {

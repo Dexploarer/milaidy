@@ -178,6 +178,7 @@ const CHANNEL_TO_RPC: Record<string, string> = {
   "screencapture:isFrameCaptureActive": "screencaptureIsFrameCaptureActive",
   "screencapture:saveScreenshot": "screencaptureSaveScreenshot",
   "screencapture:switchSource": "screencaptureSwitchSource",
+  "screencapture:setCaptureTarget": "screencaptureSetCaptureTarget",
 
   // Swabble
   "swabble:start": "swabbleStart",
@@ -206,6 +207,8 @@ const CHANNEL_TO_RPC: Record<string, string> = {
   "contextMenu:createSkill": "contextMenuCreateSkill",
   "contextMenu:quoteInChat": "contextMenuQuoteInChat",
   "contextMenu:saveAsCommand": "contextMenuSaveAsCommand",
+  apiBaseUpdate: "apiBaseUpdate",
+  shareTargetReceived: "shareTargetReceived",
 
   // LIFO
   "lifo:getPipState": "lifoGetPipState",
@@ -242,8 +245,19 @@ const PUSH_CHANNEL_TO_RPC: Record<string, string> = {
   "talkmode:audioChunkPush": "talkmodeAudioChunkPush",
   "talkmode:stateChanged": "talkmodeStateChanged",
   "talkmode:speakComplete": "talkmodeSpeakComplete",
+  "talkmode:transcript": "talkmodeTranscript",
   "swabble:wakeWord": "swabbleWakeWord",
-  "swabble:stateChanged": "swabbleStateChanged",
+  "swabble:stateChange": "swabbleStateChanged",
+  "swabble:audioChunkPush": "swabbleAudioChunkPush",
+  "contextMenu:askAgent": "contextMenuAskAgent",
+  "contextMenu:createSkill": "contextMenuCreateSkill",
+  "contextMenu:quoteInChat": "contextMenuQuoteInChat",
+  "contextMenu:saveAsCommand": "contextMenuSaveAsCommand",
+  apiBaseUpdate: "apiBaseUpdate",
+  shareTargetReceived: "shareTargetReceived",
+  "location:update": "locationUpdate",
+  "desktop:updateAvailable": "desktopUpdateAvailable",
+  "desktop:updateReady": "desktopUpdateReady",
 };
 
 // Reverse mapping: RPC message name → Electron push channel
