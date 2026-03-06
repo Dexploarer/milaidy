@@ -376,7 +376,9 @@ export function OnboardingWizard() {
     const electron = (
       window as {
         electron?: {
-          ipcRenderer: { invoke: (channel: string, params?: unknown) => Promise<unknown> };
+          ipcRenderer: {
+            invoke: (channel: string, params?: unknown) => Promise<unknown>;
+          };
         };
       }
     ).electron;

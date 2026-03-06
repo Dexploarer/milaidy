@@ -308,7 +308,9 @@ function usePermissionActions(
       const electron = (
         window as {
           electron?: {
-            ipcRenderer: { invoke: (ch: string, p?: unknown) => Promise<unknown> };
+            ipcRenderer: {
+              invoke: (ch: string, p?: unknown) => Promise<unknown>;
+            };
           };
         }
       ).electron;
@@ -656,7 +658,10 @@ export function PermissionsOnboardingSection({
           <button
             type="button"
             className="btn text-xs py-2 px-6 w-full max-w-xs"
-            style={{ background: "var(--accent)", borderColor: "var(--accent)" }}
+            style={{
+              background: "var(--accent)",
+              borderColor: "var(--accent)",
+            }}
             onClick={async () => {
               for (const def of essentialPermissions) {
                 const state = permissions[def.id];
