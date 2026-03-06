@@ -113,8 +113,9 @@ function CellPopover({
           type="button"
           className="text-[var(--muted)] hover:text-[var(--txt)] bg-transparent border-0 cursor-pointer text-sm"
           onClick={onClose}
+          aria-label="Close"
         >
-          ×
+          <span aria-hidden="true">×</span>
         </button>
       </div>
       <pre className="text-xs text-[var(--txt)] font-mono whitespace-pre-wrap break-all m-0">
@@ -547,8 +548,9 @@ export function DatabaseView() {
             type="button"
             className="text-[var(--danger)] opacity-60 hover:opacity-100 bg-transparent border-0 cursor-pointer text-sm"
             onClick={() => setErrorMessage("")}
+            aria-label="Close error"
           >
-            ×
+            <span aria-hidden="true">×</span>
           </button>
         </div>
       )}
