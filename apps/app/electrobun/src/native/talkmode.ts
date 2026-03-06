@@ -117,8 +117,7 @@ export class TalkModeManager {
   /**
    * ElevenLabs TTS — used when ELEVEN_LABS_API_KEY is set.
    * Streams audio chunks to the renderer via talkmodeAudioChunkPush.
-   * Model defaults to eleven_turbo_v2 (available on all plan tiers).
-   * Override via directive.modelId for accounts with eleven_v3 access.
+   * Model defaults to eleven_v3. Override via directive.modelId if needed.
    */
   private async _speakElevenLabs(
     options: { text: string; directive?: Record<string, unknown> },
@@ -143,10 +142,7 @@ export class TalkModeManager {
           },
           body: JSON.stringify({
             text: options.text,
-            // Default: eleven_turbo_v2 (available on all plan tiers).
-            // Use directive.modelId to override (e.g. "eleven_v3" for accounts with access).
-            model_id:
-              (options.directive?.modelId as string) ?? "eleven_turbo_v2",
+            model_id: (options.directive?.modelId as string) ?? "eleven_v3",
             voice_settings: {
               stability: (options.directive?.stability as number) ?? 0.5,
               similarity_boost:
