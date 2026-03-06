@@ -25,7 +25,7 @@ interface AgentActivityBoxProps {
 }
 
 export function AgentActivityBox({ sessions }: AgentActivityBoxProps) {
-  if (sessions.length === 0) return null;
+  if (!sessions || sessions.length === 0) return null;
 
   return (
     <div
