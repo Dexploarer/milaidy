@@ -926,13 +926,14 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
   if (os === "darwin") {
     // Use sox (rec) on macOS
     if (commandExists("rec")) {
-      execSync(`rec -q ${tmpFile} trim 0 ${durationSec}`, {
+      execFileSync("rec", ["-q", tmpFile, "trim", "0", String(durationSec)], {
         timeout: durationMs + 5000,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f avfoundation -i ":0" -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
+      execFileSync(
+        "ffmpeg",
+        ["-f", "avfoundation", "-i", ":0", "-t", String(durationSec), "-y", tmpFile],
         { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
       );
     } else {
@@ -942,13 +943,14 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
     }
   } else if (os === "linux") {
     if (commandExists("arecord")) {
-      execSync(`arecord -d ${durationSec} -f cd ${tmpFile}`, {
+      execFileSync("arecord", ["-d", String(durationSec), "-f", "cd", tmpFile], {
         timeout: durationMs + 5000,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f pulse -i default -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
+      execFileSync(
+        "ffmpeg",
+        ["-f", "pulse", "-i", "default", "-t", String(durationSec), "-y", tmpFile],
         { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
       );
     } else {
@@ -959,8 +961,9 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
   } else if (os === "win32") {
     // Use ffmpeg on Windows (most portable)
     if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f dshow -i audio="Microphone" -t ${durationSec} -y "${tmpFile.replace(/\//g, "\\")}" 2>NUL`,
+      execFileSync(
+        "ffmpeg",
+        ["-f", "dshow", "-i", "audio=Microphone", "-t", String(durationSec), "-y", tmpFile.replace(/\//g, "\\")],
         { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
       );
     } else {
@@ -1444,7 +1447,7 @@ function attemptDockerStart(): {
 function commandExists(cmd: string): boolean {
   try {
     const which = platform() === "win32" ? "where" : "which";
-    execSync(`${which} ${cmd}`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, [cmd], { stdio: "ignore", timeout: 3000 });
     return true;
   } catch {
     return false;
