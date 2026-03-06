@@ -15,7 +15,7 @@
         "@clack/prompts": "^1.0.0",
         "@electric-sql/pglite": "^0.3.3",
         "@elizaos/core": "next",
-        "@elizaos/plugin-agent-orchestrator": "0.3.7",
+        "@elizaos/plugin-agent-orchestrator": "0.3.9",
         "@elizaos/plugin-agent-skills": "next",
         "@elizaos/plugin-anthropic": "next",
         "@elizaos/plugin-browser": "next",
@@ -60,6 +60,7 @@
         "@lunchtable/plugin-ltcg": "^0.1.0",
         "@mariozechner/pi-ai": "0.52.12",
         "@mariozechner/pi-tui": "0.54.0",
+        "@milady/plugin-bnb-identity": "workspace:*",
         "@milady/plugin-pumpfun-streaming": "workspace:*",
         "@milady/plugin-retake": "workspace:*",
         "@milady/plugin-streaming-base": "workspace:*",
@@ -83,7 +84,7 @@
         "chalk": "^5.4.1",
         "chokidar": "~3.5.3",
         "cli-highlight": "^2.1.11",
-        "coding-agent-adapters": "0.8.9",
+        "coding-agent-adapters": "0.12.0",
         "commander": "^14.0.0",
         "croner": "^9.0.0",
         "cross-spawn": "^7.0.6",
@@ -401,6 +402,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@elizaos/core": "next",
+        "ethers": "^6.16.0",
       },
       "devDependencies": {
         "typescript": "^5.9.3",
@@ -770,7 +772,7 @@
 
     "@elizaos/core": ["@elizaos/core@2.0.0-alpha.12", "", { "dependencies": { "@bufbuild/protobuf": "^2.10.2", "@elizaos/prompts": "file:../prompts", "@langchain/core": "^1.1.12", "@langchain/textsplitters": "^1.0.1", "adze": "^2.2.5", "crypto-browserify": "^3.12.0", "dedent": "^1.7.1", "dotenv": "^17.2.3", "fast-redact": "^3.5.0", "file-type": "^21.3.0", "glob": "^13.0.0", "handlebars": "^4.7.8", "markdown-it": "^14.1.0", "pdfjs-dist": "^5.4.530", "unique-names-generator": "^4.7.1", "uuid": "^13.0.0", "zod": "^4.3.6" } }, "sha512-I95hzSf4MpTd+xfEQZC+4mBWx0bT53MgM2GJs5AaTq9VtJCNSI7um00ZXkhdQSa3WGNecTbdPc1Wirang9ghog=="],
 
-    "@elizaos/plugin-agent-orchestrator": ["@elizaos/plugin-agent-orchestrator@0.3.7", "", { "dependencies": { "coding-agent-adapters": "0.8.6", "pty-console": "0.3.1" }, "peerDependencies": { "@elizaos/core": ">=2.0.0-alpha.0", "git-workspace-service": "0.4.4", "pty-manager": ">=1.8.0" } }, "sha512-5vf7XuQQs3BtqXcJndYppU5tjH83Rn7ghx2PbbYa7OsdjTy1D1dRQqW6EpuALrCpDtpR4lzhPzFS4cDnEl0NRw=="],
+    "@elizaos/plugin-agent-orchestrator": ["@elizaos/plugin-agent-orchestrator@0.3.9", "", { "dependencies": { "coding-agent-adapters": "0.12.0", "pty-console": "0.3.1" }, "peerDependencies": { "@elizaos/core": ">=2.0.0-alpha.0", "git-workspace-service": "0.4.4", "pty-manager": "1.9.5" } }, "sha512-yLPZP+m5VTRHQ+JB/eLzNY8Xxo/9RydAqrYiUd2tX8n99QXYVUu01QI/2I8vqixqvDV4DSAOIJg5lKRTKw2m4w=="],
 
     "@elizaos/plugin-agent-skills": ["@elizaos/plugin-agent-skills@2.0.0-alpha.11", "", { "dependencies": { "@elizaos/core": "2.0.0-alpha.3", "fflate": "^0.8.2" } }, "sha512-trFM3i/J+DSmhwVgnt0muWMSToNxbwKq3Su1f9ZnNAnm+H2Fidptsy0OkX78mwqJBfCXIbvnsCFuLNtszjYMqw=="],
 
@@ -2002,7 +2004,7 @@
 
     "cmake-js": ["cmake-js@8.0.0", "", { "dependencies": { "debug": "^4.4.3", "fs-extra": "^11.3.3", "node-api-headers": "^1.8.0", "rc": "1.2.8", "semver": "^7.7.3", "tar": "^7.5.6", "url-join": "^4.0.1", "which": "^6.0.0", "yargs": "^17.7.2" }, "bin": { "cmake-js": "bin/cmake-js" } }, "sha512-YbUP88RDwCvoQkZhRtGURYm9RIpWdtvZuhT87fKNoLjk8kIFIFeARpKfuZQGdwfH99GZpUmqSfcDrK62X7lTgg=="],
 
-    "coding-agent-adapters": ["coding-agent-adapters@0.8.9", "", { "peerDependencies": { "agent-adapter-monitor": "^0.3.0", "pty-manager": "^1.9.5" }, "optionalPeers": ["agent-adapter-monitor"] }, "sha512-buMCbTAZYwFYEFjcvUXk2ZFd86Ft6RBUgda1BbkTUGD+V7EBnmjEbkF+TebHso8dXUMyfb11UELF4pwiZxTBFA=="],
+    "coding-agent-adapters": ["coding-agent-adapters@0.12.0", "", { "peerDependencies": { "agent-adapter-monitor": "^0.3.0", "pty-manager": "^1.9.5" }, "optionalPeers": ["agent-adapter-monitor"] }, "sha512-PrhVgOThCkmQNidwE9Qvab4AqyZ1hDhwEVHD9UdEEtl7bW7RR/vaGBergj6aUJsCIQQdaKyC3Blfm3UWfhnf2Q=="],
 
     "color": ["color@4.2.3", "", { "dependencies": { "color-convert": "^2.0.1", "color-string": "^1.9.0" } }, "sha512-1rXeuUUiGGrykh+CeBdu5Ie7OJwinCgQY0bc7GCRxy5xVHy+moaqkpL/jqQq0MtQOeYcrqEz4abc5f0KtU7W4A=="],
 
@@ -3885,8 +3887,6 @@
     "@electron/windows-sign/fs-extra": ["fs-extra@11.3.3", "", { "dependencies": { "graceful-fs": "^4.2.0", "jsonfile": "^6.0.1", "universalify": "^2.0.0" } }, "sha512-VWSRii4t0AFm6ixFFmLLx1t7wS1gh+ckoa84aOeapGum0h+EZd1EhEumSB+ZdDLnEPuucsVB9oB7cxJHap6Afg=="],
 
     "@elevenlabs/elevenlabs-js/node-fetch": ["node-fetch@2.7.0", "", { "dependencies": { "whatwg-url": "^5.0.0" }, "peerDependencies": { "encoding": "^0.1.0" }, "optionalPeers": ["encoding"] }, "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A=="],
-
-    "@elizaos/plugin-agent-orchestrator/coding-agent-adapters": ["coding-agent-adapters@0.8.6", "", { "peerDependencies": { "agent-adapter-monitor": "^0.3.0", "pty-manager": "^1.9.2" }, "optionalPeers": ["agent-adapter-monitor"] }, "sha512-BVtNkZqyq0XJjaHD6i6AM6/FOpanIqD5K+gNpdt17ShtTg9GodR2cm2ESDnAg+xGbO9/oTZtXq4PtLIxch4ndA=="],
 
     "@elizaos/plugin-browser/@elizaos/plugin-cli": ["@elizaos/plugin-cli@2.0.0-alpha.3", "", { "dependencies": { "@elizaos/core": "2.0.0-alpha.3", "commander": "^12.1.0" } }, "sha512-akqSGar/chWdMBG0RS+YDIZsfqJdAMq+KS9VxSYN6p2BX1ULKum0h+uFXfkdfMIVfOV12RQk074xqiRStjrzeA=="],
 

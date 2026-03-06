@@ -5609,6 +5609,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               status: "active",
               decisionCount: 0,
               autoResolvedCount: 0,
+              lastActivity: "Starting",
             },
           ]);
         } else if (eventType === "task_complete" || eventType === "stopped") {
@@ -5624,9 +5625,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (!known) return prev; // will trigger hydration below
 
             if (eventType === "blocked" || eventType === "escalation") {
+              const activity =
+                eventType === "escalation"
+                  ? "Escalated — needs attention"
+                  : "Waiting for input";
               return prev.map((s) =>
                 s.sessionId === sessionId
-                  ? { ...s, status: "blocked" as const }
+                  ? { ...s, status: "blocked" as const, lastActivity: activity }
                   : s,
               );
             }
@@ -5642,29 +5647,72 @@ export function AppProvider({ children }: { children: ReactNode }) {
                       ...s,
                       status: "tool_running" as const,
                       toolDescription: toolDesc,
+                      lastActivity: `Running ${toolDesc}`.slice(0, 60),
                     }
                   : s,
               );
             }
-            if (
-              eventType === "coordination_decision" ||
-              eventType === "blocked_auto_resolved" ||
-              eventType === "ready"
-            ) {
+            if (eventType === "blocked_auto_resolved") {
+              const d = data.data as Record<string, unknown> | undefined;
+              const prompt =
+                (d?.prompt as string) ?? (d?.reasoning as string) ?? "";
+              const excerpt = prompt
+                ? `Approved: ${prompt}`.slice(0, 60)
+                : "Approved";
               return prev.map((s) =>
                 s.sessionId === sessionId
                   ? {
                       ...s,
                       status: "active" as const,
                       toolDescription: undefined,
+                      lastActivity: excerpt,
+                    }
+                  : s,
+              );
+            }
+            if (eventType === "coordination_decision") {
+              const d = data.data as Record<string, unknown> | undefined;
+              const reasoning =
+                (d?.reasoning as string) ?? (d?.action as string) ?? "";
+              const wasEscalation = (d?.action as string) === "escalate";
+              const excerpt = wasEscalation
+                ? `Escalated: ${reasoning}`.slice(0, 60)
+                : reasoning
+                  ? `Responded: ${reasoning}`.slice(0, 60)
+                  : "Responded";
+              return prev.map((s) =>
+                s.sessionId === sessionId
+                  ? {
+                      ...s,
+                      status: "active" as const,
+                      toolDescription: undefined,
+                      lastActivity: excerpt,
+                    }
+                  : s,
+              );
+            }
+            if (eventType === "ready") {
+              return prev.map((s) =>
+                s.sessionId === sessionId
+                  ? {
+                      ...s,
+                      status: "active" as const,
+                      toolDescription: undefined,
+                      lastActivity: "Running",
                     }
                   : s,
               );
             }
             if (eventType === "error") {
+              const d = data.data as Record<string, unknown> | undefined;
+              const errMsg = (d?.message as string) ?? "Unknown error";
               return prev.map((s) =>
                 s.sessionId === sessionId
-                  ? { ...s, status: "error" as const }
+                  ? {
+                      ...s,
+                      status: "error" as const,
+                      lastActivity: `Error: ${errMsg}`.slice(0, 60),
+                    }
                   : s,
               );
             }
