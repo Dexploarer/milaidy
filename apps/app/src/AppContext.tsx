@@ -5670,6 +5670,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   : s,
               );
             }
+            // coordination_decision — emitted by swarm decision loop.
+            // d.action values: "approve" | "respond" | "escalate" | "continue"
             if (eventType === "coordination_decision") {
               const d = data.data as Record<string, unknown> | undefined;
               const reasoning =

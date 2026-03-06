@@ -28,10 +28,7 @@ export function AgentActivityBox({ sessions }: AgentActivityBoxProps) {
   if (!sessions || sessions.length === 0) return null;
 
   return (
-    <div
-      className="border-t border-border px-3 py-1.5 space-y-0.5"
-      style={{ zIndex: 1 }}
-    >
+    <div className="border-t border-border px-3 py-1.5 space-y-0.5 z-[1]">
       {sessions.map((s) => (
         <div key={s.sessionId} className="flex items-center gap-1.5 min-w-0">
           <span

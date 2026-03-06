@@ -39,9 +39,13 @@ function isMobileViewport(): boolean {
 const CHAT_INPUT_MIN_HEIGHT_PX = 38;
 const CHAT_INPUT_MAX_HEIGHT_PX = 200;
 
-/** Routine coding-agent status messages that belong in the activity box, not chat. */
+/**
+ * Routine coding-agent status messages that belong in the activity box, not chat.
+ * These messages are intentionally stored in the database (for audit/debugging)
+ * but filtered from the visible chat UI — this is by design, not a bug.
+ */
 const ROUTINE_CODING_AGENT_RE =
-  /^\[.+?\] (?:Approved:|Responded:|Sent keys:|Turn done, continuing:|Idle for \d+)/;
+  /^\[.+?\] (?:Approved:|Responded:|Sent keys:|Turn done, continuing:|Idle for \d+[smh])/;
 
 export function isRoutineCodingAgentMessage(msg: {
   source?: string;
