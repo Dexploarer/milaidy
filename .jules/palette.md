@@ -1,0 +1,3 @@
+## 2025-05-18 - Screen Reader Compatibility for Icon-Only Buttons
+**Learning:** In this app, many icon-only buttons rely purely on text characters (like "×" for close/delete) without wrapping them in an `aria-hidden` element. This causes screen readers to redundantly or confusingly announce the character itself, even if an `aria-label` is present or fallback `title` is used.
+**Action:** When creating or modifying icon-only buttons using textual characters (e.g. "×"), explicitly define an `aria-label` on the button and always wrap the visual text character inside `<span aria-hidden="true">` to prevent screen reader noise.
