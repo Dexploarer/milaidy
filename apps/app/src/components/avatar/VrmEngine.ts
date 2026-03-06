@@ -94,12 +94,6 @@ export class VrmEngine {
   private vrmName: string | null = null;
   private lookAtTarget = new THREE.Vector3(0, 0.5, 0);
   private readonly idleGlbUrl = resolveAppAssetUrl("animations/idle.glb");
-  private readonly idleBreathingFbxUrl = resolveAppAssetUrl(
-    "animations/BreathingIdle.fbx",
-  );
-  private readonly idleFallbackFbxUrl = resolveAppAssetUrl(
-    "animations/Idle.fbx",
-  );
   private forceFaceCameraFlip = false;
   private cameraAnimation: CameraAnimationConfig = {
     ...DEFAULT_CAMERA_ANIMATION,
@@ -498,8 +492,6 @@ export class VrmEngine {
     const clip = await loadIdleClip(
       vrm,
       this.idleGlbUrl,
-      this.idleBreathingFbxUrl,
-      this.idleFallbackFbxUrl,
       this.animationLoaderContext,
     );
     if (!clip) return;

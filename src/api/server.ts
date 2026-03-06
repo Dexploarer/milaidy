@@ -13944,7 +13944,7 @@ async function handleRequest(
     state.broadcastWs?.({
       type: "emote",
       emoteId: emote.id,
-      glbPath: emote.glbPath,
+      path: emote.path,
       duration: emote.duration,
       loop: emote.loop,
     });
