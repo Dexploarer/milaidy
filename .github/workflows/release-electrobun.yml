@@ -318,8 +318,11 @@ jobs:
         run: |
           echo "${{ secrets.RELEASE_UPLOAD_KEY }}" > /tmp/release_key
           chmod 600 /tmp/release_key
-          # Fetch and verify the host key before connecting (avoids MITM risk of StrictHostKeyChecking=no)
-          ssh-keyscan -H milady.ai >> ~/.ssh/known_hosts 2>/dev/null
+          # Pin the host fingerprint from the RELEASE_HOST_FINGERPRINT secret so SSH
+          # verifies the server identity without disabling host-key checking.
+          # To rotate: run `ssh-keyscan -H milady.ai` and update the secret.
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.RELEASE_HOST_FINGERPRINT }}" >> ~/.ssh/known_hosts
           # Upload all update files to the release channel directory
           CHANNEL="${{ needs.prepare.outputs.env }}"
           VERSION="${{ needs.prepare.outputs.version }}"
