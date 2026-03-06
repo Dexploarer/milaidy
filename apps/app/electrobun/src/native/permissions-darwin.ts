@@ -4,10 +4,10 @@
  * Uses AppleScript and system_profiler to check TCC permission status.
  */
 
+import { dlopen, FFIType } from "bun:ffi";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { dlopen, FFIType } from "bun:ffi";
 
 import type {
   PermissionCheckResult,
@@ -22,6 +22,8 @@ let _nativeLib: {
   checkAccessibilityPermission: () => boolean;
   requestScreenRecordingPermission: () => boolean;
   checkScreenRecordingPermission: () => boolean;
+  checkMicrophonePermission: () => number;
+  checkCameraPermission: () => number;
   requestCameraPermission: () => void;
   requestMicrophonePermission: () => void;
 } | null = null;
@@ -29,12 +31,17 @@ let _nativeLib: {
 function getNativeLib() {
   if (_nativeLib) return _nativeLib;
   try {
-    const dylibPath = path.join(import.meta.dir, "../libMacWindowEffects.dylib");
+    const dylibPath = path.join(
+      import.meta.dir,
+      "../libMacWindowEffects.dylib",
+    );
     const { symbols } = dlopen(dylibPath, {
       requestAccessibilityPermission: { args: [], returns: FFIType.bool },
       checkAccessibilityPermission: { args: [], returns: FFIType.bool },
       requestScreenRecordingPermission: { args: [], returns: FFIType.bool },
       checkScreenRecordingPermission: { args: [], returns: FFIType.bool },
+      checkMicrophonePermission: { args: [], returns: FFIType.i32 },
+      checkCameraPermission: { args: [], returns: FFIType.i32 },
       requestCameraPermission: { args: [], returns: FFIType.void },
       requestMicrophonePermission: { args: [], returns: FFIType.void },
     });
@@ -64,37 +71,15 @@ async function runCommand(cmd: string): Promise<string> {
 
 type PermissionStatus = "granted" | "denied" | "not-determined";
 
-async function checkMicrophonePermission(): Promise<PermissionStatus> {
-  // Query the user TCC database for microphone permission.
-  // Service name: kTCCServiceMicrophone
-  // auth_value: 0 = denied, 2 = granted, absent = not-determined
-  try {
-    const tccDb = path.join(
-      os.homedir(),
-      "Library/Application Support/com.apple.TCC/TCC.db",
-    );
-    if (!existsSync(tccDb)) return "not-determined";
-
-    const proc = Bun.spawn(
-      [
-        "sqlite3",
-        tccDb,
-        `SELECT auth_value FROM access WHERE service='kTCCServiceMicrophone' AND client='${APP_BUNDLE_ID}'`,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-    const [stdout] = await Promise.all([
-      new Response(proc.stdout).text(),
-      proc.exited,
-    ]);
-    const val = stdout.trim();
-    if (val === "2") return "granted";
-    if (val === "0") return "denied";
-    return "not-determined";
-  } catch {
-    // If TCC DB is unreadable (sandboxed or locked), return not-determined
-    return "not-determined";
-  }
+function checkMicrophonePermission(): PermissionStatus {
+  // Use AVFoundation via native dylib — no TCC.db query needed.
+  // Returns: 0=not-determined, 1=denied, 2=granted, 3=restricted
+  const lib = getNativeLib();
+  if (!lib) return "not-determined";
+  const val = lib.checkMicrophonePermission();
+  if (val === 2) return "granted";
+  if (val === 1 || val === 3) return "denied";
+  return "not-determined";
 }
 
 async function checkScreenRecordingPermission(): Promise<PermissionStatus> {
@@ -144,27 +129,40 @@ export async function checkPermission(
             // biome-ignore lint/suspicious/noAsyncPromiseExecutor: sync fallback
             return false;
           })();
-      return { status: granted ? "granted" : "not-determined", canRequest: true };
+      return {
+        status: granted ? "granted" : "not-determined",
+        canRequest: true,
+      };
     }
 
     case "screen-recording": {
       const lib = getNativeLib();
       if (lib) {
         const granted = lib.checkScreenRecordingPermission();
-        return { status: granted ? "granted" : "not-determined", canRequest: true };
+        return {
+          status: granted ? "granted" : "not-determined",
+          canRequest: true,
+        };
       }
       const status = await checkScreenRecordingPermission();
       return { status, canRequest: true };
     }
 
     case "microphone": {
-      const status = await checkMicrophonePermission();
+      const status = checkMicrophonePermission();
       return { status, canRequest: true };
     }
 
     case "camera": {
-      // Camera permission is managed by the WebView at runtime via getUserMedia
-      return { status: "not-determined", canRequest: true };
+      const lib = getNativeLib();
+      const val = lib?.checkCameraPermission() ?? 0;
+      const status: PermissionStatus =
+        val === 2
+          ? "granted"
+          : val === 1 || val === 3
+            ? "denied"
+            : "not-determined";
+      return { status, canRequest: true };
     }
 
     case "shell": {
@@ -190,7 +188,10 @@ export async function requestPermission(
           // Dialog was shown; open System Preferences so user can toggle it
           await openPrivacySettings(id);
         }
-        return { status: trusted ? "granted" : "not-determined", canRequest: true };
+        return {
+          status: trusted ? "granted" : "not-determined",
+          canRequest: true,
+        };
       }
       // Fallback: open Settings directly
       await openPrivacySettings(id);
@@ -201,7 +202,10 @@ export async function requestPermission(
       if (lib) {
         const granted = lib.requestScreenRecordingPermission();
         if (!granted) await openPrivacySettings(id);
-        return { status: granted ? "granted" : "not-determined", canRequest: true };
+        return {
+          status: granted ? "granted" : "not-determined",
+          canRequest: true,
+        };
       }
       await openPrivacySettings(id);
       return checkPermission(id);

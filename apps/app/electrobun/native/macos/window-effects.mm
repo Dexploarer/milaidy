@@ -95,6 +95,34 @@ extern "C" bool checkScreenRecordingPermission(void) {
 }
 
 /**
+ * Check microphone authorization status via AVFoundation (no prompt).
+ * Returns: 0=not-determined, 1=denied, 2=granted, 3=restricted
+ */
+extern "C" int checkMicrophonePermission(void) {
+	AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+	switch (status) {
+		case AVAuthorizationStatusAuthorized: return 2;
+		case AVAuthorizationStatusDenied:     return 1;
+		case AVAuthorizationStatusRestricted: return 3;
+		default:                              return 0;
+	}
+}
+
+/**
+ * Check camera authorization status via AVFoundation (no prompt).
+ * Returns: 0=not-determined, 1=denied, 2=granted, 3=restricted
+ */
+extern "C" int checkCameraPermission(void) {
+	AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+	switch (status) {
+		case AVAuthorizationStatusAuthorized: return 2;
+		case AVAuthorizationStatusDenied:     return 1;
+		case AVAuthorizationStatusRestricted: return 3;
+		default:                              return 0;
+	}
+}
+
+/**
  * Request camera permission via AVFoundation.
  * Calls AVCaptureDevice requestAccessForMediaType which shows the system
  * camera authorization dialog and registers the app.
