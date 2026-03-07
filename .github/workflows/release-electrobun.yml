@@ -104,6 +104,19 @@ jobs:
         with:
           bun-version: latest
 
+      # GNU tar on Windows interprets drive letters (C:) as user@host SSH paths.
+      # Create a tar.bat shim that passes --force-local so all paths are treated
+      # as local. Prepended to PATH via GITHUB_PATH so cmd.exe finds it first
+      # when Electrobun's CLI calls execSync('tar -xzf ...').
+      - name: Shim tar on Windows (--force-local for drive letter paths)
+        if: matrix.platform.os == 'windows'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "tar-shim"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Set-Content -Path "$dir\tar.bat" -Value "@`"C:\Program Files\Git\usr\bin\tar.exe`" --force-local %*"
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+
       - name: Cache Bun install
         uses: actions/cache@v4
         with:
