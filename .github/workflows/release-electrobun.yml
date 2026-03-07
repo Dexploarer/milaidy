@@ -232,7 +232,12 @@ jobs:
           echo "developer_id=$IDENTITY" >> "$GITHUB_OUTPUT"
 
       - name: Build Electrobun app
-        run: bunx electrobun build --env=${{ needs.prepare.outputs.env }}
+        # bunx extracts to node_modules/.bun/electrobun@X.Y.Z/ — the @ in that path
+        # causes GNU tar to treat it as user@host on Windows, breaking the native CLI
+        # download. Use the locally installed binary from node_modules/.bin instead.
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          electrobun build --env=${{ needs.prepare.outputs.env }}
         working-directory: apps/app/electrobun
         env:
           # macOS code-signing + notarization (Electrobun reads these directly)
