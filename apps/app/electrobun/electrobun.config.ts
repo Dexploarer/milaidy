@@ -21,6 +21,10 @@ export default {
     copy: {
       "../dist": "renderer",
       "src/preload.js": "bun/preload.js",
+      // ElizaOS backend server bundle (tsdown output from repo root dist/).
+      // agent.ts walks up from import.meta.dir looking for milady-dist/ to spawn eliza.js.
+      // Paths are relative to apps/app/electrobun/ (where electrobun build is run).
+      "../../../dist": "milady-dist",
       // libMacWindowEffects.dylib is macOS-only — only copy when building on macOS.
       // On Windows/Linux this file does not exist and the copy would fail the build.
       ...(process.platform === "darwin"

@@ -228,6 +228,36 @@ jobs:
 
       # Install electrobun globally so the binary is in PATH at ~/.bun/bin/electrobun
       # (no @ in path, avoiding the GNU tar user@host misinterpretation on Windows)
+      # Bundle packages that tsdown externalizes (native .node addons + @elizaos/plugin-*)
+      # into dist/node_modules/ so they're available when eliza.js runs inside the app bundle.
+      # agent.ts sets NODE_PATH to milady-dist/node_modules, which resolves to these copies.
+      - name: Bundle backend node_modules into dist/
+        shell: bash
+        run: |
+          mkdir -p dist/node_modules
+          # Native binary packages externalized by tsdown
+          for pkg in node-llama-cpp @reflink; do
+            if [ -d "node_modules/$pkg" ]; then
+              echo "Copying node_modules/$pkg"
+              cp -r "node_modules/$pkg" "dist/node_modules/$pkg"
+            fi
+          done
+          # macOS only: fsevents
+          if [ "${{ matrix.platform.os }}" = "macos" ] && [ -d "node_modules/fsevents" ]; then
+            cp -r "node_modules/fsevents" "dist/node_modules/fsevents"
+          fi
+          # @elizaos/plugin-* packages loaded dynamically at runtime
+          if [ -d "node_modules/@elizaos" ]; then
+            mkdir -p dist/node_modules/@elizaos
+            for pluginDir in node_modules/@elizaos/plugin-*; do
+              pkg="$(basename "$pluginDir")"
+              echo "Copying @elizaos/$pkg"
+              cp -r "$pluginDir" "dist/node_modules/@elizaos/$pkg"
+            done
+          fi
+          echo "dist/node_modules contents:"
+          ls dist/node_modules/ 2>/dev/null || echo "(empty)"
+
       - name: Install electrobun CLI
         run: bun install -g electrobun@1.14.4
 
