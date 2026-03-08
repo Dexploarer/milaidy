@@ -1,0 +1,3 @@
+## 2024-03-08 - Added aria-hidden to icon-only buttons
+**Learning:** Screen readers might announce characters (like × for "multiplication sign") even if the button has an `aria-label`. We should add `aria-hidden="true"` to these inner elements to prevent double announcements or confusing readouts.
+**Action:** When creating or modifying icon-only buttons, always ensure that visual content (like SVGs or specific text characters like `×`) are wrapped in `aria-hidden="true"`, even when the parent `<button>` has a descriptive `aria-label`.
