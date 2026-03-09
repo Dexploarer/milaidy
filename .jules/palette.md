@@ -1,0 +1,3 @@
+## 2026-03-09 - Accessible Close Buttons using Text Characters
+**Learning:** Found an accessibility issue pattern specific to this app's components where multiple UI elements (e.g., modals, lists) use bare text characters like `×` or `&times;` for icon-only close buttons. Without an `aria-label`, screen readers misinterpret these as mathematical symbols (like "times"), creating a confusing experience for visually impaired users.
+**Action:** Always wrap visual text characters used as icons in `<span aria-hidden="true">` to prevent screen reader dictation, and provide an explicit, descriptive `aria-label` (e.g., `aria-label="Close"`) on the parent `<button>` to ensure accessibility.

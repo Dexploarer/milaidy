@@ -806,8 +806,9 @@ function MultiselectFieldInner({ fp: props }: { fp: FieldRenderProps }) {
                   type="button"
                   className="inline-flex items-center justify-center w-3.5 h-3.5 text-[10px] rounded-full hover:bg-[var(--accent)] hover:text-white transition-colors cursor-pointer"
                   onClick={() => remove(opt.value)}
+                  aria-label={`Remove option ${opt.label || opt.value}`}
                 >
-                  ×
+                  <span aria-hidden="true">×</span>
                 </button>
               )}
             </span>
@@ -1712,8 +1713,9 @@ function TableFieldInner(props: FieldRenderProps) {
                       className="text-[var(--muted)] hover:text-[var(--destructive)] text-[14px] px-1"
                       onClick={() => removeRow(ri)}
                       title="Remove row"
+                      aria-label="Remove row"
                     >
-                      &times;
+                      <span aria-hidden="true">&times;</span>
                     </button>
                   )}
                 </td>
