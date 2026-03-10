@@ -811,7 +811,7 @@ function captureScreenshot(region?: {
         `$graphics.Dispose()`,
         `$bitmap.Dispose()`,
       ].join("; ");
-      execSync(`powershell -Command "${psCmd}"`, {
+      execFileSync("powershell", ["-Command", psCmd], {
         timeout: 15000,
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -854,7 +854,7 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
           end repeat
           return windowList as text
         end tell`;
-      const output = execSync(`osascript -e '${script}'`, {
+      const output = execFileSync("osascript", ["-e", script], {
         encoding: "utf-8",
         timeout: 10000,
         stdio: ["ignore", "pipe", "ignore"],
@@ -877,13 +877,24 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
 
   if (os === "linux") {
     try {
-      const output = execSync(
-        'wmctrl -l 2>/dev/null || xdotool search --name "" getwindowname 2>/dev/null',
-        {
+      let output = "";
+      try {
+        output = execFileSync("wmctrl", ["-l"], {
           encoding: "utf-8",
           timeout: 5000,
-        },
-      );
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+      } catch {
+        output = execFileSync(
+          "xdotool",
+          ["search", "--name", "", "getwindowname"],
+          {
+            encoding: "utf-8",
+            timeout: 5000,
+            stdio: ["ignore", "pipe", "ignore"],
+          },
+        );
+      }
       return output
         .split("\n")
         .filter(Boolean)
@@ -899,8 +910,12 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
 
   if (os === "win32") {
     try {
-      const output = execSync(
-        `powershell -Command "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object Id, MainWindowTitle | ConvertTo-Json"`,
+      const output = execFileSync(
+        "powershell",
+        [
+          "-Command",
+          "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object Id, MainWindowTitle | ConvertTo-Json",
+        ],
         { encoding: "utf-8", timeout: 10000 },
       );
       const processes = JSON.parse(output);
@@ -926,14 +941,24 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
   if (os === "darwin") {
     // Use sox (rec) on macOS
     if (commandExists("rec")) {
-      execSync(`rec -q ${tmpFile} trim 0 ${durationSec}`, {
+      execFileSync("rec", ["-q", tmpFile, "trim", "0", String(durationSec)], {
         timeout: durationMs + 5000,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f avfoundation -i ":0" -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+      execFileSync(
+        "ffmpeg",
+        [
+          "-f",
+          "avfoundation",
+          "-i",
+          ":0",
+          "-t",
+          String(durationSec),
+          "-y",
+          tmpFile,
+        ],
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error(
@@ -942,14 +967,28 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
     }
   } else if (os === "linux") {
     if (commandExists("arecord")) {
-      execSync(`arecord -d ${durationSec} -f cd ${tmpFile}`, {
-        timeout: durationMs + 5000,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      execFileSync(
+        "arecord",
+        ["-d", String(durationSec), "-f", "cd", tmpFile],
+        {
+          timeout: durationMs + 5000,
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
     } else if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f pulse -i default -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+      execFileSync(
+        "ffmpeg",
+        [
+          "-f",
+          "pulse",
+          "-i",
+          "default",
+          "-t",
+          String(durationSec),
+          "-y",
+          tmpFile,
+        ],
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error(
@@ -959,9 +998,19 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
   } else if (os === "win32") {
     // Use ffmpeg on Windows (most portable)
     if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f dshow -i audio="Microphone" -t ${durationSec} -y "${tmpFile.replace(/\//g, "\\")}" 2>NUL`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+      execFileSync(
+        "ffmpeg",
+        [
+          "-f",
+          "dshow",
+          "-i",
+          "audio=Microphone",
+          "-t",
+          String(durationSec),
+          "-y",
+          tmpFile.replace(/\//g, "\\"),
+        ],
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error("No audio recording tool available. Install ffmpeg.");
