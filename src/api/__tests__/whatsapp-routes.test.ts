@@ -43,7 +43,7 @@ vi.mock("../../services/whatsapp-pairing", () => ({
   whatsappAuthExists: vi.fn().mockReturnValue(false),
   whatsappLogout: vi.fn().mockResolvedValue(undefined),
   // biome-ignore lint/complexity/useArrowFunction: regular function required for vi.fn constructor mock
-  WhatsAppPairingSession: vi.fn().mockImplementation(function () {
+  WhatsAppPairingSession: vi.fn().mockImplementation(function (opts: any) {
     return mockSession;
   }),
 }));
@@ -159,7 +159,25 @@ describe("handleWhatsAppRoute", () => {
 
       expect(res._status).toBe(400);
       const body = JSON.parse(res._body);
-      expect(body.error).toMatch(/invalid/i);
+      expect(body.error).toBe("Invalid accountId");
+    });
+
+    it("handles missing url gracefully", async () => {
+      const req = createMockReq("GET");
+      req.url = undefined;
+      req.headers = { host: "localhost:2138" };
+      const res = createMockRes();
+
+      await handleWhatsAppRoute(
+        req,
+        res,
+        "/api/whatsapp/status",
+        "GET",
+        createState(),
+      );
+
+      const body = JSON.parse(res._body);
+      expect(body.accountId).toBe("default");
     });
 
     it("reports runtime service connection status", async () => {
@@ -185,6 +203,7 @@ describe("handleWhatsAppRoute", () => {
   });
 
   describe("POST /api/whatsapp/pair", () => {
+
     it("creates a session and starts pairing", async () => {
       const req = createMockReq(
         "POST",
@@ -264,6 +283,26 @@ describe("handleWhatsAppRoute", () => {
   });
 
   describe("POST /api/whatsapp/pair/stop", () => {
+    it("rejects invalid accountId", async () => {
+      const req = createMockReq(
+        "POST",
+        JSON.stringify({ accountId: "../evil" }),
+      );
+      const res = createMockRes();
+
+      await handleWhatsAppRoute(
+        req,
+        res,
+        "/api/whatsapp/pair/stop",
+        "POST",
+        createState(),
+      );
+
+      expect(res._status).toBe(400);
+      const body = JSON.parse(res._body);
+      expect(body.error).toBe("Invalid accountId");
+    });
+
     it("stops and removes an existing session", async () => {
       const req = createMockReq(
         "POST",
@@ -312,6 +351,51 @@ describe("handleWhatsAppRoute", () => {
   });
 
   describe("POST /api/whatsapp/disconnect", () => {
+    it("rejects invalid accountId", async () => {
+      const req = createMockReq(
+        "POST",
+        JSON.stringify({ accountId: "../evil" }),
+      );
+      const res = createMockRes();
+
+      await handleWhatsAppRoute(
+        req,
+        res,
+        "/api/whatsapp/disconnect",
+        "POST",
+        createState(),
+      );
+
+      expect(res._status).toBe(400);
+      const body = JSON.parse(res._body);
+      expect(body.error).toBe("Invalid accountId");
+    });
+
+    it("handles whatsappLogout throwing", async () => {
+      const req = createMockReq(
+        "POST",
+        JSON.stringify({ accountId: "default" }),
+      );
+      const res = createMockRes();
+
+      vi.mocked(whatsappLogout).mockRejectedValueOnce(
+        new Error("Logout failed"),
+      );
+
+      await handleWhatsAppRoute(
+        req,
+        res,
+        "/api/whatsapp/disconnect",
+        "POST",
+        createState(),
+      );
+
+      expect(fs.rmSync).toHaveBeenCalledWith(
+        expect.stringContaining("whatsapp-auth/default"),
+        { recursive: true, force: true },
+      );
+    });
+
     it("stops session, calls logout, and removes connector config", async () => {
       const req = createMockReq(
         "POST",
