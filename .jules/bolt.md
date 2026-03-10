@@ -1,0 +1,3 @@
+## 2024-03-10 - Expensive Date Parsing in Render Cycle
+**Learning:** `new Date(dateString).getTime()` inside array sort methods that run on every render (like `sortedConversations` in `ConversationsSidebar.tsx`) creates an excessive amount of throwaway Date objects and parsing overhead, especially with `useApp()` triggering frequent re-renders on minor state changes.
+**Action:** Always prefer `Date.parse(dateString)` for simple timestamp comparison sorting, and aggressive memoize the sorted array with `useMemo` when it depends on a context value that changes frequently.
