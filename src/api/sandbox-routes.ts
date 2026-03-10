@@ -1,6 +1,6 @@
 /** Sandbox capability API routes: status, exec, browser, screen, audio, computer use. */
 
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { platform, tmpdir } from "node:os";
@@ -812,7 +812,7 @@ function captureScreenshot(region?: {
         `$graphics.Dispose()`,
         `$bitmap.Dispose()`,
       ].join("; ");
-      execSync(`powershell -Command "${psCmd}"`, {
+      execFileSync("powershell", ["-Command", psCmd], {
         timeout: 15000,
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -855,7 +855,7 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
           end repeat
           return windowList as text
         end tell`;
-      const output = execSync(`osascript -e '${script}'`, {
+      const output = execFileSync("osascript", ["-e", script], {
         encoding: "utf-8",
         timeout: 10000,
         stdio: ["ignore", "pipe", "ignore"],
@@ -878,8 +878,9 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
 
   if (os === "linux") {
     try {
-      const output = execSync(
-        'wmctrl -l 2>/dev/null || xdotool search --name "" getwindowname 2>/dev/null',
+      const output = execFileSync(
+        "sh",
+        ["-c", 'wmctrl -l 2>/dev/null || xdotool search --name "" getwindowname 2>/dev/null'],
         {
           encoding: "utf-8",
           timeout: 5000,
@@ -900,8 +901,9 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
 
   if (os === "win32") {
     try {
-      const output = execSync(
-        `powershell -Command "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object Id, MainWindowTitle | ConvertTo-Json"`,
+      const output = execFileSync(
+        "powershell",
+        ["-Command", "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object Id, MainWindowTitle | ConvertTo-Json"],
         { encoding: "utf-8", timeout: 10000 },
       );
       const processes = JSON.parse(output);
@@ -927,14 +929,15 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
   if (os === "darwin") {
     // Use sox (rec) on macOS
     if (commandExists("rec")) {
-      execSync(`rec -q ${tmpFile} trim 0 ${durationSec}`, {
+      execFileSync("rec", ["-q", tmpFile, "trim", "0", String(durationSec)], {
         timeout: durationMs + 5000,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f avfoundation -i ":0" -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+      execFileSync(
+        "ffmpeg",
+        ["-f", "avfoundation", "-i", ":0", "-t", String(durationSec), "-y", tmpFile],
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error(
@@ -943,14 +946,15 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
     }
   } else if (os === "linux") {
     if (commandExists("arecord")) {
-      execSync(`arecord -d ${durationSec} -f cd ${tmpFile}`, {
+      execFileSync("arecord", ["-d", String(durationSec), "-f", "cd", tmpFile], {
         timeout: durationMs + 5000,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f pulse -i default -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+      execFileSync(
+        "ffmpeg",
+        ["-f", "pulse", "-i", "default", "-t", String(durationSec), "-y", tmpFile],
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error(
@@ -960,9 +964,10 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
   } else if (os === "win32") {
     // Use ffmpeg on Windows (most portable)
     if (commandExists("ffmpeg")) {
-      execSync(
-        `ffmpeg -f dshow -i audio="Microphone" -t ${durationSec} -y "${tmpFile.replace(/\//g, "\\")}" 2>NUL`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+      execFileSync(
+        "ffmpeg",
+        ["-f", "dshow", "-i", "audio=Microphone", "-t", String(durationSec), "-y", tmpFile.replace(/\//g, "\\")],
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error("No audio recording tool available. Install ffmpeg.");
@@ -1286,7 +1291,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
   // Check if docker binary exists (installed)
   try {
     const which = os === "win32" ? "where" : "which";
-    execSync(`${which} docker`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, ["docker"], { stdio: "ignore", timeout: 3000 });
     dockerInstalled = true;
   } catch {
     /* not installed */
@@ -1295,7 +1300,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
   // Check if docker daemon is running (docker info succeeds only when daemon is up)
   if (dockerInstalled) {
     try {
-      execSync("docker info", { stdio: "ignore", timeout: 5000 });
+      execFileSync("docker", ["info"], { stdio: "ignore", timeout: 1000 });
       dockerRunning = true;
     } catch {
       /* installed but not running */
@@ -1304,7 +1309,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
 
   if (os === "darwin") {
     try {
-      execSync("which container", { stdio: "ignore", timeout: 3000 });
+      execFileSync("which", ["container"], { stdio: "ignore", timeout: 1000 });
       appleContainerAvailable = true;
     } catch {
       /* */
@@ -1327,7 +1332,7 @@ function getPlatformInfo(): Record<string, string | boolean> {
 
 function isWsl2Available(): boolean {
   try {
-    execSync("wsl --status", { stdio: "ignore", timeout: 5000 });
+    execFileSync("wsl", ["--status"], { stdio: "ignore", timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -1343,7 +1348,7 @@ function attemptDockerStart(): {
 
   try {
     if (os === "darwin") {
-      execSync('open -a "Docker"', { timeout: 5000, stdio: "ignore" });
+      execFileSync("open", ["-a", "Docker"], { timeout: 5000, stdio: "ignore" });
       return {
         success: true,
         message: "Docker Desktop is starting on macOS. Give it a moment~",
@@ -1360,10 +1365,9 @@ function attemptDockerStart(): {
       let started = false;
       for (const p of paths) {
         try {
-          execSync(`start "" ${p}`, {
+          execFileSync("cmd.exe", ["/c", "start", '""', p], {
             timeout: 5000,
             stdio: "ignore",
-            shell: "cmd.exe",
           });
           started = true;
           break;
@@ -1373,10 +1377,9 @@ function attemptDockerStart(): {
       }
       if (!started) {
         // Try via start menu
-        execSync('start "" "Docker Desktop"', {
+        execFileSync("cmd.exe", ["/c", "start", '""', '"Docker Desktop"'], {
           timeout: 5000,
           stdio: "ignore",
-          shell: "cmd.exe",
         });
       }
       return {
@@ -1390,7 +1393,7 @@ function attemptDockerStart(): {
     if (os === "linux") {
       // Try systemctl first (most common)
       try {
-        execSync("sudo systemctl start docker", {
+        execFileSync("sudo", ["systemctl", "start", "docker"], {
           timeout: 10000,
           stdio: "ignore",
         });
@@ -1405,7 +1408,7 @@ function attemptDockerStart(): {
 
       // Try service command
       try {
-        execSync("sudo service docker start", {
+        execFileSync("sudo", ["service", "docker", "start"], {
           timeout: 10000,
           stdio: "ignore",
         });
@@ -1445,7 +1448,7 @@ function attemptDockerStart(): {
 function commandExists(cmd: string): boolean {
   try {
     const which = platform() === "win32" ? "where" : "which";
-    execSync(`${which} ${cmd}`, { stdio: "ignore", timeout: 3000 });
+    execFileSync(which, [cmd], { stdio: "ignore", timeout: 3000 });
     return true;
   } catch {
     return false;
