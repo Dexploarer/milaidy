@@ -314,6 +314,7 @@ export function SubscriptionStatus({
             {anthropicConnected && (
               <button
                 type="button"
+                aria-label="Disconnect Claude Subscription"
                 className="btn text-xs py-[3px] px-3 !mt-0 !bg-transparent !border-[var(--border)] !text-[var(--muted)]"
                 onClick={() =>
                   void handleDisconnectSubscription("anthropic-subscription")
@@ -503,6 +504,7 @@ export function SubscriptionStatus({
             {openaiConnected && (
               <button
                 type="button"
+                aria-label="Disconnect ChatGPT Subscription"
                 className="btn text-xs py-[3px] px-3 !mt-0 !bg-transparent !border-[var(--border)] !text-[var(--muted)]"
                 onClick={() =>
                   void handleDisconnectSubscription("openai-subscription")
