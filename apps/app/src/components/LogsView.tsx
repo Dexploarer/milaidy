@@ -138,6 +138,7 @@ export function LogsView() {
         {hasActiveFilters && (
           <button
             type="button"
+            aria-label="Clear log filters"
             className="text-xs px-3 py-1.5 border border-border bg-card text-txt cursor-pointer hover:border-accent hover:text-accent"
             onClick={handleClearFilters}
           >
@@ -147,6 +148,7 @@ export function LogsView() {
 
         <button
           type="button"
+          aria-label="Refresh logs"
           className="text-xs px-3 py-1.5 border border-border bg-card text-txt cursor-pointer hover:border-accent hover:text-accent ml-auto"
           onClick={() => void loadLogs()}
         >
