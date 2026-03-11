@@ -119,7 +119,7 @@ export function ConversationsSidebar({
             onClick={onClose}
             aria-label="Close chats panel"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
       )}
@@ -160,6 +160,7 @@ export function ConversationsSidebar({
                 {isEditing ? (
                   <input
                     ref={inputRef}
+                    aria-label="Edit conversation title"
                     className="w-full px-1.5 py-1 border border-accent rounded bg-card text-txt text-[13px] outline-none"
                     value={editingTitle}
                     onChange={(e) => setEditingTitle(e.target.value)}
@@ -221,8 +222,9 @@ export function ConversationsSidebar({
                           setConfirmDeleteId(conv.id);
                         }}
                         title="Delete conversation"
+                        aria-label={`Delete conversation ${conv.title}`}
                       >
-                        ×
+                        <span aria-hidden="true">×</span>
                       </button>
                     )}
                   </>
