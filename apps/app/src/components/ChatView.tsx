@@ -366,7 +366,13 @@ export function ChatView() {
         style={{ zIndex: 1, scrollbarGutter: "stable both-edges" }}
       >
         {visibleMsgs.length === 0 && !chatSending ? (
-          <ChatEmptyState agentName={agentName} />
+          <ChatEmptyState
+            agentName={agentName}
+            onSuggestionClick={(text) => {
+              setState("chatInput", text);
+              textareaRef.current?.focus();
+            }}
+          />
         ) : (
           <div className="w-full pr-2 sm:pr-3 space-y-1">
             {visibleMsgs.map((msg, i) => {
