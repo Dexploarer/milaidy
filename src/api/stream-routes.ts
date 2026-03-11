@@ -171,10 +171,10 @@ export async function ensureXvfb(
   if (process.env.DISPLAY === display) return true;
 
   try {
-    const { execSync } = await import("node:child_process");
+    const { execFileSync } = await import("node:child_process");
     // Check if Xvfb is already running on this display
     try {
-      execSync(`xdpyinfo -display ${display}`, {
+      execFileSync("xdpyinfo", ["-display", display], {
         stdio: "ignore",
         timeout: 3000,
       });
