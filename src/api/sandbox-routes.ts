@@ -1445,7 +1445,8 @@ function attemptDockerStart(): {
 function commandExists(cmd: string): boolean {
   try {
     const which = platform() === "win32" ? "where" : "which";
-    execSync(`${which} ${cmd}`, { stdio: "ignore", timeout: 3000 });
+    // Security: Use execFileSync instead of execSync to avoid shell command injection vulnerabilities
+    execFileSync(which, [cmd], { stdio: "ignore", timeout: 3000 });
     return true;
   } catch {
     return false;
