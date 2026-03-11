@@ -219,7 +219,13 @@ export function TypingIndicator({
 
 /* ── Empty State ─────────────────────────────────────────────────────── */
 
-export function ChatEmptyState({ agentName }: { agentName: string }) {
+export function ChatEmptyState({
+  agentName,
+  onSuggestionClick,
+}: {
+  agentName: string;
+  onSuggestionClick?: (text: string) => void;
+}) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
       <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
@@ -252,7 +258,8 @@ export function ChatEmptyState({ agentName }: { agentName: string }) {
             <button
               key={suggestion}
               type="button"
-              className="px-3 py-1.5 text-sm border border-border bg-bg rounded-full text-muted hover:border-accent hover:text-accent transition-colors"
+              onClick={() => onSuggestionClick?.(suggestion)}
+              className="px-3 py-1.5 text-sm border border-border bg-bg rounded-full text-muted hover:border-accent hover:text-accent cursor-pointer transition-colors"
             >
               {suggestion}
             </button>
