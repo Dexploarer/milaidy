@@ -1,0 +1,4 @@
+## 2025-02-28 - Command injection risk in PowerShell scripts via single quotes
+**Vulnerability:** PowerShell `SendWait` arguments were concatenated using single quotes `SendWait('${escaped}')`. PowerShell script block allows breakout due to trailing quotes.
+**Learning:** PowerShell single quotes do not interpolate, but if an attacker supplies a string that perfectly escapes the string format, they can break out of string context in `powershell -Command` arguments because `replace(/'/g, "''")` doesn't fully protect if it's evaluated incorrectly at boundaries. Also, `execSync` with piped `stderr` without reading it leads to application freeze when buffer fills (e.g. `ffmpeg`).
+**Prevention:** Use Base64 encoding to pass arbitrary string data to `powershell -Command` via `[System.Convert]::FromBase64String`, and always use `['ignore', 'pipe', 'ignore']` for `execFileSync` to avoid `stderr` deadlock.
