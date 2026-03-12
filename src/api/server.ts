@@ -5368,8 +5368,7 @@ async function routeAutonomyTextToUser(
   if (!conv) {
     // Fall back to most recently updated conversation
     const sorted = Array.from(state.conversations.values()).sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
     );
     conv = sorted[0];
   }
@@ -10623,8 +10622,7 @@ async function handleRequest(
   // ── GET /api/conversations ──────────────────────────────────────────
   if (method === "GET" && pathname === "/api/conversations") {
     const convos = Array.from(state.conversations.values()).sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
     );
     json(res, { conversations: convos });
     return;
