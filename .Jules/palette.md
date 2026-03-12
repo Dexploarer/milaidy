@@ -1,0 +1,3 @@
+## 2024-05-19 - Improved Screen Reader Experience for Close and Delete Buttons
+**Learning:** The application extensively uses HTML character entities like `&times;` and `×` for close and delete buttons. When these aren't wrapped in `aria-hidden="true"`, screen readers might read them confusingly as 'multiplication sign', even when an `aria-label` or `title` attribute is present.
+**Action:** Always wrap visual text icons (like ×, -, +) inside `<span aria-hidden="true">` within icon-only buttons. The button itself should rely on `aria-label` for screen readers.
