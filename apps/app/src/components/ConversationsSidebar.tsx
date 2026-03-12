@@ -55,8 +55,9 @@ export function ConversationsSidebar({
   }, [editingId]);
 
   const sortedConversations = [...conversations].sort((a, b) => {
-    const aTime = new Date(a.updatedAt).getTime();
-    const bTime = new Date(b.updatedAt).getTime();
+    // ⚡ Bolt: Use Date.parse() instead of new Date().getTime() to avoid object allocation overhead during frequent re-renders
+    const aTime = Date.parse(a.updatedAt);
+    const bTime = Date.parse(b.updatedAt);
     return bTime - aTime;
   });
 
