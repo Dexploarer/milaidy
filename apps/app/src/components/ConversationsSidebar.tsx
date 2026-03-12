@@ -55,8 +55,8 @@ export function ConversationsSidebar({
   }, [editingId]);
 
   const sortedConversations = [...conversations].sort((a, b) => {
-    const aTime = new Date(a.updatedAt).getTime();
-    const bTime = new Date(b.updatedAt).getTime();
+    const aTime = Date.parse(a.updatedAt);
+    const bTime = Date.parse(b.updatedAt);
     return bTime - aTime;
   });
 

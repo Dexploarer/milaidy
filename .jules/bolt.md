@@ -1,0 +1,3 @@
+## 2025-02-19 - Avoid redundant new Date() parsing in render sorting loops
+**Learning:** Instantiating `new Date(dateString)` just to call `.getTime()` creates unnecessary garbage collection overhead and is slower than using `Date.parse(dateString)` directly. In hot render paths like the React context `AppContext.tsx` or `ConversationsSidebar.tsx` which re-render often, sorting by `new Date().getTime()` compounds the performance penalty.
+**Action:** When performing date-based sorting, prefer `Date.parse(dateString)` instead of `new Date(dateString).getTime()` to minimize parsing overhead and object instantiation during renders.
