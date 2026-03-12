@@ -744,7 +744,7 @@ function resolveAudioFormat(input: unknown): {
 function runCommand(command: string, args: string[], timeout: number): void {
   execFileSync(command, args, {
     timeout,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", "pipe", "ignore"],
   });
 }
 
@@ -813,7 +813,7 @@ function captureScreenshot(region?: {
       ].join("; ");
       execSync(`powershell -Command "${psCmd}"`, {
         timeout: 15000,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "ignore"],
       });
     } else {
       throw new Error(`Screenshot not supported on platform: ${os}`);
@@ -928,12 +928,12 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
     if (commandExists("rec")) {
       execSync(`rec -q ${tmpFile} trim 0 ${durationSec}`, {
         timeout: durationMs + 5000,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "ignore"],
       });
     } else if (commandExists("ffmpeg")) {
       execSync(
         `ffmpeg -f avfoundation -i ":0" -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error(
@@ -944,12 +944,12 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
     if (commandExists("arecord")) {
       execSync(`arecord -d ${durationSec} -f cd ${tmpFile}`, {
         timeout: durationMs + 5000,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "ignore"],
       });
     } else if (commandExists("ffmpeg")) {
       execSync(
         `ffmpeg -f pulse -i default -t ${durationSec} -y ${tmpFile} 2>/dev/null`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error(
@@ -961,7 +961,7 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
     if (commandExists("ffmpeg")) {
       execSync(
         `ffmpeg -f dshow -i audio="Microphone" -t ${durationSec} -y "${tmpFile.replace(/\//g, "\\")}" 2>NUL`,
-        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "pipe"] },
+        { timeout: durationMs + 10000, stdio: ["ignore", "pipe", "ignore"] },
       );
     } else {
       throw new Error("No audio recording tool available. Install ffmpeg.");
@@ -1085,12 +1085,12 @@ function performType(text: string): void {
       throw new Error("xdotool required for keyboard input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = text.replace(/'/g, "''");
+    const base64 = Buffer.from(text).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `$text = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}')); Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait($text)`,
       ],
       10000,
     );
@@ -1146,12 +1146,12 @@ function performKeypress(keys: string): void {
       throw new Error("xdotool required for key input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = keys.replace(/'/g, "''");
+    const base64 = Buffer.from(keys).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `$keys = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}')); Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait($keys)`,
       ],
       5000,
     );
