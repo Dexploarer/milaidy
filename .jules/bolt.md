@@ -1,0 +1,3 @@
+## 2024-03-13 - Optimize Date sorting and Context rerenders
+**Learning:** The `useApp()` context hook in the frontend triggers frequent re-renders across consuming components. Performing expensive operations like mapping and sorting inside the component render body amplifies this performance bottleneck. Furthermore, `new Date(dateString).getTime()` has a surprisingly high overhead during high-frequency rerenders compared to the leaner `Date.parse(dateString)`.
+**Action:** Aggressively memoize expensive operations (e.g. `sortedConversations`) with `useMemo` in components consuming `useApp()`. For date-based sorting, always prefer `Date.parse(dateString)` over `new Date(dateString).getTime()` to reduce parsing overhead and object allocation during frequent renders.
