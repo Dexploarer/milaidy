@@ -1086,12 +1086,13 @@ function performType(text: string): void {
       throw new Error("xdotool required for keyboard input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = text.replace(/'/g, "''");
+    // Security: Encode to Base64 to prevent command injection via SendKeys
+    const base64Text = Buffer.from(text).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; $decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64Text}')); [System.Windows.Forms.SendKeys]::SendWait($decoded)`,
       ],
       10000,
     );
@@ -1147,12 +1148,13 @@ function performKeypress(keys: string): void {
       throw new Error("xdotool required for key input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = keys.replace(/'/g, "''");
+    // Security: Encode to Base64 to prevent command injection via SendKeys
+    const base64Keys = Buffer.from(keys).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; $decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64Keys}')); [System.Windows.Forms.SendKeys]::SendWait($decoded)`,
       ],
       5000,
     );
