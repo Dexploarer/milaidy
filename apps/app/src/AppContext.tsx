@@ -5029,10 +5029,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ? { ...c, updatedAt: new Date().toISOString() }
                 : c,
             );
+            // Use Date.parse to reduce parsing overhead during renders
             return updated.sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime(),
+              (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
             );
           });
         },
@@ -5046,10 +5045,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (conv?.id) {
             setConversations((prev) => {
               const updated = prev.map((c) => (c.id === conv.id ? conv : c));
+              // Use Date.parse to reduce parsing overhead during renders
               return updated.sort(
-                (a, b) =>
-                  new Date(b.updatedAt).getTime() -
-                  new Date(a.updatedAt).getTime(),
+                (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
               );
             });
           }
