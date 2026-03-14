@@ -436,7 +436,7 @@ export function ChatView() {
                 onClick={() => removeImage(i)}
                 className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger text-white text-[10px] flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
               >
-                ×
+                <span aria-hidden="true">×</span>
               </button>
             </div>
           ))}
@@ -485,7 +485,7 @@ export function ChatView() {
           title="Attach image"
           disabled={chatSending}
         >
-          <Paperclip className="w-4 h-4" />
+          <Paperclip className="w-4 h-4" aria-hidden="true" />
         </button>
 
         {/* Mic button — user voice input */}
@@ -505,9 +505,9 @@ export function ChatView() {
             title={voice.isListening ? "Stop listening" : "Voice input"}
           >
             {voice.isListening ? (
-              <Mic className="w-4 h-4 fill-current" />
+              <Mic className="w-4 h-4 fill-current" aria-hidden="true" />
             ) : (
-              <Mic className="w-4 h-4" />
+              <Mic className="w-4 h-4" aria-hidden="true" />
             )}
           </button>
         )}
