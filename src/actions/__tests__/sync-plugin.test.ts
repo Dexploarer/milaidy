@@ -1,93 +1,151 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { syncPluginAction } from "../../actions/sync-plugin";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { syncPluginAction } from "../sync-plugin";
 import { syncPlugin } from "../../services/plugin-eject";
 
-vi.mock("../../services/plugin-eject", () => {
-  return {
-    syncPlugin: vi.fn(),
-  };
-});
+vi.mock("../../services/plugin-eject", () => ({
+  syncPlugin: vi.fn(),
+}));
 
 describe("syncPluginAction", () => {
-  const mockSyncPlugin = vi.mocked(syncPlugin);
-
   beforeEach(() => {
-    mockSyncPlugin.mockReset();
+    vi.clearAllMocks();
   });
 
-  it("should require a plugin ID", async () => {
+  it("should return true for validate", async () => {
+    const result = await syncPluginAction.validate(
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    expect(result).toBe(true);
+  });
+
+  it("should fail if pluginId parameter is missing", async () => {
+    const options = { parameters: {} };
+
     const result = await syncPluginAction.handler(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+      {} as any,
+      {} as any,
+      {} as any,
+      options,
     );
 
-    expect(result.success).toBe(false);
-    expect(result.text).toContain("plugin ID");
-    expect(mockSyncPlugin).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      text: "I need a plugin ID to sync.",
+      success: false,
+    });
+    expect(syncPlugin).not.toHaveBeenCalled();
   });
 
-  it("should trim the plugin ID before syncing", async () => {
-    mockSyncPlugin.mockResolvedValue({
+  it("should fail if pluginId parameter is empty string", async () => {
+    const options = { parameters: { pluginId: "   " } };
+
+    const result = await syncPluginAction.handler(
+      {} as any,
+      {} as any,
+      {} as any,
+      options,
+    );
+
+    expect(result).toEqual({
+      text: "I need a plugin ID to sync.",
+      success: false,
+    });
+    expect(syncPlugin).not.toHaveBeenCalled();
+  });
+
+  it("should handle successful plugin sync", async () => {
+    const options = { parameters: { pluginId: "discord" } };
+    const mockResult = {
       success: true,
       pluginName: "discord",
       upstreamCommits: 2,
-      conflicts: [],
-    });
+    };
+    vi.mocked(syncPlugin).mockResolvedValue(mockResult as any);
 
     const result = await syncPluginAction.handler(
-      undefined,
-      undefined,
-      undefined,
-      { parameters: { pluginId: "  discord  " } },
+      {} as any,
+      {} as any,
+      {} as any,
+      options,
     );
 
-    expect(mockSyncPlugin).toHaveBeenCalledWith("discord");
-    expect(result.success).toBe(true);
-    expect(result.text).toContain("Synced discord");
-  });
-
-  it("should surface conflicts when sync fails", async () => {
-    mockSyncPlugin.mockResolvedValue({
-      success: false,
-      pluginName: "discord",
-      upstreamCommits: 0,
-      conflicts: ["src/index.ts"],
-      error: "merge conflict",
-    });
-
-    const result = await syncPluginAction.handler(
-      undefined,
-      undefined,
-      undefined,
-      { parameters: { pluginId: "discord" } },
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.text).toContain("merge conflict");
-    expect(result.text).toContain("Conflicts: src/index.ts");
-    expect(result.data).toMatchObject({ success: false });
-  });
-
-  it("should report upstream commit count on success", async () => {
-    mockSyncPlugin.mockResolvedValue({
+    expect(syncPlugin).toHaveBeenCalledWith("discord");
+    expect(result).toEqual({
+      text: "Synced discord (2 upstream commits).",
       success: true,
-      pluginName: "telegram-enhanced",
-      upstreamCommits: 5,
-      conflicts: [],
+      data: { ...mockResult },
     });
+  });
+
+  it("should handle failed plugin sync with specific error and no conflicts", async () => {
+    const options = { parameters: { pluginId: "discord" } };
+    const mockResult = {
+      success: false,
+      conflicts: [],
+      error: "test error syncing",
+    };
+    vi.mocked(syncPlugin).mockResolvedValue(mockResult as any);
 
     const result = await syncPluginAction.handler(
-      undefined,
-      undefined,
-      undefined,
-      { parameters: { pluginId: "telegram-enhanced" } },
+      {} as any,
+      {} as any,
+      {} as any,
+      options,
     );
 
-    expect(result.success).toBe(true);
-    expect(result.text).toContain("telegram-enhanced");
-    expect(result.text).toContain("5 upstream commits");
-    expect(result.data).toMatchObject({ success: true });
+    expect(syncPlugin).toHaveBeenCalledWith("discord");
+    expect(result).toEqual({
+      text: "Failed to sync discord: test error syncing.",
+      success: false,
+      data: { ...mockResult },
+    });
+  });
+
+  it("should handle failed plugin sync with unknown error", async () => {
+    const options = { parameters: { pluginId: "discord" } };
+    const mockResult = {
+      success: false,
+      conflicts: [],
+    };
+    vi.mocked(syncPlugin).mockResolvedValue(mockResult as any);
+
+    const result = await syncPluginAction.handler(
+      {} as any,
+      {} as any,
+      {} as any,
+      options,
+    );
+
+    expect(syncPlugin).toHaveBeenCalledWith("discord");
+    expect(result).toEqual({
+      text: "Failed to sync discord: unknown error.",
+      success: false,
+      data: { ...mockResult },
+    });
+  });
+
+  it("should handle failed plugin sync with conflicts", async () => {
+    const options = { parameters: { pluginId: "discord" } };
+    const mockResult = {
+      success: false,
+      conflicts: ["file1.txt", "file2.txt"],
+      error: "merge conflict",
+    };
+    vi.mocked(syncPlugin).mockResolvedValue(mockResult as any);
+
+    const result = await syncPluginAction.handler(
+      {} as any,
+      {} as any,
+      {} as any,
+      options,
+    );
+
+    expect(syncPlugin).toHaveBeenCalledWith("discord");
+    expect(result).toEqual({
+      text: "Failed to sync discord: merge conflict. Conflicts: file1.txt, file2.txt",
+      success: false,
+      data: { ...mockResult },
+    });
   });
 });
