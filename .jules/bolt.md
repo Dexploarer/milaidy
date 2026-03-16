@@ -1,0 +1,3 @@
+## 2025-02-14 - Batch Processing for Import Data Loops
+**Learning:** Sequential database insert operations (`await db.createMemory`, `await db.createComponent`, etc.) in loops cause severe N+1 query performance bottlenecks during bulk imports or migrations. The database adapter doesn't automatically batch these disparate create calls.
+**Action:** When migrating or importing large sets of records, implement client-side batched concurrency (e.g., chunking the array into batches of ~50 and using `Promise.all`) to drastically reduce network round-trips to the database while preventing memory/connection exhaustion.

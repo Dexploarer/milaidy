@@ -639,9 +639,21 @@ async function restoreAgentData(
   }
   logger.info(`[agent-import] Imported ${entitiesImported} entities`);
 
+  // Batch processing utility for database operations
+  const processInBatches = async <T>(
+    items: T[],
+    processor: (item: T) => Promise<void>,
+    batchSize = 50
+  ) => {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await Promise.all(batch.map(processor));
+    }
+  };
+
   // 5. Add participants to rooms
   let participantsImported = 0;
-  for (const p of payload.participants) {
+  await processInBatches(payload.participants, async (p) => {
     const newEntityId = remap(p.entityId) as UUID;
     const newRoomId = remap(p.roomId) as UUID;
     await db.addParticipantsRoom([newEntityId], newRoomId);
@@ -649,12 +661,12 @@ async function restoreAgentData(
       await db.setParticipantUserState(newRoomId, newEntityId, p.userState);
     }
     participantsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${participantsImported} participants`);
 
   // 6. Create components
   let componentsImported = 0;
-  for (const comp of payload.components) {
+  await processInBatches(payload.components, async (comp) => {
     const newComp: Component = {
       ...comp,
       id: remap(comp.id ?? "") as UUID,
@@ -668,12 +680,12 @@ async function restoreAgentData(
     };
     await db.createComponent(newComp);
     componentsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${componentsImported} components`);
 
   // 7. Create memories
   let memoriesImported = 0;
-  for (const mem of payload.memories) {
+  await processInBatches(payload.memories, async (mem) => {
     const tableName = resolveMemoryTableName(mem);
     const newMem: Memory = {
       ...mem,
@@ -687,12 +699,12 @@ async function restoreAgentData(
     };
     await db.createMemory(newMem, tableName);
     memoriesImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${memoriesImported} memories`);
 
   // 8. Create relationships
   let relationshipsImported = 0;
-  for (const rel of payload.relationships) {
+  await processInBatches(payload.relationships, async (rel) => {
     await db.createRelationship({
       sourceEntityId: remap(rel.sourceEntityId ?? "") as UUID,
       targetEntityId: remap(rel.targetEntityId ?? "") as UUID,
@@ -700,7 +712,7 @@ async function restoreAgentData(
       metadata: rel.metadata,
     });
     relationshipsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${relationshipsImported} relationships`);
 
   // 9. Create tasks
@@ -708,7 +720,7 @@ async function restoreAgentData(
   // We spread the original task and add agentId as a dynamic property
   // that the database adapter will persist.
   let tasksImported = 0;
-  for (const task of payload.tasks) {
+  await processInBatches(payload.tasks, async (task) => {
     const newTask = {
       ...task,
       id: remap(task.id ?? "") as UUID,
@@ -719,12 +731,12 @@ async function restoreAgentData(
     } as Task;
     await db.createTask(newTask);
     tasksImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${tasksImported} tasks`);
 
   // 10. Create logs
   let logsImported = 0;
-  for (const logEntry of payload.logs) {
+  await processInBatches(payload.logs, async (logEntry) => {
     await db.log({
       body: logEntry.body,
       entityId: logEntry.entityId
@@ -736,7 +748,7 @@ async function restoreAgentData(
       type: logEntry.type ?? "action",
     });
     logsImported++;
-  }
+  });
   logger.info(`[agent-import] Imported ${logsImported} logs`);
 
   return {
