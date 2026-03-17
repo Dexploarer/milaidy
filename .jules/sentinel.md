@@ -1,0 +1,4 @@
+## 2024-03-18 - [Command Injection via PowerShell single-quote bypass]
+**Vulnerability:** Command Injection vulnerabilities in Windows `powershell -Command` via `execSync` or `execFileSync` caused by standard single-quote escaping bypass (e.g. `text.replace(/'/g, "''")`).
+**Learning:** Standard single-quote escaping doesn't fully protect against command injection when input is directly interpolated in a PowerShell command line because PowerShell parsing complexities allow escaping bypasses. This is a common pattern when passing arbitrary user input (like mouse or keyboard inputs).
+**Prevention:** Always encode user input as a Base64 string in Node (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` instead of attempting string escaping.
