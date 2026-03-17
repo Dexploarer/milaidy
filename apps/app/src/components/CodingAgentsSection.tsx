@@ -46,9 +46,10 @@ export function CodingAgentsSection({ sessions }: CodingAgentsSectionProps) {
         type="button"
         className="flex justify-between items-center px-3 py-2 cursor-pointer hover:bg-bg-hover text-xs font-semibold uppercase tracking-wide text-muted w-full"
         onClick={() => setCollapsed(!collapsed)}
+        aria-expanded={!collapsed}
       >
         <span>Coding Agents ({sessions.length})</span>
-        <span>{collapsed ? "\u25B6" : "\u25BC"}</span>
+        <span aria-hidden="true">{collapsed ? "\u25B6" : "\u25BC"}</span>
       </button>
       {!collapsed && (
         <div className="px-3 pb-2 space-y-2">
@@ -67,6 +68,7 @@ export function CodingAgentsSection({ sessions }: CodingAgentsSectionProps) {
                   type="button"
                   className="w-full text-left px-2 py-1.5 cursor-pointer bg-transparent"
                   onClick={() => toggleTerminal(session.sessionId)}
+                  aria-expanded={isExpanded}
                 >
                   <div className="flex items-center gap-1.5">
                     <span
