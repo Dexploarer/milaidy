@@ -24,6 +24,10 @@ describe("number-parsing helpers", () => {
     expect(parsePositiveFloat(" 2.25 ", { fallback: 0.1 })).toBe(2.25);
     expect(parsePositiveFloat("0", { fallback: 0.1 })).toBe(0.1);
     expect(parsePositiveFloat("bad", { fallback: 0.1 })).toBe(0.1);
+
+    // Test falsy/empty values
+    expect(parsePositiveFloat(null, { fallback: 0.1 })).toBe(0.1);
+    expect(parsePositiveFloat("", { fallback: 0.1 })).toBe(0.1);
   });
 
   it("parses and clamps floats", () => {
@@ -37,6 +41,19 @@ describe("number-parsing helpers", () => {
     expect(parseClampedFloat("bad", { min: 0, max: 1, fallback: 0.2 })).toBe(
       0.2,
     );
+    // Tests without fallback / options
+    expect(parseClampedFloat("bad")).toBeUndefined();
+    expect(parseClampedFloat(null)).toBeUndefined();
+    expect(parseClampedFloat("Infinity")).toBeUndefined();
+    expect(parseClampedFloat("0.5")).toBe(0.5);
+    // Test infinite fallback fallback
+    expect(parseClampedFloat("bad", { fallback: Infinity })).toBeUndefined();
+    // Test without min/max bounds
+    expect(parseClampedFloat("3.14")).toBe(3.14);
+    // Test without fallback but with options missing max/min
+    expect(parseClampedFloat("5.5", { min: 0 })).toBe(5.5);
+    expect(parseClampedFloat("-5.5", { max: 0 })).toBe(-5.5);
+    expect(parseClampedFloat(null, { max: 0 })).toBeUndefined();
   });
 
   it("parses and clamps integers", () => {
@@ -48,5 +65,15 @@ describe("number-parsing helpers", () => {
     );
     expect(parseClampedInteger("bad", { min: 1, max: 5, fallback: 2 })).toBe(2);
     expect(parseClampedInteger(null, { min: 1, max: 5, fallback: 2 })).toBe(2);
+
+    // Tests without fallback / options
+    expect(parseClampedInteger("bad")).toBeUndefined();
+    expect(parseClampedInteger(null)).toBeUndefined();
+    expect(parseClampedInteger("Infinity")).toBeUndefined();
+    expect(parseClampedInteger("3")).toBe(3);
+    // Bounds missing max
+    expect(parseClampedInteger("9", { min: 1 })).toBe(9);
+    // Bounds missing min
+    expect(parseClampedInteger("-5", { max: 0 })).toBe(-5);
   });
 });
