@@ -1,0 +1,3 @@
+## 2024-05-15 - ARIA Labels for Dynamic Icon-only Buttons
+**Learning:** Icon-only buttons (like `×` for delete) in dynamic interfaces (like conversation lists) must use an explicit `aria-label` while wrapping the visual text or SVG icon in `aria-hidden="true"`. Without the hidden wrapping, screen readers will announce confusing artifacts like "multiplication sign" along with the label.
+**Action:** When adding ARIA labels to text-based icons (e.g., `&times;` or `×`), always wrap the content in a `<span aria-hidden="true">` instead of just adding the label to the parent button to ensure a clean screen reader experience.
