@@ -5030,10 +5030,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ? { ...c, updatedAt: new Date().toISOString() }
                 : c,
             );
+            // ⚡ Bolt: Optimize sorting by using Date.parse instead of new Date().getTime()
+            // Reduces parsing overhead and object allocations during state updates
             return updated.sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime(),
+              (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
             );
           });
         },
@@ -5047,10 +5047,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (conv?.id) {
             setConversations((prev) => {
               const updated = prev.map((c) => (c.id === conv.id ? conv : c));
+              // ⚡ Bolt: Optimize sorting by using Date.parse instead of new Date().getTime()
+              // Reduces parsing overhead and object allocations during state updates
               return updated.sort(
-                (a, b) =>
-                  new Date(b.updatedAt).getTime() -
-                  new Date(a.updatedAt).getTime(),
+                (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
               );
             });
           }
