@@ -1,0 +1,4 @@
+## 2024-05-18 - PowerShell Command Injection via Single-Quote Escaping Bypass
+**Vulnerability:** Command injection vulnerability existed in `performType` and `performKeypress` on Windows due to relying on single-quote escaping (`text.replace(/'/g, "''")`) for arbitrary user input passed to `powershell -Command`.
+**Learning:** Standard single-quote escaping in Node strings can be bypassed or misinterpreted when passed through `execSync` to PowerShell, leading to command injection vulnerabilities.
+**Prevention:** Encode user input as a Base64 string in Node (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` to completely neutralize injection vectors.
