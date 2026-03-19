@@ -1,0 +1,4 @@
+## 2024-05-24 - PowerShell Command Injection via Quote Escaping Bypass
+**Vulnerability:** User input passed to `powershell -Command` via `execFileSync` was only protected by simple single-quote escaping (`text.replace(/'/g, "''")`), allowing attackers to potentially bypass escaping and execute arbitrary PowerShell commands on Windows platforms.
+**Learning:** Standard single-quote escaping is insufficient when passing arbitrary user input to `powershell -Command` via Node's `execSync` or `execFileSync` on Windows due to complex parsing rules.
+**Prevention:** Always encode arbitrary user input as a Base64 string in Node (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` to safely isolate the data from command interpretation.
