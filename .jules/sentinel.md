@@ -1,0 +1,4 @@
+## 2024-06-18 - Prevent Command Injection on Windows powershell via Node's execSync
+**Vulnerability:** The sandbox capability API passes raw text from users into `powershell -Command` arguments in Node.js via `execSync` or `execFileSync`. For example, escaping single quotes (`'`) as `''` does NOT prevent attackers from breaking out of the single quotes context or inserting shell variable references when calling native shell or using `-Command`.
+**Learning:** When passing arbitrary user input to `powershell -Command` via `execSync` or `execFileSync` on Windows, standard single-quote escaping (e.g., `text.replace(/'/g, "''")`) can be bypassed, causing command injection vulnerabilities.
+**Prevention:** Instead, encode the user input as a Base64 string in Node (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))`.
