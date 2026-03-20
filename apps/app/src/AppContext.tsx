@@ -5030,9 +5030,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 : c,
             );
             return updated.sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime(),
+              (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
             );
           });
         },
@@ -5047,9 +5045,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setConversations((prev) => {
               const updated = prev.map((c) => (c.id === conv.id ? conv : c));
               return updated.sort(
-                (a, b) =>
-                  new Date(b.updatedAt).getTime() -
-                  new Date(a.updatedAt).getTime(),
+                (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
               );
             });
           }
