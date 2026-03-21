@@ -224,6 +224,7 @@ export function MediaGalleryView() {
             <button
               type="button"
               key={chip.id}
+              aria-pressed={filter === chip.id}
               className={`px-3 py-1 text-xs cursor-pointer border transition-colors ${
                 filter === chip.id
                   ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
@@ -342,10 +343,11 @@ export function MediaGalleryView() {
               </div>
               <button
                 type="button"
+                aria-label="Close"
                 className="text-[var(--muted)] hover:text-[var(--txt)] bg-transparent border-0 cursor-pointer text-lg px-2"
                 onClick={() => setLightboxItem(null)}
               >
-                ×
+                <span aria-hidden="true">×</span>
               </button>
             </div>
             {/* Content */}
