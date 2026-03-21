@@ -1,0 +1,3 @@
+## 2025-02-18 - Avoid Date object allocation in frequent sorts
+**Learning:** Using `new Date(dateString).getTime()` inside array `.sort()` callbacks (e.g., in React render paths or global state updates like `AppContext`) causes high object allocation and garbage collection overhead because it creates a new Date object for every comparison. Additionally, sorting arrays in React components without `useMemo` triggers O(N*logN) re-sorts on every render loop.
+**Action:** Always prefer `Date.parse(dateString)` for date comparisons to bypass object creation. When sorting arrays inside React components (like `ConversationsSidebar`), wrap the sorted array in `useMemo` bounded by its source dependencies to prevent unnecessary re-sorts.
