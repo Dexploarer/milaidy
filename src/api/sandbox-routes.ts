@@ -998,12 +998,12 @@ async function playAudio(data: Buffer, format: string): Promise<void> {
         throw new Error("No audio playback tool available.");
       }
     } else if (os === "win32") {
-      const escapedPath = tmpFile.replace(/\//g, "\\").replace(/'/g, "''");
+      const b64 = Buffer.from(tmpFile.replace(/\//g, "\\")).toString("base64");
       runCommand(
         "powershell",
         [
           "-Command",
-          `(New-Object Media.SoundPlayer '${escapedPath}').PlaySync()`,
+          `$path = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64}')); (New-Object Media.SoundPlayer $path).PlaySync()`,
         ],
         60000,
       );
