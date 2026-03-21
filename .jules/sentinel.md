@@ -1,0 +1,4 @@
+## 2024-05-24 - PowerShell Command Injection via `execSync` / `execFileSync`
+**Vulnerability:** A command injection vulnerability existed when passing user-controllable input (the temporary file path, which relies on the audio `format` string) to `powershell -Command` on Windows via `execSync` or `execFileSync`. The code relied on standard single-quote escaping (e.g., `text.replace(/'/g, "''")`) to sanitize the input.
+**Learning:** Standard single-quote escaping is not sufficient and can be bypassed in PowerShell command blocks executed via Node.js, leading to arbitrary command execution on Windows platforms.
+**Prevention:** Instead of relying on string replacement for escaping, encode the user input as a Base64 string in Node (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))`.
