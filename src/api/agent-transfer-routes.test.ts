@@ -6,6 +6,7 @@ import {
   type AgentTransferRouteState,
   handleAgentTransferRoutes,
 } from "./agent-transfer-routes";
+import * as httpHelpers from "./http-helpers";
 
 const mockedExports = vi.hoisted(() => {
   class TestAgentExportError extends Error {}
@@ -137,6 +138,53 @@ describe("agent transfer routes", () => {
     });
   });
 
+  test("rejects password shorter than 4 characters for export", async () => {
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/export",
+      jsonBody: { password: "abc" },
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({
+      error: "A password of at least 4 characters is required.",
+    });
+  });
+
+  test("handles AgentExportError during export", async () => {
+    mockedExports.exportAgent.mockRejectedValueOnce(
+      new mockedExports.AgentExportError("Export error message"),
+    );
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/export",
+      jsonBody: { password: "test" },
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({
+      error: "Export error message",
+    });
+  });
+
+  test("handles generic Error during export", async () => {
+    mockedExports.exportAgent.mockRejectedValueOnce(
+      new Error("Unexpected failure"),
+    );
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/export",
+      jsonBody: { password: "test" },
+    });
+
+    expect(result.status).toBe(500);
+    expect(result.payload).toMatchObject({
+      error: "Export failed: Unexpected failure",
+    });
+  });
+
   test("writes binary export response", async () => {
     const result = await invokeRoute({
       method: "POST",
@@ -165,6 +213,35 @@ describe("agent transfer routes", () => {
     expect(mockedExports.estimateExportSize).toHaveBeenCalledTimes(1);
   });
 
+  test("requires running runtime for estimate", async () => {
+    const result = await invokeRoute({
+      method: "GET",
+      pathname: "/api/agent/export/estimate",
+      state: { runtime: null },
+    });
+
+    expect(result.status).toBe(503);
+    expect(result.payload).toMatchObject({
+      error: "Agent is not running.",
+    });
+  });
+
+  test("handles Error during estimate", async () => {
+    mockedExports.estimateExportSize.mockRejectedValueOnce(
+      new Error("Estimate failure"),
+    );
+
+    const result = await invokeRoute({
+      method: "GET",
+      pathname: "/api/agent/export/estimate",
+    });
+
+    expect(result.status).toBe(500);
+    expect(result.payload).toMatchObject({
+      error: "Estimate failed: Estimate failure",
+    });
+  });
+
   test("requires running runtime for import", async () => {
     const result = await invokeRoute({
       method: "POST",
@@ -189,6 +266,130 @@ describe("agent transfer routes", () => {
     expect(result.status).toBe(400);
     expect(result.payload).toMatchObject({
       error: "Request body is too small — expected password + file data.",
+    });
+  });
+
+  test("handles read body error", async () => {
+    vi.spyOn(httpHelpers, "readRequestBodyBuffer").mockRejectedValueOnce(
+      new Error("Request body exceeds maximum size (536870912 bytes)")
+    );
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/import",
+      rawBody: Buffer.from("data"),
+    });
+
+    expect(result.status).toBe(413);
+    expect(result.payload).toMatchObject({
+      error: "Request body exceeds maximum size (536870912 bytes)",
+    });
+  });
+
+  test("rejects short password in binary envelope", async () => {
+    const passwordBuffer = Buffer.from("abc", "utf-8"); // Length 3
+    const envelope = Buffer.concat([
+      Buffer.from([0, 0, 0, 3]), // 4 bytes for length
+      passwordBuffer,
+      Buffer.from("data"),
+    ]);
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/import",
+      rawBody: envelope,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({
+      error: "Password must be at least 4 characters.",
+    });
+  });
+
+  test("rejects extremely long password in binary envelope", async () => {
+    const envelope = Buffer.concat([
+      Buffer.from([0, 0, 5, 0]), // 4 bytes for length (1280 > 1024)
+      Buffer.alloc(1280, "a"),
+      Buffer.from("data"),
+    ]);
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/import",
+      rawBody: envelope,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({
+      error: "Password is too long (max 1024 bytes).",
+    });
+  });
+
+  test("rejects incomplete envelope (missing file data after password)", async () => {
+    const passwordBuffer = Buffer.from("test", "utf-8"); // Length 4
+    const envelope = Buffer.concat([
+      Buffer.from([0, 0, 0, 4]),
+      passwordBuffer,
+      // No extra data
+    ]);
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/import",
+      rawBody: envelope,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({
+      error: "Request body is incomplete — missing file data after password.",
+    });
+  });
+
+  test("handles AgentExportError during import", async () => {
+    mockedExports.importAgent.mockRejectedValueOnce(
+      new mockedExports.AgentExportError("Import validation failed"),
+    );
+
+    const passwordBuffer = Buffer.from("test", "utf-8");
+    const envelope = Buffer.concat([
+      Buffer.from([0, 0, 0, 4]),
+      passwordBuffer,
+      Buffer.from("data"),
+    ]);
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/import",
+      rawBody: envelope,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({
+      error: "Import validation failed",
+    });
+  });
+
+  test("handles generic Error during import", async () => {
+    mockedExports.importAgent.mockRejectedValueOnce(
+      new Error("Unexpected import error"),
+    );
+
+    const passwordBuffer = Buffer.from("test", "utf-8");
+    const envelope = Buffer.concat([
+      Buffer.from([0, 0, 0, 4]),
+      passwordBuffer,
+      Buffer.from("data"),
+    ]);
+
+    const result = await invokeRoute({
+      method: "POST",
+      pathname: "/api/agent/import",
+      rawBody: envelope,
+    });
+
+    expect(result.status).toBe(500);
+    expect(result.payload).toMatchObject({
+      error: "Import failed: Unexpected import error",
     });
   });
 
