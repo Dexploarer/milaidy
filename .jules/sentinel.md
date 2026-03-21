@@ -1,0 +1,4 @@
+## 2024-05-24 - Fix Command Injection in PowerShell Execution
+**Vulnerability:** Command injection vulnerability in `performType` and `performKeypress` for Windows using `execSync` with `powershell -Command`. Unsanitized user input could be injected directly into the powershell script block.
+**Learning:** Standard single-quote escaping (e.g., `text.replace(/'/g, "''")`) can be bypassed when passing arbitrary user input to `powershell -Command` via `execSync` or `execFileSync` on Windows, causing command injection vulnerabilities.
+**Prevention:** Always encode user input as a Base64 string in Node (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` rather than using simplistic escaping.
