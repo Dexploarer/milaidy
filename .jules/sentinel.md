@@ -1,0 +1,4 @@
+## 2024-05-24 - Command Injection Vulnerability in Sandbox Routes
+**Vulnerability:** Command injection vulnerability via `powershell -Command` in `performType` and `performKeypress`. The application used a simple string replacement approach (`.replace(/'/g, "''")`) to escape user input. This does not fully protect against command injection since Windows PowerShell evaluation semantics bypass this type of escaping.
+**Learning:** Arbitrary user input executed via `execFileSync` or `execSync` requires strict encoding when used in `powershell -Command` blocks. Simply escaping single quotes is insufficient as execution contexts can unescape it.
+**Prevention:** Always encode user input passed to PowerShell using Base64 (`Buffer.from(input).toString("base64")`) and decode it inside the script (`[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(...))`).
