@@ -1,0 +1,3 @@
+## 2024-05-18 - Avoid Object Allocation Overhead in Date Sorting
+**Learning:** In React components and context providers that handle frequent sorting of arrays based on dates (e.g., sorting `conversations` by `updatedAt`), using `new Date(dateString).getTime()` inside the `sort` callback allocates a new `Date` object for every comparison. This creates significant garbage collection overhead and slows down the sort operation, particularly on frequent renders.
+**Action:** Always prefer `Date.parse(dateString)` for sorting when possible, as it avoids object allocation. Additionally, for components that sort derived data, wrap the operation in `useMemo` to prevent O(N*logN) re-sorts on every render.
