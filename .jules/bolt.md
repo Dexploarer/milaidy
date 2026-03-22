@@ -1,0 +1,3 @@
+## 2026-03-22 - Optimize date-based sorting arrays in React components
+**Learning:** When dealing with frequent date-based sorting arrays in React components affected by context updates (like `useApp()`), using `new Date(dateString).getTime()` causes expensive object allocation and triggers unnecessary garbage collection. Not memoizing the sort operation also leads to expensive O(N*logN) re-sorts on every render.
+**Action:** Always prefer `Date.parse(dateString)` over `new Date(dateString).getTime()` when doing simple time comparisons, and always wrap computationally expensive sort operations based on context data within a `useMemo` hook to prevent unnecessary re-sorting.
