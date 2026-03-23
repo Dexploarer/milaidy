@@ -1022,6 +1022,11 @@ function toAppleScriptStringLiteral(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+function toPowerShellBase64StringLiteral(value: string): string {
+  const base64 = Buffer.from(value).toString("base64");
+  return `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))`;
+}
+
 function performClick(x: number, y: number, button: "left" | "right"): void {
   const os = platform();
 
@@ -1086,12 +1091,12 @@ function performType(text: string): void {
       throw new Error("xdotool required for keyboard input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = text.replace(/'/g, "''");
+    const escapedBase64 = toPowerShellBase64StringLiteral(text);
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(${escapedBase64})`,
       ],
       10000,
     );
@@ -1147,12 +1152,12 @@ function performKeypress(keys: string): void {
       throw new Error("xdotool required for key input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = keys.replace(/'/g, "''");
+    const escapedBase64 = toPowerShellBase64StringLiteral(keys);
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(${escapedBase64})`,
       ],
       5000,
     );
