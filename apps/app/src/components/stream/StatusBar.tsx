@@ -123,6 +123,7 @@ export function StatusBar({
               type="button"
               className="p-1 rounded bg-bg-muted hover:bg-accent/20 transition-colors cursor-pointer"
               title={muted ? "Unmute" : "Mute"}
+              aria-label={muted ? "Unmute" : "Mute"}
               onClick={onToggleMute}
             >
               <svg
@@ -134,6 +135,7 @@ export function StatusBar({
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <title>{muted ? "Unmute" : "Mute"}</title>
                 {muted ? (
@@ -206,6 +208,11 @@ export function StatusBar({
                   ? "Exit picture-in-picture"
                   : "Picture-in-picture (small overlay)"
               }
+              aria-label={
+                isPip
+                  ? "Exit picture-in-picture"
+                  : "Picture-in-picture (small overlay)"
+              }
               onClick={onTogglePip}
             >
               <svg
@@ -217,6 +224,7 @@ export function StatusBar({
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <title>{isPip ? "Exit PIP" : "PIP"}</title>
                 {isPip ? (
@@ -248,6 +256,9 @@ export function StatusBar({
                   : "bg-bg-muted hover:bg-accent/20 hover:text-accent"
               }`}
               title={pinned ? "Unpin from top" : "Pin to top (always on top)"}
+              aria-label={
+                pinned ? "Unpin from top" : "Pin to top (always on top)"
+              }
               onClick={() => {
                 const next = !pinned;
                 toggleAlwaysOnTop(next).then((result) => {
@@ -264,6 +275,7 @@ export function StatusBar({
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <title>{pinned ? "Unpin" : "Pin"}</title>
                 <path d="M12 17v5" />
@@ -276,6 +288,7 @@ export function StatusBar({
             type="button"
             className="px-2 py-0.5 rounded bg-bg-muted hover:bg-accent/20 hover:text-accent transition-colors cursor-pointer"
             title="Pop out stream view"
+            aria-label="Pop out stream view"
             onClick={() => {
               const apiBase = (window as unknown as Record<string, unknown>)
                 .__MILADY_API_BASE__ as string | undefined;
@@ -319,6 +332,7 @@ export function StatusBar({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <title>Pop Out</title>
               <polyline points="15 3 21 3 21 9" />
