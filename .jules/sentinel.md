@@ -1,0 +1,4 @@
+## 2024-05-23 - Fix PowerShell Command Injection via `SendKeys`
+**Vulnerability:** Arbitrary command injection vulnerability on Windows sandbox routes (`performType` and `performKeypress`). User input was escaped using `replace(/'/g, "''")` and passed directly into a PowerShell `-Command` string using `execSync`.
+**Learning:** Standard single-quote escaping `replace(/'/g, "''")` is insufficient for PowerShell commands when using `-Command` from Node's `execSync`/`runCommand` and can be bypassed, leading to command injection vulnerabilities.
+**Prevention:** Encode arbitrary user strings into Base64 natively in Node (`Buffer.from(text).toString('base64')`), and decode the string safely within the PowerShell context (`[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(...))`) before processing it.
