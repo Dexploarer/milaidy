@@ -1,0 +1,3 @@
+## 2025-03-05 - Avoid expensive Date wrapper allocation for sorting
+**Learning:** React component renders involving frequent date-based sorting (e.g., arrays affected by `useApp()` context updates or local component states based on date-sorted data) can experience high garbage collection overhead and slower sorting due to the usage of `new Date(dateString).getTime()`.
+**Action:** Always prefer `Date.parse(dateString)` over `new Date(dateString).getTime()` for sorting strings to avoid expensive object allocation. Wrap operations involving frequent O(N*logN) sorts on every render in `useMemo` with minimal dependencies (e.g., `conversations` instead of recalculating on every render cycle).
