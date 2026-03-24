@@ -5029,10 +5029,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ? { ...c, updatedAt: new Date().toISOString() }
                 : c,
             );
+            // ⚡ Bolt: replace Date wrapper with Date.parse for O(N*logN) sort ops
+            // to avoid expensive object allocation and reduce GC overhead.
             return updated.sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime(),
+              (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
             );
           });
         },
@@ -5046,10 +5046,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (conv?.id) {
             setConversations((prev) => {
               const updated = prev.map((c) => (c.id === conv.id ? conv : c));
+              // ⚡ Bolt: replace Date wrapper with Date.parse for O(N*logN) sort ops
+              // to avoid expensive object allocation and reduce GC overhead.
               return updated.sort(
-                (a, b) =>
-                  new Date(b.updatedAt).getTime() -
-                  new Date(a.updatedAt).getTime(),
+                (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
               );
             });
           }

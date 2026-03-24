@@ -2,7 +2,7 @@
  * Conversations sidebar component — left sidebar with conversation list.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../AppContext";
 
 interface ConversationsSidebarProps {
@@ -54,11 +54,15 @@ export function ConversationsSidebar({
     }
   }, [editingId]);
 
-  const sortedConversations = [...conversations].sort((a, b) => {
-    const aTime = new Date(a.updatedAt).getTime();
-    const bTime = new Date(b.updatedAt).getTime();
-    return bTime - aTime;
-  });
+  // ⚡ Bolt: memoize sorted conversations array and use Date.parse to
+  // avoid expensive object allocation and reduce GC overhead during re-renders.
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => {
+      const aTime = Date.parse(a.updatedAt);
+      const bTime = Date.parse(b.updatedAt);
+      return bTime - aTime;
+    });
+  }, [conversations]);
 
   const handleDoubleClick = (conv: { id: string; title: string }) => {
     setEditingId(conv.id);
