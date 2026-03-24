@@ -1,0 +1,4 @@
+## 2024-05-09 - Fix PowerShell command injection via SendKeys
+**Vulnerability:** Arbitrary user input passed to `powershell -Command` via `execFileSync` in `performType` and `performKeypress` could be exploited to run unauthorized commands.
+**Learning:** Standard single-quote escaping (e.g., `text.replace(/'/g, "''")`) can be bypassed when executing PowerShell commands from Node.js on Windows.
+**Prevention:** Instead of string escaping, encode user input as a Base64 string in Node.js (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))`.
