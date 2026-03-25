@@ -1,0 +1,4 @@
+## 2024-03-25 - CRITICAL: PowerShell Command Injection in Sandbox Routes
+**Vulnerability:** Arbitrary user input (e.g., text or keypresses) was passed directly to `powershell -Command` in `performType` and `performKeypress` using flawed single-quote escaping (`text.replace(/'/g, "''")`). This allowed attackers to break out of the string context and execute arbitrary PowerShell commands on the host system.
+**Learning:** Standard single-quote escaping is insufficient for `powershell -Command` via Node.js on Windows.
+**Prevention:** Always encode user input as a Base64 string in Node.js (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` to completely bypass command injection risks.
