@@ -1,0 +1,3 @@
+## 2024-05-24 - Hiding Visual Text in Icon-Only Buttons
+**Learning:** Visual content (text characters like '×' or HTML entities like `&times;`) in icon-only buttons must be wrapped in `<span aria-hidden="true">` to prevent redundant or confusing screen reader announcements, but they must also have a parent `aria-label`. If the parent `aria-label` is missing, hiding the visual text makes the button completely invisible to screen readers, causing a major accessibility regression.
+**Action:** Always ensure an `aria-label` exists on the button element itself before adding `aria-hidden="true"` to the inner visual text elements.
