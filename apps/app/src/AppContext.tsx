@@ -5031,8 +5031,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             );
             return updated.sort(
               (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime(),
+                // PERF: use Date.parse() to avoid allocating Date objects
+                Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
             );
           });
         },
@@ -5048,8 +5048,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const updated = prev.map((c) => (c.id === conv.id ? conv : c));
               return updated.sort(
                 (a, b) =>
-                  new Date(b.updatedAt).getTime() -
-                  new Date(a.updatedAt).getTime(),
+                  // PERF: use Date.parse() to avoid allocating Date objects
+                  Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
               );
             });
           }
