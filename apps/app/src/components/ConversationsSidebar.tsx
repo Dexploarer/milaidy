@@ -119,7 +119,7 @@ export function ConversationsSidebar({
             onClick={onClose}
             aria-label="Close chats panel"
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
       )}

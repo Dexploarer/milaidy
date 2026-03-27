@@ -2173,8 +2173,9 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
                     type="button"
                     className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
                     onClick={() => toggleSettings(p.id)}
+                    aria-label="Close plugin settings"
                   >
-                    &times;
+                    <span aria-hidden="true">&times;</span>
                   </button>
                 </div>
 
@@ -2335,8 +2336,9 @@ function PluginListView({ label, mode = "all" }: PluginListViewProps) {
                   setAddDirOpen(false);
                   setAddDirPath("");
                 }}
+                aria-label="Close add plugin dialog"
               >
-                &times;
+                <span aria-hidden="true">&times;</span>
               </button>
             </div>
 
