@@ -1,0 +1,3 @@
+## 2024-05-24 - Efficient Date Sorting in React
+**Learning:** In components that sort lists frequently based on dates (like `ConversationsSidebar` or `AppContext` context updates), parsing ISO date strings with `new Date(dateString).getTime()` inside `.sort()` callbacks creates significant garbage collection overhead due to repeated object allocation, leading to O(N*logN) allocations on every re-render.
+**Action:** Use `Date.parse(dateString)` instead of `new Date(dateString).getTime()` to avoid expensive object allocation. Additionally, wrap the sorting logic in a `useMemo` hook (e.g., `useMemo(() => [...conversations].sort(...), [conversations])`) to prevent re-sorting on unrelated renders.
