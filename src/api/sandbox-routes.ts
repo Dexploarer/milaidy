@@ -802,13 +802,15 @@ function captureScreenshot(region?: {
       }
     } else if (os === "win32") {
       // PowerShell screenshot
+      const b64 = Buffer.from(tmpFile.replace(/\//g, "\\")).toString("base64");
       const psCmd = [
         `Add-Type -AssemblyName System.Windows.Forms`,
         `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds`,
         `$bitmap = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height)`,
         `$graphics = [System.Drawing.Graphics]::FromImage($bitmap)`,
         `$graphics.CopyFromScreen($screen.Location, [System.Drawing.Point]::Empty, $screen.Size)`,
-        `$bitmap.Save('${tmpFile.replace(/\//g, "\\")}')`,
+        `$tmpFile = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64}'))`,
+        `$bitmap.Save($tmpFile)`,
         `$graphics.Dispose()`,
         `$bitmap.Dispose()`,
       ].join("; ");
@@ -999,12 +1001,12 @@ async function playAudio(data: Buffer, format: string): Promise<void> {
         throw new Error("No audio playback tool available.");
       }
     } else if (os === "win32") {
-      const escapedPath = tmpFile.replace(/\//g, "\\").replace(/'/g, "''");
+      const b64 = Buffer.from(tmpFile.replace(/\//g, "\\")).toString("base64");
       runCommand(
         "powershell",
         [
           "-Command",
-          `(New-Object Media.SoundPlayer '${escapedPath}').PlaySync()`,
+          `(New-Object Media.SoundPlayer ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64}')))).PlaySync()`,
         ],
         60000,
       );
@@ -1086,12 +1088,12 @@ function performType(text: string): void {
       throw new Error("xdotool required for keyboard input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = text.replace(/'/g, "''");
+    const b64 = Buffer.from(text).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64}')))`,
       ],
       10000,
     );
@@ -1147,12 +1149,12 @@ function performKeypress(keys: string): void {
       throw new Error("xdotool required for key input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = keys.replace(/'/g, "''");
+    const b64 = Buffer.from(keys).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64}')))`,
       ],
       5000,
     );
