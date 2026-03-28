@@ -1,0 +1,4 @@
+## 2024-11-20 - PowerShell Command Injection via `execSync`
+**Vulnerability:** Command injection was possible in `performType` and `performKeypress` (src/api/sandbox-routes.ts) because user-controlled text/keys were inserted into a PowerShell command using single-quote escaping (`replace(/'/g, "''")`) when passed to `execSync("powershell -Command ...")`.
+**Learning:** Standard string escaping is not fully reliable when passing arbitrary input into PowerShell `-Command` blocks. Attackers can bypass escaping to execute arbitrary code.
+**Prevention:** Always encode user input as a Base64 string in Node.js (`Buffer.from(text).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` before using it.
