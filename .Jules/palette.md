@@ -1,0 +1,3 @@
+## 2024-03-27 - Text Character Icons Accessibility Pattern
+**Learning:** Found a specific pattern where the app uses plain text characters (like `×` or `&times;`) for icon-only buttons (e.g., in `ConversationsSidebar`, `SkillsView`) instead of SVGs. Without proper markup, screen readers read these out literally as "multiplication sign", which is confusing.
+**Action:** When working with text-character icons in this app, always ensure the parent `<button>` has a descriptive `aria-label`, AND the visual character is wrapped in `<span aria-hidden="true">` to prevent the literal character from being announced. Ensure the `aria-label` exists *before* hiding the visual content.
