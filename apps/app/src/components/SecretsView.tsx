@@ -275,6 +275,8 @@ export function SecretsView() {
             type="button"
             className="flex items-center gap-2 w-full bg-transparent border-0 cursor-pointer text-left mb-3"
             onClick={() => toggleCollapse(category)}
+            aria-expanded={!collapsed.has(category)}
+            aria-controls={`category-content-${category}`}
           >
             <ChevronDown
               className="w-3 h-3 text-[var(--muted)] select-none transition-transform"
@@ -293,7 +295,10 @@ export function SecretsView() {
           </button>
 
           {!collapsed.has(category) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div
+              id={`category-content-${category}`}
+              className="grid grid-cols-1 md:grid-cols-2 gap-3"
+            >
               {catSecrets.map((secret) => (
                 <SecretCard
                   key={secret.key}
@@ -387,8 +392,9 @@ function SecretPicker({
             type="button"
             className="text-[var(--muted)] bg-transparent border-0 cursor-pointer text-[16px] hover:text-[var(--txt)]"
             onClick={onClose}
+            aria-label="Close modal"
           >
-            x
+            <span aria-hidden="true">x</span>
           </button>
         </div>
         <input
@@ -520,8 +526,9 @@ function SecretCard({
               className="text-[11px] text-[var(--muted)] bg-transparent border-0 cursor-pointer hover:text-[var(--danger)]"
               onClick={onRemove}
               title="Remove from vault"
+              aria-label="Remove from vault"
             >
-              x
+              <span aria-hidden="true">x</span>
             </button>
           )}
         </div>
