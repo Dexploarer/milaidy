@@ -160,6 +160,7 @@ export function ConversationsSidebar({
                 {isEditing ? (
                   <input
                     ref={inputRef}
+                    aria-label="Edit chat title"
                     className="w-full px-1.5 py-1 border border-accent rounded bg-card text-txt text-[13px] outline-none"
                     value={editingTitle}
                     onChange={(e) => setEditingTitle(e.target.value)}
@@ -171,6 +172,7 @@ export function ConversationsSidebar({
                   <>
                     <button
                       type="button"
+                      aria-label={`Chat: ${conv.title}`}
                       className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 p-0 m-0 text-left cursor-pointer"
                       onClick={() => {
                         setConfirmDeleteId(null);
