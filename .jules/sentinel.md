@@ -1,0 +1,4 @@
+## 2024-03-30 - Fix Command Injection in PowerShell via Node.js execSync
+**Vulnerability:** Arbitrary user input passed to `powershell -Command` via `execSync` or `execFile` using standard single-quote escaping (`replace(/'/g, "''")`) allows for command injection bypasses.
+**Learning:** Standard escaping mechanisms in Node.js when constructing strings for PowerShell evaluation are insufficient to prevent injection attacks because PowerShell has complex parsing and escaping rules.
+**Prevention:** Always encode arbitrary string input to Base64 in Node.js (`Buffer.from(text).toString('base64')`) and natively decode it inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` to completely isolate data from the shell parser.
