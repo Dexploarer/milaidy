@@ -221,6 +221,7 @@ export function ConversationsSidebar({
                           setConfirmDeleteId(conv.id);
                         }}
                         title="Delete conversation"
+                        aria-label="Delete conversation"
                       >
                         ×
                       </button>
