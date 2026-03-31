@@ -1,0 +1,3 @@
+## 2024-05-24 - Provide aria-labels for icon-only buttons
+**Learning:** Even if an icon-only button (like the '×' delete button) provides a `title` attribute for visual tooltip hover text, it is crucial to include an explicit `aria-label` attribute. Relying only on visual content or `title` attributes may not provide reliable context to screen reader users depending on their configuration or device.
+**Action:** Always add an explicit `aria-label` attribute to icon-only interactive elements to provide proper vocalization context for screen reader users, even if a visual `title` attribute is present.
