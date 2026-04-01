@@ -3,7 +3,7 @@
  */
 
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import type { ConversationMessage } from "../api-client";
 import { MessageContent } from "./MessageContent";
 
@@ -27,7 +27,7 @@ function formatTime(timestamp?: number): string {
   }
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   message,
   isGrouped = false,
   agentName = "Agent",
@@ -163,11 +163,11 @@ export function ChatMessage({
       </div>
     </article>
   );
-}
+});
 
 /* ── Typing Indicator ────────────────────────────────────────────────── */
 
-export function TypingIndicator({
+export const TypingIndicator = memo(function TypingIndicator({
   agentName,
   agentAvatarSrc,
 }: {
@@ -215,11 +215,11 @@ export function TypingIndicator({
       </div>
     </div>
   );
-}
+});
 
 /* ── Empty State ─────────────────────────────────────────────────────── */
 
-export function ChatEmptyState({ agentName }: { agentName: string }) {
+export const ChatEmptyState = memo(function ChatEmptyState({ agentName }: { agentName: string }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
       <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
@@ -261,4 +261,4 @@ export function ChatEmptyState({ agentName }: { agentName: string }) {
       </div>
     </div>
   );
-}
+});
