@@ -206,6 +206,7 @@ export function BugReportModal() {
               type="button"
               className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
               onClick={close}
+              aria-label="Close dialog"
             >
               &times;
             </button>
@@ -247,6 +248,7 @@ export function BugReportModal() {
             type="button"
             className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
             onClick={close}
+            aria-label="Close dialog"
           >
             &times;
           </button>
@@ -350,6 +352,8 @@ export function BugReportModal() {
               type="button"
               className="text-[11px] font-bold text-muted hover:text-txt cursor-pointer flex items-center gap-1"
               onClick={() => setShowLogs(!showLogs)}
+              aria-expanded={showLogs}
+              aria-controls="bug-report-logs"
             >
               <ChevronRight
                 className="w-3 h-3 inline-block transition-transform"
@@ -359,6 +363,7 @@ export function BugReportModal() {
             </button>
             {showLogs && (
               <textarea
+                id="bug-report-logs"
                 className={`${textareaClass} mt-1 font-mono text-xs`}
                 placeholder="Paste relevant error output or logs"
                 value={form.logs}
