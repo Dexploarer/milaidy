@@ -999,12 +999,13 @@ async function playAudio(data: Buffer, format: string): Promise<void> {
         throw new Error("No audio playback tool available.");
       }
     } else if (os === "win32") {
-      const escapedPath = tmpFile.replace(/\//g, "\\").replace(/'/g, "''");
+      const escapedPath = tmpFile.replace(/\//g, "\\");
+      const base64 = Buffer.from(escapedPath).toString("base64");
       runCommand(
         "powershell",
         [
           "-Command",
-          `(New-Object Media.SoundPlayer '${escapedPath}').PlaySync()`,
+          `$path = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}')); (New-Object Media.SoundPlayer $path).PlaySync()`,
         ],
         60000,
       );
@@ -1086,12 +1087,12 @@ function performType(text: string): void {
       throw new Error("xdotool required for keyboard input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = text.replace(/'/g, "''");
+    const base64 = Buffer.from(text).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; $text = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}')); [System.Windows.Forms.SendKeys]::SendWait($text)`,
       ],
       10000,
     );
@@ -1147,12 +1148,12 @@ function performKeypress(keys: string): void {
       throw new Error("xdotool required for key input on Linux.");
     }
   } else if (os === "win32") {
-    const escaped = keys.replace(/'/g, "''");
+    const base64 = Buffer.from(keys).toString("base64");
     runCommand(
       "powershell",
       [
         "-Command",
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped}')`,
+        `Add-Type -AssemblyName System.Windows.Forms; $keys = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}')); [System.Windows.Forms.SendKeys]::SendWait($keys)`,
       ],
       5000,
     );
