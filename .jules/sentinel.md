@@ -1,0 +1,4 @@
+## 2024-05-18 - [Fix DOM XSS risk via innerHTML in React component]
+**Vulnerability:** The `MediaGalleryView.tsx` component used `image.parentElement.innerHTML` inside an `onError` handler. While likely harmless in this specific fallback scenario, using `innerHTML` directly within a React app is a dangerous pattern that can lead to Cross-Site Scripting (XSS) if any unsanitized user input flows into it, and it breaks React's DOM reconciliation.
+**Learning:** Directly modifying the DOM via `innerHTML` inside React event handlers or lifecycle methods introduces significant security risks and potential state mismatches.
+**Prevention:** Avoid using `innerHTML` completely. Instead, use native safe DOM methods like `document.createElement`, `textContent`, and `appendChild`, or prefer to manage fallback UIs declaratively through React state.
