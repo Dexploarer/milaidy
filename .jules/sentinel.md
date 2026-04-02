@@ -1,0 +1,4 @@
+## 2024-04-02 - Fix PowerShell Command Injection via base64 encoding
+**Vulnerability:** User inputs (e.g., simulated keystrokes) were interpolated directly into PowerShell string arguments using single quotes `''`, which allowed escaping out of the string boundary via `'` and executing arbitrary PowerShell code.
+**Learning:** Using simple string replacement `.replace(/'/g, "''")` is insufficient or brittle for sanitizing PowerShell inputs in Node.js because the exact syntax of the command context might vary and edge cases in the user input string can still result in injection risks.
+**Prevention:** Always encode user inputs as Base64 strings in Node.js (`Buffer.from(text).toString('base64')`) and decode them natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64}'))` to entirely bypass string interpolation boundaries.
