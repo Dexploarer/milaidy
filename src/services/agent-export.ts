@@ -395,24 +395,32 @@ async function extractAgentData(
     userState: string | null;
   }> = [];
 
-  for (const room of rooms) {
-    if (!room.id) continue;
+  await Promise.all(
+    rooms.map(async (room) => {
+      const roomId = room.id;
+      if (!roomId) return;
 
-    const roomEntities = await db.getEntitiesForRoom(room.id, true);
-    for (const entity of roomEntities) {
-      if (entity.id) entityMap.set(entity.id, entity);
-    }
+      const [roomEntities, participantIds] = await Promise.all([
+        db.getEntitiesForRoom(roomId, true),
+        db.getParticipantsForRoom(roomId),
+      ]);
 
-    const participantIds = await db.getParticipantsForRoom(room.id);
-    for (const entityId of participantIds) {
-      const userState = await db.getParticipantUserState(room.id, entityId);
-      participantRecords.push({
-        entityId,
-        roomId: room.id,
-        userState,
-      });
-    }
-  }
+      for (const entity of roomEntities) {
+        if (entity.id) entityMap.set(entity.id, entity);
+      }
+
+      await Promise.all(
+        participantIds.map(async (entityId) => {
+          const userState = await db.getParticipantUserState(roomId, entityId);
+          participantRecords.push({
+            entityId,
+            roomId,
+            userState,
+          });
+        })
+      );
+    })
+  );
 
   const entities = Array.from(entityMap.values());
   logger.info(
@@ -428,50 +436,59 @@ async function extractAgentData(
       allComponents.push(c);
     }
   };
+
+  const componentPromises: Promise<Component[]>[] = [];
   for (const entity of entities) {
     if (!entity.id) continue;
-    for (const c of await db.getComponents(entity.id)) addComponent(c);
+    componentPromises.push(db.getComponents(entity.id));
     for (const world of agentWorlds) {
       if (!world.id) continue;
-      for (const c of await db.getComponents(entity.id, world.id))
-        addComponent(c);
+      componentPromises.push(db.getComponents(entity.id, world.id));
     }
   }
+  const resolvedComponents = await Promise.all(componentPromises);
+  for (const compArray of resolvedComponents) {
+    for (const c of compArray) addComponent(c);
+  }
+
   logger.info(`[agent-export] Found ${allComponents.length} components`);
 
   // 6. Memories — query all known table names
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
+  const memoryPromises: Promise<Memory[]>[] = [];
   for (const tableName of MEMORY_TABLES) {
-    const memories = await db.getMemories({
-      agentId,
-      tableName,
-      count: Number.MAX_SAFE_INTEGER,
-    });
-    for (const mem of memories) {
-      if (mem.id && !memoryIdSet.has(mem.id)) {
-        memoryIdSet.add(mem.id);
-        // Strip embeddings to reduce file size — they can be regenerated
-        allMemories.push({ ...mem, embedding: undefined });
-      }
-    }
+    memoryPromises.push(
+      db.getMemories({
+        agentId,
+        tableName,
+        count: Number.MAX_SAFE_INTEGER,
+      })
+    );
   }
 
   // Also try querying memories by world
   for (const world of agentWorlds) {
     if (!world.id) continue;
     for (const tableName of MEMORY_TABLES) {
-      const worldMemories = await db.getMemoriesByWorldId({
-        worldId: world.id,
-        count: Number.MAX_SAFE_INTEGER,
-        tableName,
-      });
-      for (const mem of worldMemories) {
-        if (mem.id && !memoryIdSet.has(mem.id)) {
-          memoryIdSet.add(mem.id);
-          allMemories.push({ ...mem, embedding: undefined });
-        }
+      memoryPromises.push(
+        db.getMemoriesByWorldId({
+          worldId: world.id,
+          count: Number.MAX_SAFE_INTEGER,
+          tableName,
+        })
+      );
+    }
+  }
+
+  const resolvedMemories = await Promise.all(memoryPromises);
+  for (const memArray of resolvedMemories) {
+    for (const mem of memArray) {
+      if (mem.id && !memoryIdSet.has(mem.id)) {
+        memoryIdSet.add(mem.id);
+        // Strip embeddings to reduce file size — they can be regenerated
+        allMemories.push({ ...mem, embedding: undefined });
       }
     }
   }
