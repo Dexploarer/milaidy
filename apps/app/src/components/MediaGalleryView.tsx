@@ -279,9 +279,12 @@ export function MediaGalleryView() {
                     onError={(e) => {
                       const image = e.target as HTMLImageElement;
                       image.style.display = "none";
-                      if (image.parentElement) {
-                        image.parentElement.innerHTML =
-                          '<span style="font-size:24px">🖼</span>';
+                      if (image.parentElement && !image.parentElement.querySelector('.fallback-icon')) {
+                        const span = document.createElement("span");
+                        span.className = "fallback-icon";
+                        span.style.fontSize = "24px";
+                        span.textContent = "🖼";
+                        image.parentElement.appendChild(span);
                       }
                     }}
                   />
