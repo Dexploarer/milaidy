@@ -1,0 +1,3 @@
+## 2025-02-14 - detectPackageManager Promise.any Race Condition
+**Learning:** Attempting to optimize `detectPackageManager` in `src/services/plugin-installer.ts` by checking for "bun" and "npm" concurrently using `Promise.any()` introduced a non-deterministic race condition. If both are installed, it returns whichever executes `--version` fastest, breaking the intended behavior of preferring "bun" if available.
+**Action:** Always maintain strict sequential order for fallback detection chains. Instead of concurrent execution, use caching/memoization to eliminate redundant system calls when the function is invoked multiple times.
