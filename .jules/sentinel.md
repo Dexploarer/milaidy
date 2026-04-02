@@ -1,0 +1,4 @@
+## 2024-04-02 - Prevent PowerShell Command Injection via Base64
+**Vulnerability:** Command injection was possible when passing user-controlled text and key inputs to `powershell -Command` in `performType` and `performKeypress` (Windows OS). Standard single-quote escaping (`replace(/'/g, "''")`) is insufficient against PowerShell injection.
+**Learning:** PowerShell parses `-Command` strings dynamically. Single quote escaping can be bypassed in certain contexts, especially when the command is constructed via string interpolation in Node.js.
+**Prevention:** To prevent command injection on Windows PowerShell, always encode arbitrary user input as a Base64 string in Node.js (`Buffer.from(input).toString('base64')`) and decode it natively inside the PowerShell script block using `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(...))`.
