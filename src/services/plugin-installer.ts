@@ -150,15 +150,23 @@ function pluginDir(pluginName: string): string {
 // Package manager detection
 // ---------------------------------------------------------------------------
 
+// Optimization: Cache the detected package manager to avoid redundant system calls
+// during multiple plugin installations or git clone fallback workflows.
+let cachedPackageManager: "bun" | "npm" | null = null;
+
 export async function detectPackageManager(): Promise<"bun" | "npm"> {
+  if (cachedPackageManager) return cachedPackageManager;
+
   for (const cmd of ["bun", "npm"] as const) {
     try {
       await execFileAsync(cmd, ["--version"]);
+      cachedPackageManager = cmd;
       return cmd;
     } catch {
       // not available
     }
   }
+  cachedPackageManager = "npm";
   return "npm";
 }
 
