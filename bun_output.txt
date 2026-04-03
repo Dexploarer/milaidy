@@ -1,0 +1,77 @@
+@milady/app dev:
+@milady/app dev:   VITE v5.4.21  ready in 452 ms
+@milady/app dev:
+@milady/app dev:   ➜  Local:   http://localhost:2138/
+@milady/app dev:   ➜  Network: http://192.168.0.2:2138/
+@milady/app dev: 1:01:27 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:27 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:27 AM [vite] http proxy error: /api/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:28 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:29 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:30 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:31 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:32 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:33 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:34 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:35 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:36 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:37 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:38 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:39 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:40 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:41 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)
+@milady/app dev: 1:01:42 AM [vite] http proxy error: /api/auth/status
+@milady/app dev: AggregateError [ECONNREFUSED]:
+@milady/app dev:     at internalConnectMultiple (node:net:1134:18)
+@milady/app dev:     at afterConnectMultiple (node:net:1715:7)

@@ -520,6 +520,7 @@ function SecretCard({
               className="text-[11px] text-[var(--muted)] bg-transparent border-0 cursor-pointer hover:text-[var(--danger)]"
               onClick={onRemove}
               title="Remove from vault"
+              aria-label="Remove from vault"
             >
               x
             </button>
