@@ -1,0 +1,1188 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/app[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [31m❯[39m src/services/plugin-stability.test.ts [2m([22m[2m60 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 1704[2mms[22m[39m
+     [32m✓[39m lists all core plugins[32m 5[2mms[22m[39m
+     [32m✓[39m declares every core plugin in root package dependencies[32m 3[2mms[22m[39m
+     [32m✓[39m lists all connector plugins[32m 2[2mms[22m[39m
+     [32m✓[39m lists all provider plugins[32m 1[2mms[22m[39m
+     [32m✓[39m ALL_KNOWN_PLUGINS has no duplicates[32m 0[2mms[22m[39m
+     [32m✓[39m every plugin in package.json deps matches an enumerated plugin or is @elizaos/core[32m 2[2mms[22m[39m
+     [32m✓[39m loads all core plugins with empty config[32m 2[2mms[22m[39m
+     [32m✓[39m adds channel plugin when channel config is present[32m 0[2mms[22m[39m
+     [32m✓[39m adds provider plugin when env key is set[32m 0[2mms[22m[39m
+     [32m✓[39m adds cloud plugin when cloud is enabled in config[32m 0[2mms[22m[39m
+     [32m✓[39m adds user-installed plugins from config.plugins.installs[32m 1[2mms[22m[39m
+     [32m✓[39m returns a Set with no duplicates[32m 1[2mms[22m[39m
+     [32m✓[39m does not add channel plugin for unknown channel names[32m 0[2mms[22m[39m
+     [33m[2m✓[22m[39m loads @elizaos/plugin-sql in isolation without crashing [33m 434[2mms[22m[39m
+[31m     [31m×[31m loads @elizaos/plugin-local-embedding in isolation without crashing[39m[33m 562[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-form in isolation without crashing[32m 22[2mms[22m[39m
+     [33m[2m✓[22m[39m loads @elizaos/plugin-knowledge in isolation without crashing [33m 393[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-trajectory-logger in isolation without crashing[32m 27[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-agent-orchestrator in isolation without crashing[32m 12[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-coding-agent in isolation without crashing[32m 2[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-cron in isolation without crashing[32m 22[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-plugin-manager in isolation without crashing[32m 28[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-agent-skills in isolation without crashing[32m 8[2mms[22m[39m
+     [32m✓[39m loads @elizaos/plugin-pdf in isolation without crashing[32m 147[2mms[22m[39m
+     [32m✓[39m can import all core plugins without conflicting exports[32m 3[2mms[22m[39m
+[31m     [31m×[31m loaded plugins have non-empty name and description[39m[32m 1[2mms[22m[39m
+       [32m✓[39m produces a character with no null or undefined required fields[32m 2[2mms[22m[39m
+       [32m✓[39m character with agent name from config is well-formed[32m 0[2mms[22m[39m
+       [32m✓[39m character secrets contain no empty strings[32m 1[2mms[22m[39m
+       [32m✓[39m character is JSON-serializable[32m 0[2mms[22m[39m
+       [32m✓[39m returns valid for a well-formed context[32m 1[2mms[22m[39m
+       [32m✓[39m detects null fields[32m 1[2mms[22m[39m
+       [32m✓[39m detects undefined fields[32m 0[2mms[22m[39m
+       [32m✓[39m detects empty string fields[32m 0[2mms[22m[39m
+       [32m✓[39m detects nested null/undefined fields[32m 0[2mms[22m[39m
+       [32m✓[39m returns valid for a deeply nested well-formed context[32m 0[2mms[22m[39m
+       [32m✓[39m context is JSON-serializable when valid[32m 0[2mms[22m[39m
+       [32m✓[39m detects non-serializable values (functions, circular refs)[32m 0[2mms[22m[39m
+     [32m✓[39m createWorkspaceProvider returns a valid Provider shape[32m 0[2mms[22m[39m
+     [32m✓[39m createSessionKeyProvider returns a valid Provider shape[32m 0[2mms[22m[39m
+     [32m✓[39m createMiladyPlugin returns a valid Plugin with providers[32m 2[2mms[22m[39m
+     [32m✓[39m milady plugin is JSON-serializable (metadata only)[32m 0[2mms[22m[39m
+     [32m✓[39m applyConnectorSecretsToEnv sets DISCORD_BOT_TOKEN from config[32m 1[2mms[22m[39m
+     [32m✓[39m applyConnectorSecretsToEnv does not overwrite existing env vars[32m 0[2mms[22m[39m
+     [32m✓[39m applyCloudConfigToEnv sets cloud env vars[32m 1[2mms[22m[39m
+     [32m✓[39m resolvePrimaryModel returns undefined for empty config[32m 0[2mms[22m[39m
+     [32m✓[39m resolvePrimaryModel returns model from config[32m 0[2mms[22m[39m
+     [32m✓[39m extractTestPlugin handles null/undefined module gracefully[32m 0[2mms[22m[39m
+     [32m✓[39m extractTestPlugin handles module with missing name/description[32m 0[2mms[22m[39m
+     [32m✓[39m extractTestPlugin handles module with valid default export[32m 0[2mms[22m[39m
+     [32m✓[39m extractTestPlugin handles module with named plugin export[32m 0[2mms[22m[39m
+     [32m✓[39m a throwing plugin init does not propagate beyond the boundary[32m 0[2mms[22m[39m
+     [32m✓[39m a throwing provider get does not propagate beyond the boundary[32m 0[2mms[22m[39m
+     [32m✓[39m MiladyConfig objects are JSON-serializable[32m 0[2mms[22m[39m
+     [32m✓[39m plugin names set is serializable as array[32m 1[2mms[22m[39m
+     [32m✓[39m core is pinned to a version that includes MAX_EMBEDDING_TOKENS (issue #10 fix)[32m 1[2mms[22m[39m
+     [32m✓[39m AI provider plugins are recognized in the PROVIDER_PLUGINS map[32m 0[2mms[22m[39m
+     [32m✓[39m plugin-knowledge is in CORE_PLUGINS[32m 0[2mms[22m[39m
+     [32m✓[39m plugin-trajectory-logger is in CORE_PLUGINS[32m 0[2mms[22m[39m
+     [32m✓[39m plugin-trajectory-logger exports a runtime service[32m 1[2mms[22m[39m
+ [32m✓[39m src/services/registry-client.test.ts [2m([22m[2m46 tests[22m[2m)[22m[33m 14478[2mms[22m[39m
+       [33m[2m✓[22m[39m fetches and parses generated-registry.json from network [33m 5318[2mms[22m[39m
+       [33m[2m✓[22m[39m persists to file cache and reads it back [33m 465[2mms[22m[39m
+       [33m[2m✓[22m[39m returns null for non-existent plugin [33m 445[2mms[22m[39m
+       [33m[2m✓[22m[39m does NOT return regular plugins [33m 311[2mms[22m[39m
+[90mstdout[2m | apps/app/test/app/triggers-view.e2e.test.ts[2m > [22m[2mTriggersView UI E2E
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (1ms)
+[milady-api] Config loaded (2ms)
+[milady-api] Plugins discovered (43ms)
+
+ [32m✓[39m src/services/plugin-installer.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 4624[2mms[22m[39m
+       [33m[2m✓[22m[39m returns error when plugin is not found in registry [33m 1080[2mms[22m[39m
+       [33m[2m✓[22m[39m reports progress phases during install (real npm failure path) [33m 322[2mms[22m[39m
+       [33m[2m✓[22m[39m fails when install directory removal errors unexpectedly [33m 310[2mms[22m[39m
+       [33m[2m✓[22m[39m refuses to remove install paths outside the plugins directory [33m 454[2mms[22m[39m
+       [33m[2m✓[22m[39m returns empty array when no plugins installed [33m 314[2mms[22m[39m
+[90mstdout[2m | apps/app/test/app/triggers-view.e2e.test.ts[2m > [22m[2mTriggersView UI E2E
+[22m[39m[milady-api] Creating http server (111ms)
+[milady-api] Server created (112ms)
+[milady-api] Calling server.listen (118ms)
+
+[90mstdout[2m | apps/app/test/app/triggers-view.e2e.test.ts[2m > [22m[2mTriggersView UI E2E
+[22m[39m[milady-api] server.listen callback fired (121ms)
+
+ [32m✓[39m apps/app/test/app/triggers-view.e2e.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 11261[2mms[22m[39m
+     [33m[2m✓[22m[39m creates, updates, executes, inspects runs, and deletes triggers via live API [33m 306[2mms[22m[39m
+ [32m✓[39m src/runtime/autonomy-flow.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2723[2mms[22m[39m
+     [33m[2m✓[22m[39m bypasses shouldRespond when message is marked autonomous loop tick [33m 2280[2mms[22m[39m
+     [33m[2m✓[22m[39m continues multi-step processing and finishes with summary text [33m 438[2mms[22m[39m
+ [32m✓[39m src/api/__tests__/sandbox-routes.test.ts [2m([22m[2m40 tests[22m[2m)[22m[33m 350[2mms[22m[39m
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (2ms)
+[milady-api] Config loaded (2ms)
+[milady-api] Plugins discovered (114ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)
+[22m[39m[milady-api] Creating http server (164ms)
+[milady-api] Server created (165ms)
+[milady-api] Calling server.listen (165ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)
+[22m[39m[milady-api] server.listen callback fired (169ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat emits MESSAGE_RECEIVED before handling
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (3ms)
+[milady-api] Plugins discovered (9ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat emits MESSAGE_RECEIVED before handling
+[22m[39m[milady-api] Creating http server (19ms)
+[milady-api] Server created (19ms)
+[milady-api] Calling server.listen (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat emits MESSAGE_RECEIVED before handling
+[22m[39m[milady-api] server.listen callback fired (21ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not use deprecated direct trajectory fallback when hooks do not set a step id
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not use deprecated direct trajectory fallback when hooks do not set a step id
+[22m[39m[milady-api] Creating http server (31ms)
+[milady-api] Server created (31ms)
+[milady-api] Calling server.listen (31ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not use deprecated direct trajectory fallback when hooks do not set a step id
+[22m[39m[milady-api] server.listen callback fired (32ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not call deprecated direct trajectory fallback even when logger is only in getServicesByType
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not call deprecated direct trajectory fallback even when logger is only in getServicesByType
+[22m[39m[milady-api] Creating http server (25ms)
+[milady-api] Server created (25ms)
+[milady-api] Calling server.listen (25ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not call deprecated direct trajectory fallback even when logger is only in getServicesByType
+[22m[39m[milady-api] server.listen callback fired (26ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not end trajectories directly when hook metadata provides a step id
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not end trajectories directly when hook metadata provides a step id
+[22m[39m[milady-api] Creating http server (29ms)
+[milady-api] Server created (29ms)
+[milady-api] Calling server.listen (30ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat does not end trajectories directly when hook metadata provides a step id
+[22m[39m[milady-api] server.listen callback fired (30ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat no longer proxies trajectory logger routing through deprecated fallback
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat no longer proxies trajectory logger routing through deprecated fallback
+[22m[39m[milady-api] Creating http server (42ms)
+[milady-api] Server created (42ms)
+[milady-api] Calling server.listen (43ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat no longer proxies trajectory logger routing through deprecated fallback
+[22m[39m[milady-api] server.listen callback fired (43ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream emits token and done events
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream emits token and done events
+[22m[39m[milady-api] Creating http server (19ms)
+[milady-api] Server created (19ms)
+[milady-api] Calling server.listen (19ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream emits token and done events
+[22m[39m[milady-api] server.listen callback fired (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream emits token events from runtime onStreamChunk
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream emits token events from runtime onStreamChunk
+[22m[39m[milady-api] Creating http server (33ms)
+[milady-api] Server created (34ms)
+[milady-api] Calling server.listen (34ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream emits token events from runtime onStreamChunk
+[22m[39m[milady-api] server.listen callback fired (34ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream avoids mixed-source duplication when callback text arrives before onStreamChunk
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream avoids mixed-source duplication when callback text arrives before onStreamChunk
+[22m[39m[milady-api] Creating http server (25ms)
+[milady-api] Server created (25ms)
+[milady-api] Calling server.listen (26ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream avoids mixed-source duplication when callback text arrives before onStreamChunk
+[22m[39m[milady-api] server.listen callback fired (26ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream de-duplicates cumulative callback text updates
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (8ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream de-duplicates cumulative callback text updates
+[22m[39m[milady-api] Creating http server (22ms)
+[milady-api] Server created (22ms)
+[milady-api] Calling server.listen (22ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream de-duplicates cumulative callback text updates
+[22m[39m[milady-api] server.listen callback fired (23ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream preserves repeated characters in incremental callback tokens
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream preserves repeated characters in incremental callback tokens
+[22m[39m[milady-api] Creating http server (41ms)
+[milady-api] Server created (42ms)
+[milady-api] Calling server.listen (42ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/chat/stream preserves repeated characters in incremental callback tokens
+[22m[39m[milady-api] server.listen callback fired (42ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/conversations/:id/messages/stream emits token events from runtime onStreamChunk
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/conversations/:id/messages/stream emits token events from runtime onStreamChunk
+[22m[39m[milady-api] Creating http server (36ms)
+[milady-api] Server created (36ms)
+[milady-api] Calling server.listen (36ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/conversations/:id/messages/stream emits token events from runtime onStreamChunk
+[22m[39m[milady-api] server.listen callback fired (37ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/conversations/:id/messages/stream emits token and done events
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/conversations/:id/messages/stream emits token and done events
+[22m[39m[milady-api] Creating http server (17ms)
+[milady-api] Server created (17ms)
+[milady-api] Calling server.listen (17ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mPOST /api/conversations/:id/messages/stream emits token and done events
+[22m[39m[milady-api] server.listen callback fired (18ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mpersists greeting and streamed turn messages to conversation memory
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mpersists greeting and streamed turn messages to conversation memory
+[22m[39m[milady-api] Creating http server (29ms)
+[milady-api] Server created (29ms)
+[milady-api] Calling server.listen (30ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mpersists greeting and streamed turn messages to conversation memory
+[22m[39m[milady-api] server.listen callback fired (30ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mGET /api/conversations/:id/messages returns an empty messages array on runtime read failure
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (10ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mGET /api/conversations/:id/messages returns an empty messages array on runtime read failure
+[22m[39m[milady-api] Creating http server (27ms)
+[milady-api] Server created (27ms)
+[milady-api] Calling server.listen (28ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mstreaming chat endpoints (runtime stub)[2m > [22m[2mGET /api/conversations/:id/messages returns an empty messages array on runtime read failure
+[22m[39m[milady-api] server.listen callback fired (28ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mGET /api/trajectories/:id returns llm calls from plugin detail payload
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mGET /api/trajectories/:id returns llm calls from plugin detail payload
+[22m[39m[milady-api] Creating http server (27ms)
+[milady-api] Server created (27ms)
+[milady-api] Calling server.listen (27ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mGET /api/trajectories/:id returns llm calls from plugin detail payload
+[22m[39m[milady-api] server.listen callback fired (28ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mPOST /api/trajectories/export returns a zip with trajectory folders
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mPOST /api/trajectories/export returns a zip with trajectory folders
+[22m[39m[milady-api] Creating http server (20ms)
+[milady-api] Server created (20ms)
+[milady-api] Calling server.listen (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mPOST /api/trajectories/export returns a zip with trajectory folders
+[22m[39m[milady-api] server.listen callback fired (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mGET/PUT /api/trajectories/config reflects plugin logger enabled state
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mGET/PUT /api/trajectories/config reflects plugin logger enabled state
+[22m[39m[milady-api] Creating http server (14ms)
+[milady-api] Server created (14ms)
+[milady-api] Calling server.listen (15ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mtrajectory endpoints (runtime stub)[2m > [22m[2mGET/PUT /api/trajectories/config reflects plugin logger enabled state
+[22m[39m[milady-api] server.listen callback fired (15ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat replaces '(no response)' with a top-up message
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat replaces '(no response)' with a top-up message
+[22m[39m[milady-api] Creating http server (19ms)
+[milady-api] Server created (20ms)
+[milady-api] Calling server.listen (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat replaces '(no response)' with a top-up message
+[22m[39m[milady-api] server.listen callback fired (21ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat/stream emits a done event with top-up text
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat/stream emits a done event with top-up text
+[22m[39m[milady-api] Creating http server (16ms)
+[milady-api] Server created (16ms)
+[milady-api] Calling server.listen (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat/stream emits a done event with top-up text
+[22m[39m[milady-api] server.listen callback fired (17ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat returns a top-up message when the provider throws insufficient credits
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat returns a top-up message when the provider throws insufficient credits
+[22m[39m[milady-api] Creating http server (25ms)
+[milady-api] Server created (25ms)
+[milady-api] Calling server.listen (26ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat returns a top-up message when the provider throws insufficient credits
+[22m[39m[milady-api] server.listen callback fired (26ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat replaces literal '(no response)' payloads with a top-up message
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat replaces literal '(no response)' payloads with a top-up message
+[22m[39m[milady-api] Creating http server (16ms)
+[milady-api] Server created (16ms)
+[milady-api] Calling server.listen (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mPOST /api/chat replaces literal '(no response)' payloads with a top-up message
+[22m[39m[milady-api] server.listen callback fired (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mGET /api/trajectories prefers route-compatible logger when byType contains core logger
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mGET /api/trajectories prefers route-compatible logger when byType contains core logger
+[22m[39m[milady-api] Creating http server (13ms)
+[milady-api] Server created (13ms)
+[milady-api] Calling server.listen (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mGET /api/trajectories prefers route-compatible logger when byType contains core logger
+[22m[39m[milady-api] server.listen callback fired (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mGET /api/trajectories returns 503 when no route-compatible logger is available
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mGET /api/trajectories returns 503 when no route-compatible logger is available
+[22m[39m[milady-api] Creating http server (14ms)
+[milady-api] Server created (14ms)
+[milady-api] Calling server.listen (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2minsufficient credits fallback[2m > [22m[2mGET /api/trajectories returns 503 when no route-compatible logger is available
+[22m[39m[milady-api] server.listen callback fired (15ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/skills[2m > [22m[2mfalls back to runtime-provided skill directories when AgentSkillsService is empty
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/skills[2m > [22m[2mfalls back to runtime-provided skill directories when AgentSkillsService is empty
+[22m[39m[milady-api] Creating http server (13ms)
+[milady-api] Server created (13ms)
+[milady-api] Calling server.listen (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/skills[2m > [22m[2mfalls back to runtime-provided skill directories when AgentSkillsService is empty
+[22m[39m[milady-api] server.listen callback fired (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mcaptures runtime AGENT_EVENT emissions in replay buffer
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mcaptures runtime AGENT_EVENT emissions in replay buffer
+[22m[39m[milady-api] Creating http server (13ms)
+[milady-api] Server created (13ms)
+[milady-api] Calling server.listen (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mcaptures runtime AGENT_EVENT emissions in replay buffer
+[22m[39m[milady-api] server.listen callback fired (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mstreams AGENT_EVENT over websocket clients
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mstreams AGENT_EVENT over websocket clients
+[22m[39m[milady-api] Creating http server (16ms)
+[milady-api] Server created (16ms)
+[milady-api] Calling server.listen (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mstreams AGENT_EVENT over websocket clients
+[22m[39m[milady-api] server.listen callback fired (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mroutes proactive autonomy output to active chat and exposes matching overview/event surfaces
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mroutes proactive autonomy output to active chat and exposes matching overview/event surfaces
+[22m[39m[milady-api] Creating http server (15ms)
+[milady-api] Server created (15ms)
+[milady-api] Calling server.listen (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mroutes proactive autonomy output to active chat and exposes matching overview/event surfaces
+[22m[39m[milady-api] server.listen callback fired (16ms)
+
+ [32m✓[39m src/services/agent-export.test.ts [2m([22m[2m39 tests[22m[2m)[22m[33m 23674[2mms[22m[39m
+       [33m[2m✓[22m[39m exports and imports an agent with all data preserved [33m 842[2mms[22m[39m
+       [33m[2m✓[22m[39m preserves message content across export/import [33m 744[2mms[22m[39m
+       [33m[2m✓[22m[39m throws AgentExportError with a clear message [33m 738[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a file with tampered ciphertext [33m 873[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a truncated file [33m 708[2mms[22m[39m
+       [33m[2m✓[22m[39m exports and imports an agent with no memories or rooms [33m 722[2mms[22m[39m
+       [33m[2m✓[22m[39m assigns new UUIDs to all imported records [33m 850[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects import with empty password [33m 357[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects import with a short password [33m 376[2mms[22m[39m
+       [33m[2m✓[22m[39m excludes logs by default [33m 734[2mms[22m[39m
+       [33m[2m✓[22m[39m includes logs when requested [33m 767[2mms[22m[39m
+       [33m[2m✓[22m[39m handles many memories efficiently [33m 765[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects compressed payloads that expand beyond import limit [33m 1251[2mms[22m[39m
+       [33m[2m✓[22m[39m exports and imports multiple worlds with rooms in each [33m 712[2mms[22m[39m
+       [33m[2m✓[22m[39m exports rooms the agent participates in that have no world [33m 715[2mms[22m[39m
+       [33m[2m✓[22m[39m preserves FOLLOWED and MUTED states after import [33m 720[2mms[22m[39m
+       [33m[2m✓[22m[39m remaps entityId, roomId, worldId, sourceEntityId on components [33m 981[2mms[22m[39m
+       [33m[2m✓[22m[39m exports and imports memories of different types correctly [33m 985[2mms[22m[39m
+       [33m[2m✓[22m[39m removes embedding vectors from exported memories [33m 1054[2mms[22m[39m
+       [33m[2m✓[22m[39m preserves tags and metadata on relationships [33m 811[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a file with valid encryption but missing required fields [33m 735[2mms[22m[39m
+       [33m[2m✓[22m[39m handles unicode passwords correctly [33m 996[2mms[22m[39m
+       [33m[2m✓[22m[39m preserves unicode content in memories [33m 1002[2mms[22m[39m
+       [33m[2m✓[22m[39m produces independent encrypted files from parallel exports [33m 2258[2mms[22m[39m
+       [33m[2m✓[22m[39m verifies all agent fields survive the round-trip [33m 779[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a file with a future version number [33m 713[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects memories without id [33m 748[2mms[22m[39m
+       [33m[2m✓[22m[39m throws AgentExportError when db.createAgent returns false [33m 721[2mms[22m[39m
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mdoes not route client_chat assistant events into proactive messages
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (8ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mdoes not route client_chat assistant events into proactive messages
+[22m[39m[milady-api] Creating http server (15ms)
+[milady-api] Server created (15ms)
+[milady-api] Calling server.listen (15ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mdoes not route client_chat assistant events into proactive messages
+[22m[39m[milady-api] server.listen callback fired (15ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mdoes not route ambiguous assistant events without source or room metadata
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (0ms)
+[milady-api] Plugins discovered (9ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mdoes not route ambiguous assistant events without source or room metadata
+[22m[39m[milady-api] Creating http server (16ms)
+[milady-api] Server created (16ms)
+[milady-api] Calling server.listen (16ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mGET /api/agent/events[2m > [22m[2mdoes not route ambiguous assistant events without source or room metadata
+[22m[39m[milady-api] server.listen callback fired (17ms)
+
+[90mstdout[2m | src/api/stream-routes.test.ts[2m > [22m[2mhandleStreamRoute[2m > [22m[2mPOST /api/stream/offline[2m > [22m[2mskips stop() when stream is not running and returns ok:true live:false
+[22m[39m[browser-capture] Stopped
+
+[90mstdout[2m | src/api/stream-routes.test.ts[2m > [22m[2mhandleStreamRoute[2m > [22m[2mPOST /api/stream/offline[2m > [22m[2mcalls stop() when stream is running and returns ok:true live:false
+[22m[39m[browser-capture] Stopped
+
+ [32m✓[39m src/api/stream-routes.test.ts [2m([22m[2m108 tests[22m[2m)[22m[33m 2822[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts :0 without throwing (valid format — platform determines outcome) [33m 1023[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts :99 without throwing (valid format — platform determines outcome) [33m 1021[2mms[22m[39m
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mautonomy endpoints[2m > [22m[2mGET /api/agent/autonomy uses AutonomyService state when runtime is present
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (9ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mautonomy endpoints[2m > [22m[2mGET /api/agent/autonomy uses AutonomyService state when runtime is present
+[22m[39m[milady-api] Creating http server (16ms)
+[milady-api] Server created (16ms)
+[milady-api] Calling server.listen (18ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mautonomy endpoints[2m > [22m[2mGET /api/agent/autonomy uses AutonomyService state when runtime is present
+[22m[39m[milady-api] server.listen callback fired (18ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mworkbench endpoints[2m > [22m[2mGET /api/workbench/overview uses AutonomyService loop state
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mworkbench endpoints[2m > [22m[2mGET /api/workbench/overview uses AutonomyService loop state
+[22m[39m[milady-api] Creating http server (19ms)
+[milady-api] Server created (19ms)
+[milady-api] Calling server.listen (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (no runtime)[2m > [22m[2mworkbench endpoints[2m > [22m[2mGET /api/workbench/overview uses AutonomyService loop state
+[22m[39m[milady-api] server.listen callback fired (20ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (workbench CRUD)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (workbench CRUD)
+[22m[39m[milady-api] Creating http server (17ms)
+[milady-api] Server created (17ms)
+[milady-api] Calling server.listen (18ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (workbench CRUD)
+[22m[39m[milady-api] server.listen callback fired (18ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (compat endpoints)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (6ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (compat endpoints)
+[22m[39m[milady-api] Creating http server (13ms)
+[milady-api] Server created (13ms)
+[milady-api] Calling server.listen (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (compat endpoints)
+[22m[39m[milady-api] server.listen callback fired (14ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (chat SSE)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (0ms)
+[milady-api] Config loaded (1ms)
+[milady-api] Plugins discovered (7ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (chat SSE)
+[22m[39m[milady-api] Creating http server (14ms)
+[milady-api] Server created (14ms)
+[milady-api] Calling server.listen (15ms)
+
+[90mstdout[2m | test/api-server.e2e.test.ts[2m > [22m[2mAPI Server E2E (chat SSE)
+[22m[39m[milady-api] server.listen callback fired (15ms)
+
+ [32m✓[39m test/api-server.e2e.test.ts [2m([22m[2m120 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[33m 4390[2mms[22m[39m
+       [33m[2m✓[22m[39m routes proactive autonomy output to active chat and exposes matching overview/event surfaces [33m 699[2mms[22m[39m
+       [33m[2m✓[22m[39m does not route client_chat assistant events into proactive messages [33m 931[2mms[22m[39m
+       [33m[2m✓[22m[39m does not route ambiguous assistant events without source or room metadata [33m 931[2mms[22m[39m
+ [32m✓[39m src/services/skill-catalog-client.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 3027[2mms[22m[39m
+       [33m[2m✓[22m[39m loads skills from catalog file [33m 955[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/plugin-installer.helpers.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2050[2mms[22m[39m
+     [33m[2m✓[22m[39m validates package names [33m 1041[2mms[22m[39m
+[90mstderr[2m | apps/chrome-extension/__tests__/background.test.ts[2m > [22m[2mconnectOrToggleForActiveTab[2m > [22m[2mhandles connection error
+[22m[39mattach failed Relay server not reachable at http://127.0.0.1:18792 (Error: ECONNREFUSED) Error:
+    at nowStack (/app/apps/chrome-extension/background.js:44:12)
+    at Module.connectOrToggleForActiveTab (/app/apps/chrome-extension/background.js:355:44)
+    at /app/apps/chrome-extension/__tests__/background.test.ts:812:5
+    at file:///app/node_modules/@vitest/runner/dist/index.js:915:20
+
+ [32m✓[39m apps/chrome-extension/__tests__/background.test.ts [2m([22m[2m60 tests[22m[2m)[22m[33m 1681[2mms[22m[39m
+ [32m✓[39m src/connectors/discord-connector.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 1227[2mms[22m[39m
+     [33m[2m✓[22m[39m can import the Discord plugin package [33m 1216[2mms[22m[39m
+ [32m✓[39m src/services/plugin-installer.requested-version.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1002[2mms[22m[39m
+     [33m[2m✓[22m[39m installs the requested version when provided [33m 998[2mms[22m[39m
+ [32m✓[39m src/cli-runtime-parity.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 1538[2mms[22m[39m
+     [33m[2m✓[22m[39m startApiServer is importable from api/server [33m 1510[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/sandbox-manager.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 438[2mms[22m[39m
+       [33m[2m✓[22m[39m should go to degraded if Docker is not available [33m 423[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/sandbox-engine.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 682[2mms[22m[39m
+ [32m✓[39m src/auth/credentials.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1131[2mms[22m[39m
+     [33m[2m✓[22m[39m auto-sets model.primary from subscriptionProvider when model is missing [33m 1099[2mms[22m[39m
+ [32m✓[39m src/services/update-notifier.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 594[2mms[22m[39m
+ [32m✓[39m src/runtime/embedding-manager.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 496[2mms[22m[39m
+     [33m[2m✓[22m[39m should call dispose after idle timeout [33m 460[2mms[22m[39m
+ [32m✓[39m src/services/plugin-eject.test.ts [2m([22m[2m36 tests[22m[2m)[22m[33m 391[2mms[22m[39m
+ [32m✓[39m src/services/update-checker.test.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 266[2mms[22m[39m
+ [32m✓[39m src/api/__tests__/sandbox-onboarding.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 359[2mms[22m[39m
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2mlogs non-error save failure while handling authenticated login status
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2muses default cloud config when saving auth data with missing cloud settings
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2mreturns authenticated state after successful login poll
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2mpersists authenticated login to runtime and logs non-Error DB failures
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2mpersists runtime DB secrets when they are initially missing
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2msaves auth data and ignores config save failures during login poll
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+[90mstderr[2m | src/api/cloud-routes.test.ts[2m > [22m[2mhandleCloudRoute timeout behavior[2m > [22m[2mpersists authenticated login to runtime secrets and handles runtime failures
+[22m[39m Error      [cloud-login] Failed to save config: persist blocked
+
+ [32m✓[39m src/api/cloud-routes.test.ts [2m([22m[2m50 tests[22m[2m)[22m[33m 387[2mms[22m[39m
+     [33m[2m✓[22m[39m uses the default cloud base URL for /api/cloud/login [33m 318[2mms[22m[39m
+ [32m✓[39m src/api/wallet.test.ts [2m([22m[2m65 tests[22m[2m)[22m[33m 419[2mms[22m[39m
+ [32m✓[39m src/runtime/browser-integration.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 458[2mms[22m[39m
+     [33m[2m✓[22m[39m can be dynamically imported without crashing [33m 415[2mms[22m[39m
+ [32m✓[39m src/runtime/computeruse-integration.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 412[2mms[22m[39m
+     [33m[2m✓[22m[39m can be dynamically imported without crashing [33m 393[2mms[22m[39m
+ [32m✓[39m src/services/coding-agent.test.ts [2m([22m[2m85 tests[22m[2m)[22m[32m 94[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/pages-navigation-smoke.e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 325[2mms[22m[39m
+ [32m✓[39m src/runtime/trajectory-persistence.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 363[2mms[22m[39m
+     [33m[2m✓[22m[39m patches legacy logger while preserving original handlers [33m 334[2mms[22m[39m
+[90mstdout[2m | src/api/server.config-secrets-auth.test.ts[2m > [22m[2msensitive endpoint auth gates (MW-04)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (1ms)
+[milady-api] Config loaded (2ms)
+[milady-api] Plugins discovered (110ms)
+
+[90mstdout[2m | src/api/server.config-secrets-auth.test.ts[2m > [22m[2msensitive endpoint auth gates (MW-04)
+[22m[39m[milady-api] Creating http server (153ms)
+[milady-api] Server created (154ms)
+[milady-api] Calling server.listen (155ms)
+
+[90mstdout[2m | src/api/server.config-secrets-auth.test.ts[2m > [22m[2msensitive endpoint auth gates (MW-04)
+[22m[39m[milady-api] server.listen callback fired (158ms)
+
+ [32m✓[39m src/runtime/shell-integration.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 417[2mms[22m[39m
+     [33m[2m✓[22m[39m can be dynamically imported without crashing [33m 398[2mms[22m[39m
+ [32m✓[39m src/api/server.config-secrets-auth.test.ts [2m([22m[2m26 tests[22m[2m)[22m[33m 348[2mms[22m[39m
+ [32m✓[39m src/api/database.readonly-query-guard.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 334[2mms[22m[39m
+     [33m[2m✓[22m[39m allows COPY when readOnly is explicitly false [33m 311[2mms[22m[39m
+ [32m✓[39m src/services/core-eject.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 326[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/fine-tuning-view.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 199[2mms[22m[39m
+[90mstdout[2m | src/api/onchain-routes-error.test.ts[2m > [22m[2mon-chain route error propagation (MW-02)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (2ms)
+[milady-api] Config loaded (2ms)
+[milady-api] Plugins discovered (109ms)
+
+[90mstdout[2m | src/api/onchain-routes-error.test.ts[2m > [22m[2mon-chain route error propagation (MW-02)
+[22m[39m[milady-api] Creating http server (155ms)
+[milady-api] Server created (155ms)
+[milady-api] Calling server.listen (156ms)
+
+[90mstdout[2m | src/api/onchain-routes-error.test.ts[2m > [22m[2mon-chain route error propagation (MW-02)
+[22m[39m[milady-api] server.listen callback fired (159ms)
+
+[90mstdout[2m | src/api/onchain-routes.test.ts[2m > [22m[2mon-chain route-level tests (registry + drop)
+[22m[39m[milady-api] startApiServer called
+[milady-api] Token check done (1ms)
+[milady-api] Config loaded (2ms)
+[milady-api] Plugins discovered (103ms)
+
+[90mstdout[2m | src/api/onchain-routes.test.ts[2m > [22m[2mon-chain route-level tests (registry + drop)
+[22m[39m[milady-api] Creating http server (146ms)
+[milady-api] Server created (147ms)
+[milady-api] Calling server.listen (147ms)
+
+[90mstdout[2m | src/api/onchain-routes.test.ts[2m > [22m[2mon-chain route-level tests (registry + drop)
+[22m[39m[milady-api] server.listen callback fired (151ms)
+
+ [32m✓[39m src/api/onchain-routes-error.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 353[2mms[22m[39m
+ [32m✓[39m src/api/onchain-routes.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 278[2mms[22m[39m
+ [32m✓[39m src/api/apps-hyperscape-e2e.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 280[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/loading-screen.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 131[2mms[22m[39m
+ [32m✓[39m src/services/tts-stream-bridge.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 195[2mms[22m[39m
+ [32m✓[39m src/cloud/auth.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 260[2mms[22m[39m
+ [32m✓[39m src/runtime/eliza.test.ts [2m([22m[2m198 tests[22m[2m)[22m[32m 284[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/vector-browser.e2e.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 173[2mms[22m[39m
+ [32m✓[39m src/diagnostics/integration-observability.test.ts [2m([22m[2m51 tests[22m[2m)[22m[32m 93[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/chat-send-lock.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 183[2mms[22m[39m
+ [32m✓[39m src/api/tx-service.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 156[2mms[22m[39m
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+ [32m✓[39m apps/app/test/app/wallet-api-save-lock.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+Not implemented: navigation to another Document
+ [32m✓[39m apps/app/test/app/onboarding-finish-lock.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 167[2mms[22m[39m
+ [32m✓[39m src/config/schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 146[2mms[22m[39m
+ [32m✓[39m src/docs/__tests__/docs-config.test.ts [2m([22m[2m146 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/api/merkle-tree.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 141[2mms[22m[39m
+ [32m✓[39m src/runtime/pre-review-local.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 131[2mms[22m[39m
+ [32m✓[39m src/services/skill-marketplace.test.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 123[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/chat-view.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[32m 118[2mms[22m[39m
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+ [32m✓[39m apps/app/test/app/cloud-login-lock.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 131[2mms[22m[39m
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+ [32m✓[39m apps/app/test/app/agent-transfer-lock.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 98[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/bug-report-modal.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[32m 121[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/chat-stream-api-client.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/apps-view.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 159[2mms[22m[39m
+ [32m✓[39m src/cli/git-commit.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/permissions-manager.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/app-context-autonomy-events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 125[2mms[22m[39m
+ [32m✓[39m src/providers/media-provider.test.ts [2m([22m[2m41 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/pairing-lock.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/advanced-trajectory-fine-tuning.e2e.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 100[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/lifecycle.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+ [32m✓[39m apps/app/test/app/update-channel-lock.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 99[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/command-palette.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/services/app-manager.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/cloud/bridge-client.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/conversations-sidebar.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+ [32m✓[39m apps/app/test/app/lifecycle-lock.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m src/api/knowledge-routes.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m src/api/twitter-verify.test.ts [2m([22m[2m44 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/custom-actions-smoke.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m src/api/drop-service.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+[90mstdout[2m | src/providers/local-models.test.ts[2m > [22m[2mLocalModelManager Error Handling[2m > [22m[2mshould handle non-existent model gracefully
+[22m[39m[local-models] Downloading nonexistent/model...
+
+ [32m✓[39m src/providers/local-models.test.ts [2m([22m[2m24 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/api/server.elevenlabs-proxy-guard.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m src/plugins/whatsapp/__tests__/service.test.ts [2m([22m[2m45 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/startup-backend-missing.e2e.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m scripts/smoke-api-status.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/autonomous-panel.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/sandbox-e2e.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/startup-onboarding.e2e.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/game-view.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/runtime/code-writing-integration.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/media.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/api/registry-service.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/training-api-client.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m src/api/cloud-routes.observability.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/tui/components/plugins-overlay-data.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/startup-chat.e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/api/server.mcp-config-validation.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/desktop-shell.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mno-op native features on web[2m > [22m[2mcreateTray resolves
+[22m[39mSystem tray is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mno-op native features on web[2m > [22m[2mupdateTray resolves
+[22m[39mSystem tray is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mno-op native features on web[2m > [22m[2mdestroyTray resolves
+[22m[39mSystem tray is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mno-op native features on web[2m > [22m[2msetTrayMenu resolves
+[22m[39mSystem tray is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mno-op native features on web[2m > [22m[2mregisterShortcut returns success: false
+[22m[39mGlobal shortcuts is not available in browser environment
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mwindow management[2m > [22m[2mminimizeWindow is a no-op
+[22m[39mWindow minimize is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mwindow management[2m > [22m[2mmaximizeWindow is a no-op
+[22m[39mWindow maximize is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mwindow management[2m > [22m[2munmaximizeWindow is a no-op
+[22m[39mWindow unmaximize is not available in browser environment
+
+[90mstderr[2m | apps/app/test/plugins/desktop.test.ts[2m > [22m[2m@milady/capacitor-desktop[2m > [22m[2mwindow management[2m > [22m[2mhideWindow is a no-op
+[22m[39mWindow hide is not available in browser environment
+
+Not implemented: Window's open() method
+ [32m✓[39m apps/app/test/plugins/desktop.test.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/runtime/custom-actions.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m apps/chrome-extension/__tests__/options.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+[90mstdout[2m | src/auth/apply-stealth.test.ts[2m > [22m[2mapplyOpenAICodexStealth[2m > [22m[2minstalls stealth and sets guard for JWT-style token
+[22m[39m[openai-stealth] OpenAI Codex stealth mode active — ChatGPT subscription requests will be routed to chatgpt.com/backend-api
+
+ [32m✓[39m src/auth/apply-stealth.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m src/api/__tests__/chat-image-validation.test.ts [2m([22m[2m46 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/config/plugin-auto-enable.test.ts [2m([22m[2m95 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/triggers-api-client.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/services/signing-policy.test.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/shared/ui-catalog-prompt.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/services/coding-agent-context.test.ts [2m([22m[2m43 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/startup-token-401.e2e.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/api/training-routes.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/api/database.security.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/api/stream-persistence.test.ts [2m([22m[2m42 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/benchmark/cua-boundary.test.ts [2m([22m[2m64 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/pairing-view.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/canvas.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/config/paths.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/header-status.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/tui/eliza-tui-bridge.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/services/sandbox-manager.test.ts [2m([22m[2m44 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/shared-format.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+[90mstderr[2m | apps/app/test/plugins/gateway.test.ts[2m > [22m[2m@milady/capacitor-gateway[2m > [22m[2mdiscovery[2m > [22m[2mreturns empty gateways with descriptive status
+[22m[39m[Gateway] Discovery not supported on web platform
+
+[90mstderr[2m | apps/app/test/plugins/gateway.test.ts[2m > [22m[2m@milady/capacitor-gateway[2m > [22m[2mdiscovery[2m > [22m[2mstartDiscovery with options still returns empty
+[22m[39m[Gateway] Discovery not supported on web platform
+
+ [32m✓[39m apps/app/test/app/plugins-view-toggle-restart.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/gateway.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/config/includes.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/api/og-tracker.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/api/memory-routes.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/runtime/cua-boundary.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m apps/app/src/components/Header.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/config/connector-parity.test.ts [2m([22m[2m65 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/game-view-auth-session.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/save-command-modal.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/sandbox-engine-exec.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/startup-failure-view.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/secrets-view.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/api/permissions-routes.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/permissions-darwin.test.ts [2m([22m[2m39 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] start() called, current state: not_started
+[Agent] Resolved milady dist: /tmp/milady-agent-start-aqLAYi/milady-dist (packaged: true)
+[Agent] milady-dist exists: true, server.js: true, eliza.js: true
+[Agent] milady-dist contents: eliza.js, server.js
+[Agent] Added ASAR node_modules to NODE_PATH: /tmp/milady-agent-start-aqLAYi/node_modules
+[Agent] Loading server.js from: /tmp/milady-agent-start-aqLAYi/milady-dist/server.js
+[Agent] Loading via ESM import(): file:///tmp/milady-agent-start-aqLAYi/milady-dist/server.js
+
+[90mstderr[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] ESM dynamic import failed, falling back to require(): A dynamic import callback was not specified.
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] server.js loaded: true, has startApiServer: true
+[Agent] Starting API server on port 2138...
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] API server started on port 42138
+[Agent] Loading eliza.js from: /tmp/milady-agent-start-aqLAYi/milady-dist/eliza.js
+[Agent] Loading via ESM import(): file:///tmp/milady-agent-start-aqLAYi/milady-dist/eliza.js
+
+[90mstderr[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] ESM dynamic import failed, falling back to require(): A dynamic import callback was not specified.
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] eliza.js loaded, exports: startEliza
+[Agent] Starting Eliza runtime in headless mode...
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] Failed to start: Error: runtime bootstrap failed
+    at startEliza (file:///tmp/milady-agent-start-aqLAYi/milady-dist/eliza.js:10:11)
+    at AgentManager.start (/app/apps/app/electron/src/native/agent.ts:391:35)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at /app/apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts:98:19
+    at file:///app/node_modules/@vitest/runner/dist/index.js:915:20
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] start() called, current state: error
+[Agent] Resolved milady dist: /tmp/milady-agent-start-aqLAYi/milady-dist (packaged: true)
+[Agent] milady-dist exists: true, server.js: true, eliza.js: true
+[Agent] milady-dist contents: eliza.js, server.js
+[Agent] Added ASAR node_modules to NODE_PATH: /tmp/milady-agent-start-aqLAYi/node_modules
+[Agent] Loading server.js from: /tmp/milady-agent-start-aqLAYi/milady-dist/server.js
+[Agent] Loading via ESM import(): file:///tmp/milady-agent-start-aqLAYi/milady-dist/server.js
+
+[90mstderr[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] ESM dynamic import failed, falling back to require(): A dynamic import callback was not specified.
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] server.js loaded: true, has startApiServer: true
+[Agent] Starting API server on port 2138...
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] API server started on port 42138
+[Agent] Loading eliza.js from: /tmp/milady-agent-start-aqLAYi/milady-dist/eliza.js
+[Agent] Loading via ESM import(): file:///tmp/milady-agent-start-aqLAYi/milady-dist/eliza.js
+
+[90mstderr[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] ESM dynamic import failed, falling back to require(): A dynamic import callback was not specified.
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] eliza.js loaded, exports: startEliza
+[Agent] Starting Eliza runtime in headless mode...
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] Runtime started — agent: Milady, port: 42138
+
+[90mstdout[2m | apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts[2m > [22m[2melectron agent startup failure cleanup[2m > [22m[2mcloses API listener after failed start so next start does not hit EADDRINUSE
+[22m[39m[Agent] Runtime stopped
+
+ [32m✓[39m apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/whatsapp-pairing.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/services/registry-client-endpoints.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/settings-modal.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/permissions-linux.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/confirm-delete-control.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/shared-switch.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/services/self-updater.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/runtime/onboarding-names.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/apps-page-view.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/retake-capture.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/api/apps-routes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/api/registry-routes.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/api/__tests__/bug-report-routes.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/runtime/restart.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/restart-banner.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/permissions-win32.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/camera.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/services/registry-client-app-meta.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/api/__tests__/whatsapp-routes.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/api/agent-admin-routes.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/cloud/validate-url.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/api/nft-verify.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/hooks/registry.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/services/version-compat.test.ts [2m([22m[2m44 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/api/subscription-routes.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/location.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/utils/exec-safety.test.ts [2m([22m[2m44 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/api/memory-bounds.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/plugins/whatsapp/__tests__/actions.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/security/network-policy.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/permissions-section.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/terminal.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/api/plugin-validation.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/plugin-management.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/api/stream-voice-routes.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/runtime/x402-boundary.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/api/diagnostics-routes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/agent-web-electron-fallback.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/actions/restart.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/services/whatsapp-pairing.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/api/wallet-routes.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/config/zod-schema.character.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/tui/loading-screen.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/api/server.connector-config-guard.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/dynamic-import-asar.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/services/registry-client-queries.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+[90mstdout[2m | src/benchmark/plugin.test.ts[2m > [22m[2mbenchmark plugin action capture[2m > [22m[2mcaptures command-style benchmark actions
+[22m[39m[BENCHMARK_ACTION] params: {"command":"search[laptop under $500]"}
+
+[90mstdout[2m | src/benchmark/plugin.test.ts[2m > [22m[2mbenchmark plugin action capture[2m > [22m[2mparses tool-call JSON arguments
+[22m[39m[BENCHMARK_ACTION] params: {"tool_name":"lookup_order","arguments":"{\"order_id\":\"A-123\"}"}
+
+[90mstdout[2m | src/benchmark/plugin.test.ts[2m > [22m[2mbenchmark plugin action capture[2m > [22m[2mpreserves invalid JSON tool arguments as _raw
+[22m[39m[BENCHMARK_ACTION] params: {"tool_name":"lookup_order","arguments":"{not-json}"}
+
+[90mstdout[2m | src/benchmark/plugin.test.ts[2m > [22m[2mbenchmark plugin action capture[2m > [22m[2msupports Struct-like fields payloads
+[22m[39m[BENCHMARK_ACTION] params: {"operation":"CLICK","element_id":"btn-1","value":""}
+
+ [32m✓[39m src/benchmark/plugin.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/runtime/custom-actions-security.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/api/character-routes.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/tui/ws-client.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/api/cloud-status-routes.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/api/server.wallet-export-auth.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/api/tx-service.observability.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/api/agent-transfer-routes.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/cloud/cloud-manager.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/cloud/backup.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m apps/app/test/avatar/voice-chat.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/triggers/runtime.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/swabble.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/api/wallet-routes.observability.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m src/api/trigger-routes.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/security/__tests__/network-policy.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/tui/components/status-bar.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/actions/send-message.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/triggers/action.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/config/env-vars.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/cloud/reconnect.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/config/telegram-custom-commands.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/api-client-timeout.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/talkmode.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/api/auth-routes.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/emote.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m apps/app/test/plugins/screencapture.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/security/__tests__/audit-log.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/utils/globals.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m apps/app/test/avatar/voice-chat-streaming-text.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/api/twitter-verify.observability.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/install-plugin.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/services/registry-client-network.observability.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/services/mcp-marketplace.observability.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/api/server.websocket-auth.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/api-client-electron-fallback.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/api/apps-hyperscape-routes.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/signing-policy.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/api/provider-switch-config.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/api/agent-lifecycle-routes.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/api-base.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/cli/profile.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/services/stream-manager.test.ts [2m([22m[2m53 tests[22m[2m)[22m[33m 99325[2mms[22m[39m
+     [33m[2m✓[22m[39m pipe mode: contains -f image2pipe, -c:v mjpeg, -i pipe:0 [33m 3038[2mms[22m[39m
+     [33m[2m✓[22m[39m pipe mode: contains -probesize 32 and -analyzeduration 0 for fast start [33m 3005[2mms[22m[39m
+     [33m[2m✓[22m[39m x11grab mode: contains -f x11grab and -video_size 1280x720 [33m 3015[2mms[22m[39m
+     [33m[2m✓[22m[39m x11grab mode: passes specified display as video -i argument [33m 3003[2mms[22m[39m
+     [33m[2m✓[22m[39m x11grab mode: defaults to display :99 when display is omitted [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m avfoundation mode: contains -f avfoundation and <device>:none [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m testsrc mode: contains -f lavfi with color= source string [33m 3008[2mms[22m[39m
+     [33m[2m✓[22m[39m file mode: contains -loop 1, -f image2, and the frame file path [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m silent: args contain anullsrc [33m 3009[2mms[22m[39m
+     [33m[2m✓[22m[39m system on darwin: args contain avfoundation and none:<device> [33m 3003[2mms[22m[39m
+     [33m[2m✓[22m[39m system on linux: args contain -f pulse [33m 3008[2mms[22m[39m
+     [33m[2m✓[22m[39m microphone on darwin: args contain avfoundation and none:<device> [33m 3009[2mms[22m[39m
+     [33m[2m✓[22m[39m microphone on linux: args contain -f pulse [33m 3003[2mms[22m[39m
+     [33m[2m✓[22m[39m absolute file path: args contain -stream_loop -1 and the path [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m relative file path (./): args contain -stream_loop -1 and the path [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m unknown string source: falls back to anullsrc (silent) [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m includes -af volume=0.50 when volume=50 and muted=false [33m 3016[2mms[22m[39m
+     [33m[2m✓[22m[39m includes -af volume=0.00 when muted=true regardless of volume [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m includes -af volume=1.00 when volume=100 and muted=false [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m includes -af volume=0.00 when volume=0 and muted=false [33m 3007[2mms[22m[39m
+     [33m[2m✓[22m[39m contains -f x11grab [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m contains -video_size 1280x720 with default resolution [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m contains -i :42 for the specified display [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m respects custom resolution in -video_size [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m exit handler is registered and fires autoRestart on unexpected exit [33m 3003[2mms[22m[39m
+     [33m[2m✓[22m[39m stop() sets intentionalStop preventing restart after exit [33m 3005[2mms[22m[39m
+     [33m[2m✓[22m[39m concurrent start() calls are rejected by _starting guard [33m 3007[2mms[22m[39m
+     [33m[2m✓[22m[39m tts: args contain -f s16le, -ar 24000, -ac 1, -i pipe:3 [33m 3005[2mms[22m[39m
+     [33m[2m✓[22m[39m tts: does NOT contain anullsrc (not silent) [33m 3007[2mms[22m[39m
+     [33m[2m✓[22m[39m tts: spawn is called with 4 stdio entries (includes pipe:3) [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m non-tts: spawn is called with 3 stdio entries (no pipe:3) [33m 3008[2mms[22m[39m
+     [33m[2m✓[22m[39m pipe mode: spawn has 3 stdio entries when audioSource is silent [33m 3004[2mms[22m[39m
+     [33m[2m✓[22m[39m pipe mode + tts: spawn has 4 stdio entries (stdin + pipe:3) [33m 3004[2mms[22m[39m
+ [32m✓[39m src/runtime/embedding-presets.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/autonomy-events.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/services/sandbox-engine.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m apps/app/test/avatar/avatar-selector.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/api/zip-utils.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m apps/app/test/avatar/mixamo-vrm-rig-map.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/services/mcp-marketplace.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/services/skill-marketplace.observability.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/config/runtime-overrides.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/api/autonomy-routes.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/api/blocked-env-keys.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/cloud/cloud-proxy.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/api/models-routes.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m scripts/coverage-policy-drift.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/cli/argv.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m scripts/sync-dod-gap-issues-lib.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/runtime/__tests__/log-chat-listener.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/api/bug-report-routes.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/runtime/boot-progress.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/sync-plugin.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/triggers-navigation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/web-assets.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/api/server.config-allowlist.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/log-level.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/api/server.mcp-config-auth.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/api/config-include-injection.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/permissions/registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/api/server.package-root.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/triggers/scheduling.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/tui/components/footer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/api/compat-utils.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/terminal/links.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/plugin-bridge.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/api/server.hyperscape-auth-header.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/api/server.conversation-title.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/electron-startup.e2e.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/api-client-ws.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/runtime/init-submodules-script.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/cli/plugins-cli.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/api/server.terminal-run-auth.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m apps/app/test/avatar/asset-url.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m scripts/run-node-runtime.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/api/dns-rebinding.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/tui/sse-parser.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/services/plugin-installer-security.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/api/onboarding-setup-token.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/api/server.api-token-bind.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/providers/autonomous-state.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/providers/session-bridge.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/utils/number-parsing.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m apps/app/test/electron/electron-plugin-entrypoints.e2e.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/providers/ui-catalog.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/api/server.terminal-limits.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m apps/app/test/app/navigation.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/config/config-paths.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/api/server.terminal-client-scope.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/api/onboarding-pi-ai.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/tui/components/pinned-chat-layout.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/tui/model-spec.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/cli/parse-duration.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/providers/simple-mode.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/benchmark/mock-plugin.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/providers/admin-trust.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/api/server.plugin-config-guard.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [2m[90m↓[39m[22m src/providers/media-provider.real.test.ts [2m([22m[2m11 tests[22m[2m | [22m[33m11 skipped[39m[2m)[22m
+ [32m✓[39m apps/app/test/app/knowledge-upload-helpers.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/api/server.reset-state-dir-safety.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [2m[90m↓[39m[22m src/services/training-service.import-ollama.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m src/api/server.agent-event-allowlist.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/services/plugin-stability.test.ts[2m > [22mPlugin Loading — Isolation[2m > [22mloads @elizaos/plugin-local-embedding in isolation without crashing
+[41m[1m FAIL [22m[49m src/services/plugin-stability.test.ts[2m > [22mPlugin Loading — All Together[2m > [22mloaded plugins have non-empty name and description
+[31m[1mError[22m: Could not load the "sharp" module using the linux-x64 runtime
+ERR_DLOPEN_FAILED: libvips-cpp.so.8.17.3: cannot open shared object file: No such file or directory
+Possible solutions:
+- Ensure optional dependencies can be installed:
+    npm install --include=optional sharp
+- Ensure your package manager supports multi-platform installation:
+    See https://sharp.pixelplumbing.com/install#cross-platform
+- Add platform-specific dependencies:
+    npm install --os=linux --cpu=x64 sharp
+- Consult the installation documentation:
+    See https://sharp.pixelplumbing.com/install[39m
+[90m [2m❯[22m Object.<anonymous> node_modules/@huggingface/transformers/node_modules/sharp/lib/sharp.js:[2m120:9[22m[39m
+[90m [2m❯[22m Object.<anonymous> node_modules/@huggingface/transformers/node_modules/sharp/lib/constructor.js:[2m10:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m287 passed[39m[22m[2m | [22m[33m2 skipped[39m[90m (290)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m4536 passed[39m[22m[2m | [22m[33m16 skipped[39m[90m (4554)[39m
+[2m   Start at [22m 00:37:30
+[2m   Duration [22m 129.52s[2m (transform 37.90s, setup 5.95s, import 170.06s, tests 194.91s, environment 29.94s)[22m
