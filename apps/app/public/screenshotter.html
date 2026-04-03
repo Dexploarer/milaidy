@@ -75,11 +75,28 @@ const cards = [];
 for (let i = 1; i <= VRM_COUNT; i++) {
   const card = document.createElement('div');
   card.className = 'card';
-  card.innerHTML = `
-    <canvas id="c${i}" width="${CANVAS_W}" height="${CANVAS_H}"></canvas>
-    <div class="label" id="l${i}">milady ${i}</div>
-    <a class="dl" id="d${i}" style="display:none" download="milady-${i}.png">Download</a>
-  `;
+
+  const canvas = document.createElement('canvas');
+  canvas.id = `c${i}`;
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.id = `l${i}`;
+  label.textContent = `milady ${i}`;
+
+  const a = document.createElement('a');
+  a.className = 'dl';
+  a.id = `d${i}`;
+  a.style.display = 'none';
+  a.download = `milady-${i}.png`;
+  a.textContent = 'Download';
+
+  card.appendChild(canvas);
+  card.appendChild(label);
+  card.appendChild(a);
+
   grid.appendChild(card);
   cards.push({ card, index: i });
 }
