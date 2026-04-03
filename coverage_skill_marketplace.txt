@@ -1,0 +1,18 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/app[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m src/services/skill-marketplace.test.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 166[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m38 passed[39m[22m[90m (38)[39m
+[2m   Start at [22m 00:43:04
+[2m   Duration [22m 4.05s[2m (transform 3.42s, setup 89ms, import 3.48s, tests 166ms, environment 0ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   57.22 |     57.5 |   48.27 |   58.98 |
+ ...marketplace.ts |   57.22 |     57.5 |   48.27 |   58.98 | ...90-830,844-847
+-------------------|---------|----------|---------|---------|-------------------
