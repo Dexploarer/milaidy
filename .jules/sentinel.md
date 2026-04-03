@@ -1,0 +1,4 @@
+## 2024-05-18 - Fix React DOM innerHTML manipulation vulnerability
+**Vulnerability:** Direct DOM manipulation using `innerHTML` within React components (`MediaGalleryView.tsx`, `LifoSandboxView.tsx`, etc) bypasses React's virtual DOM, potentially causing reconciliation issues and opening the door to Cross-Site Scripting (XSS) attacks if un-sanitized data is ever rendered.
+**Learning:** Found that fallback error states and component resets were directly writing to `element.innerHTML = "..."` instead of using native DOM APIs like `element.textContent` or `document.createElement`, or managing state via React properly.
+**Prevention:** Always use safe DOM native equivalents (e.g., `element.textContent = ""`, `element.replaceChildren()`, or `document.createElement()`) when directly accessing DOM references inside React `useEffect` or `onError` handlers, completely avoiding the `innerHTML` property.

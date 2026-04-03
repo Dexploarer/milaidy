@@ -1,0 +1,5 @@
+@milady/app dev:
+@milady/app dev:   VITE v5.4.21  ready in 442 ms
+@milady/app dev:
+@milady/app dev:   ➜  Local:   http://localhost:2138/
+@milady/app dev:   ➜  Network: http://192.168.0.2:2138/

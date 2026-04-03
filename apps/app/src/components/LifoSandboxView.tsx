@@ -128,10 +128,10 @@ export function LifoSandboxView() {
     runningRef.current = false;
 
     if (terminalRef.current) {
-      terminalRef.current.innerHTML = "";
+      terminalRef.current.replaceChildren();
     }
     if (explorerRef.current) {
-      explorerRef.current.innerHTML = "";
+      explorerRef.current.replaceChildren();
     }
   }, []);
 
