@@ -150,16 +150,30 @@ function pluginDir(pluginName: string): string {
 // Package manager detection
 // ---------------------------------------------------------------------------
 
-export async function detectPackageManager(): Promise<"bun" | "npm"> {
-  for (const cmd of ["bun", "npm"] as const) {
-    try {
-      await execFileAsync(cmd, ["--version"]);
-      return cmd;
-    } catch {
-      // not available
-    }
+// ⚡ Bolt: Cache package manager detection to avoid expensive process spawns.
+// Impact: Speeds up repetitive detectPackageManager calls by skipping redundant `execFile` executions.
+// Caching the Promise rather than the value prevents concurrent calls from spawning multiple identical processes.
+let cachedPackageManagerPromise: Promise<"bun" | "npm"> | null = null;
+
+export function _internalClearPackageManagerCache() {
+  cachedPackageManagerPromise = null;
+}
+
+export function detectPackageManager(): Promise<"bun" | "npm"> {
+  if (!cachedPackageManagerPromise) {
+    cachedPackageManagerPromise = (async () => {
+      for (const cmd of ["bun", "npm"] as const) {
+        try {
+          await execFileAsync(cmd, ["--version"]);
+          return cmd;
+        } catch {
+          // not available
+        }
+      }
+      return "npm";
+    })();
   }
-  return "npm";
+  return cachedPackageManagerPromise;
 }
 
 // ---------------------------------------------------------------------------
