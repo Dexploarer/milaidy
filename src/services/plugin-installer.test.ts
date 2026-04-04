@@ -140,6 +140,7 @@ async function writeLocalPluginSource(
 
 beforeEach(async () => {
   vi.resetModules();
+  vi.clearAllMocks();
 
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-inst-test-"));
   configDir = path.join(tmpDir, ".milady");
@@ -447,6 +448,264 @@ describe("plugin-installer", () => {
       expect(result.success).toBe(false);
       expect(vi.mocked(requestRestart)).not.toHaveBeenCalled();
     }, 180_000);
+  });
+
+  describe("uninstallAndRestart", () => {
+    it("calls requestRestart when uninstall succeeds", async () => {
+      const installDir = path.join(configDir, "plugins", "installed", "_elizaos_plugin-test");
+      await fs.mkdir(installDir, { recursive: true });
+
+      writeConfig({
+        plugins: {
+          installs: {
+            "@elizaos/plugin-test": {
+              source: "npm",
+              installPath: installDir,
+              version: "1.0.0",
+            },
+          },
+        },
+      });
+
+      const { requestRestart } = await import("../runtime/restart");
+      const { uninstallAndRestart } = await loadInstaller();
+
+      const result = await uninstallAndRestart("@elizaos/plugin-test");
+
+      expect(result.success).toBe(true);
+      expect(vi.mocked(requestRestart)).toHaveBeenCalledWith("Plugin @elizaos/plugin-test uninstalled");
+    });
+
+    it("does NOT call requestRestart when uninstall fails", async () => {
+      writeConfig({});
+
+      const { requestRestart } = await import("../runtime/restart");
+      const { uninstallAndRestart } = await loadInstaller();
+
+      const result = await uninstallAndRestart("@elizaos/plugin-test");
+
+      expect(result.success).toBe(false);
+      expect(vi.mocked(requestRestart)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("validation helpers", () => {
+    it("assertValidPackageName throws on invalid names", async () => {
+      const { assertValidPackageName } = await loadInstaller();
+      expect(() => assertValidPackageName("invalid name!")).toThrow("Invalid package name");
+      expect(() => assertValidPackageName("; rm -rf /")).toThrow("Invalid package name");
+    });
+
+    it("assertValidGitUrl throws on invalid URLs", async () => {
+      const { assertValidGitUrl } = await loadInstaller();
+      expect(() => assertValidGitUrl("http://github.com/a/b")).toThrow("Invalid git URL");
+      expect(() => assertValidGitUrl("https://github.com/a/b; rm -rf /")).toThrow("Invalid git URL");
+    });
+  });
+
+  describe("git clone install", () => {
+    it("falls back to git clone and builds typescript dir if it exists", async () => {
+      const { getPluginInfo } = await import("./registry-client");
+      vi.mocked(getPluginInfo).mockResolvedValue(
+        testPluginInfo({
+          name: "@elizaos/plugin-git-fallback",
+          npm: { package: "@elizaos/plugin-git-fallback", v2Version: "1.0.0", v1Version: null, v0Version: null },
+        })
+      );
+
+      const { execFile } = await import("node:child_process");
+      vi.mocked(execFile).mockImplementation((_cmd: string, args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        let callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+        const cbFn = callback as (err: Error | null, stdout: string | {stdout: string, stderr: string}, stderr: string) => void;
+
+        if (args.includes("clone")) {
+          // Mock git clone: create the tempDir and a typescript subfolder with a package.json
+          const tempDir = args[args.length - 1]; // last arg is tempDir
+          const fsSync = require("node:fs");
+          const path = require("node:path");
+          fsSync.mkdirSync(path.join(tempDir, "typescript"), { recursive: true });
+          fsSync.writeFileSync(path.join(tempDir, "typescript", "package.json"), '{"name":"mock"}');
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+        if (args.includes("ls-remote")) {
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+        if (args.includes("--version")) {
+          return process.nextTick(() => cbFn(null, {stdout:"1.0.0", stderr:""}, ""));
+        }
+        if (args.includes("install") && args.includes("--ignore-scripts") && !args.includes("--prefix")) {
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+        if (args.includes("run") && args.includes("build")) {
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+
+        // npm install fails
+        process.nextTick(() => cbFn(new Error("mock err"), "", ""));
+        return {} as ReturnType<typeof import("node:child_process").execFile>;
+      });
+
+      const { installPlugin } = await loadInstaller();
+      const result = await installPlugin("@elizaos/plugin-git-fallback");
+
+      expect(result.success).toBe(true);
+      expect(result.pluginName).toBe("@elizaos/plugin-git-fallback");
+    });
+
+    it("falls back to git clone, logs build error if build fails, and resolves entry point", async () => {
+      const { getPluginInfo } = await import("./registry-client");
+      vi.mocked(getPluginInfo).mockResolvedValue(
+        testPluginInfo({
+          name: "@elizaos/plugin-git-build-fail",
+          npm: { package: "@elizaos/plugin-git-build-fail", v2Version: "1.0.0", v1Version: null, v0Version: null },
+        })
+      );
+
+      const { execFile } = await import("node:child_process");
+      vi.mocked(execFile).mockImplementation((_cmd: string, args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        let callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+        const cbFn = callback as (err: Error | null, stdout: string | {stdout: string, stderr: string}, stderr: string) => void;
+
+        if (args.includes("clone")) {
+          const tempDir = args[args.length - 1];
+          const fsSync = require("node:fs");
+          const path = require("node:path");
+          fsSync.mkdirSync(path.join(tempDir, "typescript"), { recursive: true });
+          fsSync.writeFileSync(path.join(tempDir, "typescript", "package.json"), '{"name":"mock"}');
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+        if (args.includes("ls-remote")) return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        if (args.includes("--version")) return process.nextTick(() => cbFn(null, {stdout:"1.0.0", stderr:""}, ""));
+        if (args.includes("install") && args.includes("--ignore-scripts") && !args.includes("--prefix")) {
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+        if (args.includes("run") && args.includes("build")) {
+          // Fail the build
+          return process.nextTick(() => cbFn(new Error("build failed spectacularly"), "", ""));
+        }
+
+        process.nextTick(() => cbFn(new Error("mock err"), "", ""));
+        return {} as ReturnType<typeof import("node:child_process").execFile>;
+      });
+
+      const { installPlugin } = await loadInstaller();
+      const result = await installPlugin("@elizaos/plugin-git-build-fail");
+
+      expect(result.success).toBe(true);
+    });
+
+    it("fails install if entry point cannot be resolved", async () => {
+      const { getPluginInfo } = await import("./registry-client");
+      vi.mocked(getPluginInfo).mockResolvedValue(
+        testPluginInfo({
+          name: "@elizaos/plugin-no-entry",
+          npm: { package: "@elizaos/plugin-no-entry", v2Version: "1.0.0", v1Version: null, v0Version: null },
+        })
+      );
+
+      const { execFile } = await import("node:child_process");
+      vi.mocked(execFile).mockImplementation((_cmd: string, args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        let callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+        const cbFn = callback as (err: Error | null, stdout: string | {stdout: string, stderr: string}, stderr: string) => void;
+
+        if (args.includes("clone")) {
+          // Do not create typescript/ nor package.json to cause resolveEntryPoint to return null
+          const tempDir = args[args.length - 1];
+          const fsSync = require("node:fs");
+          fsSync.mkdirSync(tempDir, { recursive: true });
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+        if (args.includes("ls-remote") || args.includes("--version") || (args.includes("install") && !args.includes("--prefix"))) {
+          return process.nextTick(() => cbFn(null, {stdout:"", stderr:""}, ""));
+        }
+
+        process.nextTick(() => cbFn(new Error("mock err"), "", ""));
+        return {} as ReturnType<typeof import("node:child_process").execFile>;
+      });
+
+      // We need to also prevent the default initialised package.json in the targetDir from being found
+      // Wait, installPlugin creates package.json in targetDir!
+      // If it creates it, resolveEntryPoint will find it.
+      // So we have to delete it during git clone!
+      const originalClone = vi.mocked(execFile).getMockImplementation();
+      vi.mocked(execFile).mockImplementation((_cmd: string, args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        if (args.includes("clone")) {
+          const tempDir = args[args.length - 1];
+          const path = require("node:path");
+          const targetDir = path.join(path.dirname(tempDir), "_elizaos_plugin-no-entry");
+          const fsSync = require("node:fs");
+          try { fsSync.unlinkSync(path.join(targetDir, "package.json")); } catch (e) {}
+        }
+        return originalClone!(_cmd, args, optionsOrCb, cb);
+      });
+
+      const { installPlugin } = await loadInstaller();
+      const result = await installPlugin("@elizaos/plugin-no-entry");
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("entry point could not be resolved");
+    });
+  });
+
+  describe("detectPackageManager", () => {
+    it("returns npm if both bun and npm fail", async () => {
+      const { detectPackageManager } = await loadInstaller();
+
+      const { execFile } = await import("node:child_process");
+      vi.mocked(execFile).mockImplementation((_cmd: string, _args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        let callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+        const cbFn = callback as (err: Error | null, stdout: string, stderr: string) => void;
+        process.nextTick(() => cbFn(new Error("not found"), "", ""));
+        return {} as ReturnType<typeof import("node:child_process").execFile>;
+      });
+
+      const pm = await detectPackageManager();
+      expect(pm).toBe("npm");
+    });
+  });
+
+  describe("resolveGitBranch", () => {
+    it("resolves main if no standard branches are found and ls-remote fails", async () => {
+      const { resolveGitBranch } = await loadInstaller();
+
+      const { execFile } = await import("node:child_process");
+      vi.mocked(execFile).mockImplementation((_cmd: string, args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        let callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+        const cbFn = callback as (err: Error | null, stdout: string, stderr: string) => void;
+        process.nextTick(() => cbFn(new Error("mock err"), "", ""));
+        return {} as ReturnType<typeof import("node:child_process").execFile>;
+      });
+
+      const branch = await resolveGitBranch(testPluginInfo());
+      expect(branch).toBe("main");
+    });
+
+    it("resolves branch from ls-remote if candidates fail", async () => {
+      const { resolveGitBranch } = await loadInstaller();
+
+      const { execFile } = await import("node:child_process");
+      vi.mocked(execFile).mockImplementation((_cmd: string, args: string[], optionsOrCb: unknown, cb?: unknown) => {
+        let callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+        const cbFn = callback as (err: Error | null, stdout: string, stderr: string) => void;
+        if (args.includes("ls-remote") && args.includes("--heads")) {
+          // If a specific branch is passed, mock false by returning empty.
+          // Command format: "git ls-remote --heads <url> <branch>"
+          if (args.length === 4) {
+            return process.nextTick(() => cbFn(null, { stdout: "", stderr: "" } as any, ""));
+          }
+          // "git ls-remote --heads <url>"
+          if (args.length === 3) {
+            return process.nextTick(() => cbFn(null, { stdout: "hash refs/heads/develop\nhash refs/heads/feature", stderr: "" } as any, ""));
+          }
+          return process.nextTick(() => cbFn(new Error("unexpected args length"), "", ""));
+        }
+        process.nextTick(() => cbFn(new Error("mock err"), "", ""));
+        return {} as ReturnType<typeof import("node:child_process").execFile>;
+      });
+
+      const branch = await resolveGitBranch(testPluginInfo());
+      expect(branch).toBe("develop");
+    });
   });
 
   describe("path helpers", () => {
