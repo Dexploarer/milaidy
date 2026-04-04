@@ -215,6 +215,7 @@ export function ConversationsSidebar({
                       <button
                         type="button"
                         data-testid="conv-delete"
+                        aria-label="Delete conversation"
                         className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
                         onClick={(e) => {
                           e.stopPropagation();
