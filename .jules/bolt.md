@@ -1,0 +1,3 @@
+## 2024-05-30 - Caching Promise for Async Child Process Spawns
+**Learning:** Calling `execFileAsync` concurrently for operations like `detectPackageManager` bypasses standard variable caching, resulting in redundant system shell executions while waiting for the first promise to resolve.
+**Action:** Implement module-level caching that stores the `Promise` itself rather than the resolved value. Concurrent invocations will wait on the same pending promise instead of triggering redundant `execFileAsync` calls. Also expose a clear method (e.g., `_internalClearPackageManagerCache`) to reset state between unit tests to prevent side effects.
