@@ -599,6 +599,58 @@ describe("TtsStreamBridge.speak()", () => {
 // ===========================================================================
 
 describe("decodeMp3ToPcm via speak()", () => {
+  it("generates Edge TTS and queues PCM audio", async () => {
+    // Provide node-edge-tts directly via vi.mock
+    // using Readable to correctly mock Node streams (allows chaining)
+    const { Readable } = await import("node:stream");
+    const mockToStream = vi.fn().mockImplementation(() => {
+      return Readable.from([Buffer.alloc(100, 0xee)]);
+    });
+    const mockSetMetadata = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock("node-edge-tts", () => {
+      return {
+        MsEdgeTTS: vi.fn().mockImplementation(function() {
+          return {
+            setMetadata: mockSetMetadata,
+            toStream: mockToStream,
+          };
+        }),
+      };
+    });
+
+    // Re-import to pick up the dynamic import mock
+    vi.resetModules();
+    const { ttsStreamBridge: localBridge } = await import("./tts-stream-bridge");
+
+    const writable = createMockWritable();
+    localBridge.attach(writable);
+
+    const fakePcm = Buffer.alloc(2400, 0x42);
+
+    const mockStdout = new EventEmitter();
+    const mockStdin = { write: vi.fn(), end: vi.fn() };
+    const mockProc = Object.assign(new EventEmitter(), {
+      stdout: mockStdout,
+      stdin: mockStdin,
+    });
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockProc);
+
+    const speakPromise = localBridge.speak("Hello", {
+      provider: "edge",
+      edge: { voice: "en-US-GuyNeural" },
+    });
+
+    await new Promise((r) => setTimeout(r, 10));
+    mockStdout.emit("data", fakePcm);
+    mockProc.emit("close", 0);
+
+    const result = await speakPromise;
+    expect(result).toBe(true);
+
+    vi.doUnmock("node-edge-tts");
+  });
+
   it("spawns FFmpeg with correct decode args (s16le, 24kHz, mono)", async () => {
     const writable = createMockWritable();
     ttsStreamBridge.attach(writable);
@@ -648,5 +700,37 @@ describe("decodeMp3ToPcm via speak()", () => {
     expect(args).toContain("pipe:1");
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe("resolveKey (via resolveTtsConfig)", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("ignores [REDACTED] placeholder in config", () => {
+    process.env.ELEVENLABS_API_KEY = "env-key";
+    const config: TtsConfig = {
+      provider: "elevenlabs",
+      elevenlabs: { apiKey: "[REDACTED]" },
+    };
+    const resolved = resolveTtsConfig(config);
+    expect(resolved?.elevenlabs?.apiKey).toBe("env-key");
+  });
+
+  it("ignores ***** placeholder in env", () => {
+    process.env.OPENAI_API_KEY = "*****";
+    const config: TtsConfig = {
+      provider: "openai",
+      openai: { apiKey: "" },
+    };
+    const resolved = resolveTtsConfig(config);
+    expect(resolved?.provider).not.toBe("openai");
   });
 });
