@@ -191,6 +191,12 @@ describe("plugin-eject", () => {
   });
 
   describe("ejectPlugin", () => {
+    beforeEach(async () => {
+      const installer = await import("./plugin-installer");
+      installer._internalClearPackageManagerCache();
+      vi.clearAllMocks();
+    });
+
     it("ejects a plugin and writes upstream metadata", async () => {
       const { getPluginInfo } = await import("./registry-client");
       vi.mocked(getPluginInfo).mockResolvedValue(pluginInfo() as never);
@@ -578,6 +584,12 @@ describe("plugin-eject", () => {
   });
 
   describe("syncPlugin", () => {
+    beforeEach(async () => {
+      const installer = await import("./plugin-installer");
+      installer._internalClearPackageManagerCache();
+      vi.clearAllMocks();
+    });
+
     it("returns error when plugin is not ejected", async () => {
       const { syncPlugin } = await loadPluginEject();
       const result = await syncPlugin("@elizaos/plugin-missing");
