@@ -1,6 +1,7 @@
 /** Sandbox capability API routes: status, exec, browser, screen, audio, computer use. */
 
 import { execFileSync, execSync } from "node:child_process";
+import crypto from "node:crypto";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { platform, tmpdir } from "node:os";
@@ -756,7 +757,7 @@ function captureScreenshot(region?: {
   height: number;
 }): Buffer {
   const os = platform();
-  const tmpFile = join(tmpdir(), `sandbox-screenshot-${Date.now()}.png`);
+  const tmpFile = join(tmpdir(), `sandbox-screenshot-${crypto.randomUUID()}.png`);
 
   try {
     if (os === "darwin") {
@@ -922,7 +923,7 @@ function listWindows(): Array<{ id: string; title: string; app: string }> {
 async function recordAudio(durationMs: number): Promise<Buffer> {
   const os = platform();
   const durationSec = Math.ceil(durationMs / 1000);
-  const tmpFile = join(tmpdir(), `sandbox-audio-${Date.now()}.wav`);
+  const tmpFile = join(tmpdir(), `sandbox-audio-${crypto.randomUUID()}.wav`);
 
   if (os === "darwin") {
     // Use sox (rec) on macOS
@@ -982,7 +983,7 @@ async function recordAudio(durationMs: number): Promise<Buffer> {
 
 async function playAudio(data: Buffer, format: string): Promise<void> {
   const os = platform();
-  const tmpFile = join(tmpdir(), `sandbox-play-${Date.now()}.${format}`);
+  const tmpFile = join(tmpdir(), `sandbox-play-${crypto.randomUUID()}.${format}`);
   writeFileSync(tmpFile, data);
 
   try {

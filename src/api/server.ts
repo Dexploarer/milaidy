@@ -12477,7 +12477,7 @@ async function handleRequest(
 
     // Spawn in background and broadcast output
     const { spawn } = await import("node:child_process");
-    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const runId = `run-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
     emitTerminalEvent({
       type: "terminal-output",
