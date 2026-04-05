@@ -26,7 +26,10 @@ function IconButtonTooltip({
   return (
     <div className="relative group">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-bg-elevated border border-border text-[11px] text-txt-strong rounded-md whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-lg">
+      <div
+        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-bg-elevated border border-border text-[11px] text-txt-strong rounded-md whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50 shadow-lg pointer-events-none"
+        aria-hidden="true"
+      >
         <div className="font-medium">{label}</div>
         {shortcut && <div className="text-muted mt-0.5">{shortcut}</div>}
         <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-bg-elevated" />
