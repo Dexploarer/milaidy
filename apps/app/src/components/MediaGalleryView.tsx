@@ -280,8 +280,10 @@ export function MediaGalleryView() {
                       const image = e.target as HTMLImageElement;
                       image.style.display = "none";
                       if (image.parentElement) {
-                        image.parentElement.innerHTML =
-                          '<span style="font-size:24px">🖼</span>';
+                        const fallback = document.createElement("span");
+                        fallback.style.fontSize = "24px";
+                        fallback.textContent = "🖼";
+                        image.parentElement.appendChild(fallback);
                       }
                     }}
                   />
