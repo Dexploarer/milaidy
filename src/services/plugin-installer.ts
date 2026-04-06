@@ -150,16 +150,29 @@ function pluginDir(pluginName: string): string {
 // Package manager detection
 // ---------------------------------------------------------------------------
 
-export async function detectPackageManager(): Promise<"bun" | "npm"> {
-  for (const cmd of ["bun", "npm"] as const) {
-    try {
-      await execFileAsync(cmd, ["--version"]);
-      return cmd;
-    } catch {
-      // not available
-    }
+let pmCache: Promise<"bun" | "npm"> | null = null;
+
+// ⚡ Bolt Optimization: Cache the Promise of the detection so concurrent checks
+// during startup or bulk installs don't spawn redundant bun/npm child processes.
+export function detectPackageManager(): Promise<"bun" | "npm"> {
+  if (!pmCache) {
+    pmCache = (async () => {
+      for (const cmd of ["bun", "npm"] as const) {
+        try {
+          await execFileAsync(cmd, ["--version"]);
+          return cmd;
+        } catch {
+          // not available
+        }
+      }
+      return "npm";
+    })();
   }
-  return "npm";
+  return pmCache;
+}
+
+export function _internalClearPackageManagerCache(): void {
+  pmCache = null;
 }
 
 // ---------------------------------------------------------------------------
