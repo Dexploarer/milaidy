@@ -196,6 +196,7 @@ export function ConversationsSidebar({
                         <span className="text-[10px] text-danger">Delete?</span>
                         <button
                           type="button"
+                          aria-label="Confirm delete conversation"
                           className="px-1.5 py-0.5 text-[10px] border border-danger bg-danger text-white cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => void handleConfirmDelete(conv.id)}
                           disabled={deletingId === conv.id}
@@ -204,6 +205,7 @@ export function ConversationsSidebar({
                         </button>
                         <button
                           type="button"
+                          aria-label="Cancel delete conversation"
                           className="px-1.5 py-0.5 text-[10px] border border-border bg-card text-muted cursor-pointer hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => setConfirmDeleteId(null)}
                           disabled={deletingId === conv.id}
@@ -215,6 +217,7 @@ export function ConversationsSidebar({
                       <button
                         type="button"
                         data-testid="conv-delete"
+                        aria-label="Delete conversation"
                         className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
                         onClick={(e) => {
                           e.stopPropagation();
