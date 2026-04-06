@@ -12477,7 +12477,9 @@ async function handleRequest(
 
     // Spawn in background and broadcast output
     const { spawn } = await import("node:child_process");
-    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Use crypto for secure run ID generation to prevent predictability
+    const crypto = await import("node:crypto");
+    const runId = `run-${Date.now()}-${crypto.randomUUID()}`;
 
     emitTerminalEvent({
       type: "terminal-output",
