@@ -18,12 +18,25 @@ describe("number-parsing helpers", () => {
     expect(parsePositiveInteger("12abc", 4)).toBe(4);
   });
 
+  it("handles undefined or invalid fallback for positive integer", () => {
+    expect(parsePositiveInteger("nope")).toBeUndefined();
+    expect(parsePositiveInteger("nope", NaN)).toBeUndefined();
+    expect(parsePositiveInteger("nope", Infinity)).toBeUndefined();
+    expect(parsePositiveInteger("", NaN)).toBeUndefined();
+  });
+
   it("parses positive floats", () => {
     expect(parsePositiveFloat("0.5")).toBe(0.5);
     expect(parsePositiveFloat("1", { floor: true })).toBe(1);
     expect(parsePositiveFloat(" 2.25 ", { fallback: 0.1 })).toBe(2.25);
     expect(parsePositiveFloat("0", { fallback: 0.1 })).toBe(0.1);
     expect(parsePositiveFloat("bad", { fallback: 0.1 })).toBe(0.1);
+  });
+
+  it("handles no options for positive float", () => {
+    expect(parsePositiveFloat("bad")).toBeUndefined();
+    expect(parsePositiveFloat("")).toBeUndefined();
+    expect(parsePositiveFloat("-1")).toBeUndefined();
   });
 
   it("parses and clamps floats", () => {
@@ -39,6 +52,12 @@ describe("number-parsing helpers", () => {
     );
   });
 
+  it("handles no options for clamped float", () => {
+    expect(parseClampedFloat("0.5")).toBe(0.5);
+    expect(parseClampedFloat("bad")).toBeUndefined();
+    expect(parseClampedFloat("")).toBeUndefined();
+  });
+
   it("parses and clamps integers", () => {
     expect(parseClampedInteger("3", { min: 1, max: 5, fallback: 2 })).toBe(3);
     expect(parseClampedInteger("9", { min: 1, max: 5, fallback: 2 })).toBe(5);
@@ -48,5 +67,16 @@ describe("number-parsing helpers", () => {
     );
     expect(parseClampedInteger("bad", { min: 1, max: 5, fallback: 2 })).toBe(2);
     expect(parseClampedInteger(null, { min: 1, max: 5, fallback: 2 })).toBe(2);
+  });
+
+  it("handles no options for clamped integer", () => {
+    expect(parseClampedInteger("3")).toBe(3);
+    expect(parseClampedInteger("bad")).toBeUndefined();
+    expect(parseClampedInteger("")).toBeUndefined();
+  });
+
+  it("handles one-sided clamp for integer", () => {
+    expect(parseClampedInteger("10", { max: 5 })).toBe(5);
+    expect(parseClampedInteger("-10", { min: -5 })).toBe(-5);
   });
 });
