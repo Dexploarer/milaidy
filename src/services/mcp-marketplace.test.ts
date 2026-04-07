@@ -6,14 +6,18 @@
  * - generateMcpConfigFromServerDetails (full registry server + env/headers → config)
  * - McpRegistryServer / McpServerConfig type contracts
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   generateMcpConfigFromRegistry,
   generateMcpConfigFromServerDetails,
+  getMcpServerDetails,
+  searchMcpMarketplace,
   type McpMarketplaceSearchItem,
   type McpRegistryServer,
   type McpServerConfig,
 } from "./mcp-marketplace";
+
+const originalFetch = global.fetch;
 
 // ============================================================================
 //  1. generateMcpConfigFromRegistry (existing function)
@@ -338,6 +342,240 @@ describe("generateMcpConfigFromServerDetails", () => {
 // ============================================================================
 //  3. McpServerConfig shape validation
 // ============================================================================
+
+// ============================================================================
+//  4. searchMcpMarketplace
+// ============================================================================
+
+describe("searchMcpMarketplace", () => {
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.clearAllMocks();
+  });
+
+  const mockRegistryResponse = {
+    servers: [
+      {
+        server: {
+          name: "test/remote-server",
+          description: "remote",
+          version: "1.0.0",
+          remotes: [{ type: "sse", url: "https://mcp.example.com/sse" }],
+        },
+        _meta: {
+          "io.modelcontextprotocol.registry/official": { isLatest: true },
+        },
+      },
+      {
+        server: {
+          name: "test/npm-server",
+          title: "NPM Title",
+          description: "npm",
+          version: "1.0.0",
+          packages: [
+            { registryType: "npm", identifier: "@test/npm" },
+          ],
+        },
+        _meta: {
+          "io.modelcontextprotocol.registry/official": { isLatest: true },
+        },
+      },
+      {
+        server: {
+          name: "test/npm-server", // Duplicate name
+          description: "npm old",
+          version: "0.9.0",
+          packages: [
+            { registryType: "npm", identifier: "@test/npm" },
+          ],
+        },
+        _meta: {
+          "io.modelcontextprotocol.registry/official": { isLatest: true },
+        },
+      },
+      {
+        server: {
+          name: "test/docker-server",
+          description: "docker",
+          version: "1.0.0",
+          packages: [
+            { registryType: "oci", identifier: "mcp/docker" },
+          ],
+        },
+        _meta: {
+          "io.modelcontextprotocol.registry/official": { isLatest: true },
+        },
+      },
+      {
+        server: {
+          name: "test/not-latest",
+          description: "not latest",
+          version: "1.0.0",
+        },
+        _meta: {
+          "io.modelcontextprotocol.registry/official": { isLatest: false },
+        },
+      },
+    ],
+  };
+
+  it("fetches and formats registry servers correctly", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockRegistryResponse,
+    });
+    global.fetch = fetchMock;
+
+    const { results } = await searchMcpMarketplace();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://registry.modelcontextprotocol.io/v0/servers",
+      { headers: { Accept: "application/json" } },
+    );
+
+    expect(results).toHaveLength(3); // Deduplicated and isLatest filtered
+
+    expect(results[0].name).toBe("test/remote-server");
+    expect(results[0].connectionType).toBe("remote");
+    expect(results[0].connectionUrl).toBe("https://mcp.example.com/sse");
+
+    expect(results[1].name).toBe("test/npm-server");
+    expect(results[1].title).toBe("NPM Title");
+    expect(results[1].connectionType).toBe("stdio");
+    expect(results[1].npmPackage).toBe("@test/npm");
+
+    expect(results[2].name).toBe("test/docker-server");
+    expect(results[2].connectionType).toBe("stdio");
+    expect(results[2].dockerImage).toBe("mcp/docker");
+  });
+
+  it("filters by query string", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockRegistryResponse,
+    });
+    global.fetch = fetchMock;
+
+    const { results } = await searchMcpMarketplace("npm");
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe("test/npm-server");
+  });
+
+  it("respects limit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockRegistryResponse,
+    });
+    global.fetch = fetchMock;
+
+    const { results } = await searchMcpMarketplace(undefined, 2);
+    expect(results).toHaveLength(2);
+  });
+
+  it("throws on HTTP error", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+    });
+    global.fetch = fetchMock;
+
+    await expect(searchMcpMarketplace()).rejects.toThrow(
+      "Registry API error: 500 Internal Server Error",
+    );
+  });
+
+  it("throws on network error", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("Network error"));
+    global.fetch = fetchMock;
+
+    await expect(searchMcpMarketplace()).rejects.toThrow("Network error");
+  });
+
+  it("throws on json parse error", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => { throw new Error("JSON error"); },
+    });
+    global.fetch = fetchMock;
+
+    await expect(searchMcpMarketplace()).rejects.toThrow("JSON error");
+  });
+});
+
+// ============================================================================
+//  5. getMcpServerDetails
+// ============================================================================
+
+describe("getMcpServerDetails", () => {
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.clearAllMocks();
+  });
+
+  it("fetches server details by name", async () => {
+    const mockServer = { name: "test/server", version: "1.0.0" };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ server: mockServer }),
+    });
+    global.fetch = fetchMock;
+
+    const result = await getMcpServerDetails("test/server");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://registry.modelcontextprotocol.io/v0/servers/test%2Fserver",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(result).toEqual(mockServer);
+  });
+
+  it("returns null for 404", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+    global.fetch = fetchMock;
+
+    const result = await getMcpServerDetails("not/found");
+    expect(result).toBeNull();
+  });
+
+  it("throws on other HTTP errors", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    });
+    global.fetch = fetchMock;
+
+    await expect(getMcpServerDetails("error/server")).rejects.toThrow(
+      "Registry API error: 500",
+    );
+  });
+
+  it("throws on network error", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("Network error"));
+    global.fetch = fetchMock;
+
+    await expect(getMcpServerDetails("test/server")).rejects.toThrow("Network error");
+  });
+
+  it("throws on json parse error", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => { throw new Error("JSON error"); },
+    });
+    global.fetch = fetchMock;
+
+    await expect(getMcpServerDetails("test/server")).rejects.toThrow("JSON error");
+  });
+});
 
 describe("McpServerConfig shape", () => {
   it("stdio config has required fields", () => {
