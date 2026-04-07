@@ -131,7 +131,8 @@ export async function handleBugReportRoutes(
       });
 
       if (!issueRes.ok) {
-        error(res, `GitHub API error (${issueRes.status})`, 502);
+        console.error(`[bug-report] GitHub API error (${issueRes.status})`);
+        error(res, "GitHub API error", 502);
         return true;
       }
 
@@ -146,6 +147,9 @@ export async function handleBugReportRoutes(
       }
       json(res, { url });
     } catch (_err) {
+      console.error(
+        `[bug-report] Failed to create GitHub issue: ${_err instanceof Error ? _err.message : String(_err)}`,
+      );
       error(res, "Failed to create GitHub issue", 500);
     }
     return true;
