@@ -1,0 +1,3 @@
+## 2024-03-24 - Cache async Promise in detectPackageManager
+**Learning:** `detectPackageManager` uses expensive `execFileAsync` calls that take ~400ms in some environments (like Node.js) and 84ms in Bun. Because it's used repeatedly across installations and module resolution, caching the returned string isn't enough - multiple concurrent invocations will still redundantly spin up OS processes before the first promise resolves.
+**Action:** When optimizing repeated asynchronous checks that involve OS system calls (`execFileAsync`), cache the *Promise* itself rather than the resolved value to completely deduplicate concurrent executions. Do not use `Promise.any`, as non-deterministic execution time breaks the intended fallback order.
