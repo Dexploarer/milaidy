@@ -525,6 +525,7 @@ export function AutonomousPanel({
               }`}
               onClick={() => setState("chatAvatarVisible", !chatAvatarVisible)}
               title={chatAvatarVisible ? "Hide avatar" : "Show avatar"}
+              aria-label={chatAvatarVisible ? "Hide avatar" : "Show avatar"}
             >
               <svg
                 width="14"
@@ -554,6 +555,9 @@ export function AutonomousPanel({
                 setState("chatAgentVoiceMuted", !chatAgentVoiceMuted)
               }
               title={
+                chatAgentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"
+              }
+              aria-label={
                 chatAgentVoiceMuted ? "Unmute agent voice" : "Mute agent voice"
               }
             >
