@@ -116,10 +116,18 @@ function StatsCard({
         <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-1 flex items-center gap-1">
           Fragments
           <span className="relative group">
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-[var(--muted)] text-[9px] leading-none cursor-help opacity-60 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              aria-describedby="fragments-tooltip"
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-[var(--muted)] bg-transparent text-[9px] leading-none cursor-help opacity-60 group-hover:opacity-100 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none transition-opacity"
+            >
               ?
-            </span>
-            <span className="pointer-events-none absolute left-0 top-full mt-1.5 w-52 px-2.5 py-1.5 rounded bg-[var(--bg-elevated)] text-[var(--text-strong)] text-[11px] normal-case tracking-normal leading-snug opacity-0 group-hover:opacity-100 transition-opacity border border-[var(--border-strong)] shadow-md">
+            </button>
+            <span
+              id="fragments-tooltip"
+              role="tooltip"
+              className="pointer-events-none absolute left-0 top-full mt-1.5 w-52 px-2.5 py-1.5 rounded bg-[var(--bg-elevated)] text-[var(--text-strong)] text-[11px] normal-case tracking-normal leading-snug opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity border border-[var(--border-strong)] shadow-md z-10"
+            >
               Documents are split into smaller text chunks called fragments for
               efficient search and context retrieval.
             </span>

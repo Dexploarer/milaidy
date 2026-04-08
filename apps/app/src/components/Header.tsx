@@ -26,7 +26,10 @@ function IconButtonTooltip({
   return (
     <div className="relative group">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-bg-elevated border border-border text-[11px] text-txt-strong rounded-md whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-lg">
+      <div
+        aria-hidden="true"
+        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-bg-elevated border border-border text-[11px] text-txt-strong rounded-md whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50 shadow-lg"
+      >
         <div className="font-medium">{label}</div>
         {shortcut && <div className="text-muted mt-0.5">{shortcut}</div>}
         <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-bg-elevated" />
@@ -149,7 +152,7 @@ export function Header() {
 
   // Minimum 44px touch targets for mobile
   const iconBtnBase =
-    "inline-flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] border border-border bg-bg cursor-pointer text-sm leading-none hover:border-accent hover:text-accent transition-all duration-200 hover:shadow-sm hover:scale-105 active:scale-95 rounded-md";
+    "inline-flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] border border-border bg-bg cursor-pointer text-sm leading-none hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none transition-all duration-200 hover:shadow-sm hover:scale-105 active:scale-95 rounded-md";
 
   const handleCopy = (type: "evm" | "sol", address: string) => {
     copyToClipboard(address);
