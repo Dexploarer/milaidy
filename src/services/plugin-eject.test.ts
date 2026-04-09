@@ -33,6 +33,9 @@ vi.mock("./plugin-installer", async () => {
     );
   return {
     ...actual,
+    _internalClearPackageManagerCache: vi.fn(() =>
+      actual._internalClearPackageManagerCache(),
+    ),
     detectPackageManager: vi.fn(async () => "npm"),
     resolveGitBranch: vi.fn(async () => "main"),
     sanitisePackageName: vi.fn((name: string) =>
@@ -168,6 +171,10 @@ let tmpDir = "";
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  const { _internalClearPackageManagerCache } = await import(
+    "./plugin-installer"
+  );
+  _internalClearPackageManagerCache();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-eject-test-"));
   mockedStateDir = tmpDir;
   setExecFileHandler(async () => ({ stdout: "" }));
