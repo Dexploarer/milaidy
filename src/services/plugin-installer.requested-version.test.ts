@@ -102,6 +102,10 @@ function writeConfig(data: Record<string, unknown>) {
 
 beforeEach(async () => {
   vi.resetModules();
+  const installer = await import("./plugin-installer");
+  if ('_internalClearPackageManagerCache' in installer) {
+    (installer as any)._internalClearPackageManagerCache();
+  }
   execCalls.splice(0, execCalls.length);
 
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-inst-vtest-"));
