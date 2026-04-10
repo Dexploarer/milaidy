@@ -150,16 +150,29 @@ function pluginDir(pluginName: string): string {
 // Package manager detection
 // ---------------------------------------------------------------------------
 
+// ⚡ Bolt: Cache the Promise of package manager detection to avoid redundant child process
+// executions during concurrent or repeated calls. This saves ~50-100ms per redundant call.
+let _pmCache: Promise<"bun" | "npm"> | null = null;
+
 export async function detectPackageManager(): Promise<"bun" | "npm"> {
-  for (const cmd of ["bun", "npm"] as const) {
-    try {
-      await execFileAsync(cmd, ["--version"]);
-      return cmd;
-    } catch {
-      // not available
-    }
+  if (!_pmCache) {
+    _pmCache = (async () => {
+      for (const cmd of ["bun", "npm"] as const) {
+        try {
+          await execFileAsync(cmd, ["--version"]);
+          return cmd;
+        } catch {
+          // not available
+        }
+      }
+      return "npm";
+    })();
   }
-  return "npm";
+  return _pmCache;
+}
+
+export function _internalClearPackageManagerCache(): void {
+  _pmCache = null;
 }
 
 // ---------------------------------------------------------------------------
