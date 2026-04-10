@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessibility for hidden icon-only interactive elements
+**Learning:** Interactive elements that are hidden by hover states (like `sm:opacity-0 sm:group-hover:opacity-100`) and use literal text characters for icons (like '×') become inaccessible to screen readers and keyboard users.
+**Action:** Always add explicit `aria-label`s to literal text icons to prevent them from being read out literally (e.g., as 'multiply'), and include focus visibility utility classes (e.g., `focus:opacity-100 focus-visible:ring-2`) to ensure they are revealed and highlighted during keyboard navigation.
