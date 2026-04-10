@@ -206,6 +206,7 @@ export function BugReportModal() {
               type="button"
               className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
               onClick={close}
+              aria-label="Close"
             >
               &times;
             </button>
@@ -247,6 +248,7 @@ export function BugReportModal() {
             type="button"
             className="text-muted hover:text-txt text-lg leading-none px-1 cursor-pointer"
             onClick={close}
+            aria-label="Close"
           >
             &times;
           </button>

@@ -481,6 +481,7 @@ export function ConfigPageView({ embedded = false }: { embedded?: boolean }) {
                 type="button"
                 className="text-[var(--muted)] hover:text-[var(--txt)] text-lg leading-none px-1 bg-transparent border-0 cursor-pointer"
                 onClick={() => setSecretsOpen(false)}
+                aria-label="Close"
               >
                 &times;
               </button>
