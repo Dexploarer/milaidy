@@ -1712,6 +1712,7 @@ function TableFieldInner(props: FieldRenderProps) {
                       className="text-[var(--muted)] hover:text-[var(--destructive)] text-[14px] px-1"
                       onClick={() => removeRow(ri)}
                       title="Remove row"
+                      aria-label="Remove row"
                     >
                       &times;
                     </button>
@@ -1856,7 +1857,7 @@ export function ConfigField({
                   color: "var(--plugin-error)",
                 }}
               >
-                <span className="shrink-0 mt-px">&times;</span>
+                <span className="shrink-0 mt-px" aria-hidden="true">&times;</span>
                 <span>{err}</span>
               </div>
             ))}
