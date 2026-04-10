@@ -168,6 +168,10 @@ let tmpDir = "";
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  const installer = await import("./plugin-installer");
+  if ('_internalClearPackageManagerCache' in installer) {
+    (installer as any)._internalClearPackageManagerCache();
+  }
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-eject-test-"));
   mockedStateDir = tmpDir;
   setExecFileHandler(async () => ({ stdout: "" }));
