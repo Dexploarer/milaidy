@@ -1,0 +1,3 @@
+## 2025-04-12 - Ensure Icon-Only Buttons Read Properly
+**Learning:** I found multiple instances in the app's components where interactive icon-only close/remove buttons were using literal text characters (like '×'). Screen readers interpret these characters literally (e.g., "times" or "multiply") and do not convey their intended meaning, making the UI inaccessible for those relying on audio cues.
+**Action:** Next time I encounter icon-only interactive elements, especially those utilizing literal characters, I must add explicit `aria-label`s (e.g., `aria-label="Close"`) to ensure the intent of the button is predictably vocalized by screen readers.
