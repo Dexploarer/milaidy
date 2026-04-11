@@ -63,6 +63,11 @@ function isUiSpec(obj: unknown): obj is UiSpec {
  * Returns an array of segments for rendering.
  */
 function parseSegments(text: string): Segment[] {
+  // Fast path: if there are no config markers or fenced JSON, skip regex
+  if (!text.includes("[CONFIG:") && !text.includes("```")) {
+    return [{ kind: "text", text }];
+  }
+
   // Build a unified list of match regions sorted by position
   const regions: Array<{ start: number; end: number; segment: Segment }> = [];
 
