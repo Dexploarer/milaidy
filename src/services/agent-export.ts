@@ -428,15 +428,23 @@ async function extractAgentData(
       allComponents.push(c);
     }
   };
-  for (const entity of entities) {
-    if (!entity.id) continue;
-    for (const c of await db.getComponents(entity.id)) addComponent(c);
-    for (const world of agentWorlds) {
-      if (!world.id) continue;
-      for (const c of await db.getComponents(entity.id, world.id))
-        addComponent(c);
-    }
-  }
+  // ⚡ Bolt: parallelize I/O-bound component fetching
+  await Promise.all(
+    entities.map(async (entity) => {
+      if (!entity.id) return;
+      const promises: Promise<Component[]>[] = [];
+      promises.push(db.getComponents(entity.id));
+      for (const world of agentWorlds) {
+        if (world.id) {
+          promises.push(db.getComponents(entity.id, world.id));
+        }
+      }
+      const results = await Promise.all(promises);
+      for (const comps of results) {
+        for (const c of comps) addComponent(c);
+      }
+    }),
+  );
   logger.info(`[agent-export] Found ${allComponents.length} components`);
 
   // 6. Memories — query all known table names
