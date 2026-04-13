@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessible Hover-Hidden Interactive Elements
+**Learning:** Interactive elements that are visually hidden until hover (e.g., `sm:opacity-0 sm:group-hover:opacity-100`) become invisible traps for keyboard users unless explicit focus utility classes are provided. Literal text symbols (like '×') used as icons are read literally by screen readers (e.g., 'multiply'), degrading the experience.
+**Action:** When hiding interactive UI behind hover states, always implement corresponding focus visibility classes (e.g., `focus:opacity-100 focus-visible:ring-2`). Additionally, always add explicit `aria-label` attributes to literal symbol icons to ensure predictable screen reader vocalization.
