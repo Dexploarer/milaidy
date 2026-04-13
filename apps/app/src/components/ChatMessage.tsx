@@ -3,7 +3,7 @@
  */
 
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import type { ConversationMessage } from "../api-client";
 import { MessageContent } from "./MessageContent";
 
@@ -27,7 +27,8 @@ function formatTime(timestamp?: number): string {
   }
 }
 
-export function ChatMessage({
+// ⚡ Bolt: wrap ChatMessage in memo to prevent unnecessary re-renders when parent state updates
+export const ChatMessage = memo(function ChatMessage({
   message,
   isGrouped = false,
   agentName = "Agent",
@@ -163,7 +164,7 @@ export function ChatMessage({
       </div>
     </article>
   );
-}
+});
 
 /* ── Typing Indicator ────────────────────────────────────────────────── */
 
