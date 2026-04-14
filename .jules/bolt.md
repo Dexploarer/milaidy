@@ -1,0 +1,3 @@
+## 2024-04-14 - Prevent re-renders in chat lists
+**Learning:** In a chat interface, messages are frequently appended, which causes the entire list to re-render. If individual message components are not memoized, this leads to O(n^2) rendering behavior where adding the 100th message re-renders the previous 99.
+**Action:** Always wrap list item components (like `ChatMessage` and `MessageContent`) with `React.memo` when they are rendered in a long list and their props only change when the item itself changes. Use custom comparison functions if props contain objects that are re-created but logically equal.
