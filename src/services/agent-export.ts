@@ -428,13 +428,19 @@ async function extractAgentData(
       allComponents.push(c);
     }
   };
+  const componentPromises: Promise<Component[]>[] = [];
   for (const entity of entities) {
     if (!entity.id) continue;
-    for (const c of await db.getComponents(entity.id)) addComponent(c);
+    componentPromises.push(db.getComponents(entity.id));
     for (const world of agentWorlds) {
       if (!world.id) continue;
-      for (const c of await db.getComponents(entity.id, world.id))
-        addComponent(c);
+      componentPromises.push(db.getComponents(entity.id, world.id));
+    }
+  }
+  const componentResults = await Promise.all(componentPromises);
+  for (const cList of componentResults) {
+    for (const c of cList) {
+      addComponent(c);
     }
   }
   logger.info(`[agent-export] Found ${allComponents.length} components`);
@@ -443,35 +449,34 @@ async function extractAgentData(
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
+  const memoryPromises: Promise<Memory[]>[] = [];
   for (const tableName of MEMORY_TABLES) {
-    const memories = await db.getMemories({
+    memoryPromises.push(db.getMemories({
       agentId,
       tableName,
       count: Number.MAX_SAFE_INTEGER,
-    });
-    for (const mem of memories) {
-      if (mem.id && !memoryIdSet.has(mem.id)) {
-        memoryIdSet.add(mem.id);
-        // Strip embeddings to reduce file size — they can be regenerated
-        allMemories.push({ ...mem, embedding: undefined });
-      }
-    }
+    }));
   }
 
   // Also try querying memories by world
   for (const world of agentWorlds) {
     if (!world.id) continue;
     for (const tableName of MEMORY_TABLES) {
-      const worldMemories = await db.getMemoriesByWorldId({
+      memoryPromises.push(db.getMemoriesByWorldId({
         worldId: world.id,
         count: Number.MAX_SAFE_INTEGER,
         tableName,
-      });
-      for (const mem of worldMemories) {
-        if (mem.id && !memoryIdSet.has(mem.id)) {
-          memoryIdSet.add(mem.id);
-          allMemories.push({ ...mem, embedding: undefined });
-        }
+      }));
+    }
+  }
+
+  const memoryResults = await Promise.all(memoryPromises);
+  for (const memories of memoryResults) {
+    for (const mem of memories) {
+      if (mem.id && !memoryIdSet.has(mem.id)) {
+        memoryIdSet.add(mem.id);
+        // Strip embeddings to reduce file size — they can be regenerated
+        allMemories.push({ ...mem, embedding: undefined });
       }
     }
   }
