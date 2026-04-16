@@ -428,14 +428,19 @@ async function extractAgentData(
       allComponents.push(c);
     }
   };
+  const fetchPromises: Promise<Component[]>[] = [];
   for (const entity of entities) {
     if (!entity.id) continue;
-    for (const c of await db.getComponents(entity.id)) addComponent(c);
+    fetchPromises.push(db.getComponents(entity.id));
     for (const world of agentWorlds) {
       if (!world.id) continue;
-      for (const c of await db.getComponents(entity.id, world.id))
-        addComponent(c);
+      fetchPromises.push(db.getComponents(entity.id, world.id));
     }
+  }
+
+  const componentArrays = await Promise.all(fetchPromises);
+  for (const components of componentArrays) {
+    for (const c of components) addComponent(c);
   }
   logger.info(`[agent-export] Found ${allComponents.length} components`);
 
