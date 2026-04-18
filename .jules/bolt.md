@@ -1,0 +1,3 @@
+## 2024-04-18 - Missing Memoization in ConversationsSidebar
+**Learning:** React components that render lists derived from context (like `conversations` in `ConversationsSidebar`) often re-calculate their derived state on every render, even when the underlying data hasn't changed. In `ConversationsSidebar.tsx`, `sortedConversations` is recalculated via an expensive `.sort()` with nested `new Date()` calls on every render due to how React state triggers re-renders (e.g. typing in the chat input, updating timestamps, etc).
+**Action:** Use `useMemo` for derived lists that require sorting or filtering, especially those derived from global state context like `useApp()`, to prevent unnecessary recalculations on re-renders.
