@@ -112,6 +112,27 @@ describe("nft-verify", () => {
       expect(result.error).toContain("network timeout");
     });
 
+    it("handles RPC request timeout gracefully", async () => {
+      vi.useFakeTimers();
+
+      // We want to simulate the contract call taking too long without resolving
+      mockBalanceOf.mockImplementation(() => new Promise(() => {}));
+
+      const verifyPromise = verifyMiladyHolder(
+        "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      );
+
+      // Advance time beyond RPC_TIMEOUT_MS (15000)
+      vi.advanceTimersByTime(16000);
+
+      const result = await verifyPromise;
+
+      expect(result.verified).toBe(false);
+      expect(result.error).toContain("RPC request timed out");
+
+      vi.useRealTimers();
+    });
+
     it("includes contract address in result", async () => {
       mockBalanceOf.mockResolvedValue(BigInt(1));
       const result = await verifyMiladyHolder(
