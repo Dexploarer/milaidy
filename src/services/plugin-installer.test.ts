@@ -140,6 +140,8 @@ async function writeLocalPluginSource(
 
 beforeEach(async () => {
   vi.resetModules();
+  const actual = await vi.importActual<typeof import("./plugin-installer")>("./plugin-installer");
+  actual._internalClearPackageManagerCache();
 
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-inst-test-"));
   configDir = path.join(tmpDir, ".milady");
