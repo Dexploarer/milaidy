@@ -150,16 +150,29 @@ function pluginDir(pluginName: string): string {
 // Package manager detection
 // ---------------------------------------------------------------------------
 
+let _pmCache: Promise<"bun" | "npm"> | null = null;
+
 export async function detectPackageManager(): Promise<"bun" | "npm"> {
-  for (const cmd of ["bun", "npm"] as const) {
-    try {
-      await execFileAsync(cmd, ["--version"]);
-      return cmd;
-    } catch {
-      // not available
+  if (_pmCache) return _pmCache;
+
+  _pmCache = (async () => {
+    for (const cmd of ["bun", "npm"] as const) {
+      try {
+        await execFileAsync(cmd, ["--version"]);
+        return cmd;
+      } catch {
+        // not available
+      }
     }
-  }
-  return "npm";
+    return "npm";
+  })();
+
+  return _pmCache;
+}
+
+/** @internal For testing purposes only */
+export function _internalClearPackageManagerCache(): void {
+  _pmCache = null;
 }
 
 // ---------------------------------------------------------------------------

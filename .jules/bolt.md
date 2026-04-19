@@ -1,0 +1,3 @@
+## 2024-04-19 - Caching detectPackageManager In-flight Promises
+**Learning:** When optimizing async checks or detection routines (e.g., detectPackageManager) using module-level caching, cache the in-flight Promise itself rather than the resolved value to prevent redundant concurrent system calls. Avoid Promise.any to preserve fallback order, and expose an internal clearing method (e.g., _internalClearPackageManagerCache) to prevent test state leakage.
+**Action:** Always cache the in-flight Promise for concurrent-heavy initialization functions, ensure order preservation (no Promise.any if fallback priority matters), and export a cache clearing method for test isolation.
