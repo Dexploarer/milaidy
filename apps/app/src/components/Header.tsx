@@ -149,7 +149,7 @@ export function Header() {
 
   // Minimum 44px touch targets for mobile
   const iconBtnBase =
-    "inline-flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] border border-border bg-bg cursor-pointer text-sm leading-none hover:border-accent hover:text-accent transition-all duration-200 hover:shadow-sm hover:scale-105 active:scale-95 rounded-md";
+    "inline-flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] border border-border bg-bg cursor-pointer text-sm leading-none hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none transition-all duration-200 hover:shadow-sm hover:scale-105 active:scale-95 rounded-md";
 
   const handleCopy = (type: "evm" | "sol", address: string) => {
     copyToClipboard(address);
@@ -189,7 +189,7 @@ export function Header() {
                 <button
                   type="button"
                   onClick={() => setTab("character")}
-                  className="inline-flex shrink-0 items-center gap-1.5 px-3 py-2 h-9 border border-accent bg-accent-subtle text-[11px] sm:text-xs font-bold text-accent cursor-pointer hover:bg-accent/20 transition-colors animate-pulse rounded-md"
+                  className="inline-flex shrink-0 items-center gap-1.5 px-3 py-2 h-9 border border-accent bg-accent-subtle text-[11px] sm:text-xs font-bold text-accent cursor-pointer hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none transition-colors animate-pulse rounded-md"
                 >
                   <span
                     className="inline-block w-2 h-2 rounded-full bg-accent animate-ping"
@@ -207,7 +207,7 @@ export function Header() {
                   href={cloudTopUpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 h-9 border rounded-md font-mono text-[11px] sm:text-xs no-underline transition-all duration-200 hover:border-accent hover:text-accent hover:shadow-sm ${cloudCredits === null ? "border-muted text-muted" : creditColor}`}
+                  className={`inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 h-9 border rounded-md font-mono text-[11px] sm:text-xs no-underline transition-all duration-200 hover:border-accent hover:text-accent hover:shadow-sm focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${cloudCredits === null ? "border-muted text-muted" : creditColor}`}
                   title="Cloud credits balance"
                 >
                   <CircleDollarSign className="w-3.5 h-3.5" />
@@ -269,7 +269,7 @@ export function Header() {
                   onClick={handleRestart}
                   aria-label="Restart agent"
                   disabled={lifecycleBusy || state === "restarting"}
-                  className="inline-flex items-center justify-center h-9 px-3 border border-border bg-bg text-[11px] sm:text-xs font-mono cursor-pointer hover:border-accent hover:text-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-md"
+                  className="inline-flex items-center justify-center h-9 px-3 border border-border bg-bg text-[11px] sm:text-xs font-mono cursor-pointer hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-md"
                 >
                   {restartBusy || state === "restarting" ? (
                     <>
@@ -335,7 +335,7 @@ export function Header() {
                             handleCopy("evm", evmAddress);
                           }
                         }}
-                        className="px-2 py-1.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent rounded transition-colors min-w-[60px]"
+                        className="px-2 py-1.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none rounded transition-colors min-w-[60px]"
                       >
                         {copied === "evm" ? (
                           <span className="text-ok">Copied!</span>
@@ -363,7 +363,7 @@ export function Header() {
                             handleCopy("sol", solanaAddress);
                           }
                         }}
-                        className="px-2 py-1.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent rounded transition-colors min-w-[60px]"
+                        className="px-2 py-1.5 border border-border bg-bg text-[10px] font-mono cursor-pointer hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none rounded transition-colors min-w-[60px]"
                       >
                         {copied === "sol" ? (
                           <span className="text-ok">Copied!</span>
