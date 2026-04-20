@@ -443,35 +443,40 @@ async function extractAgentData(
   const allMemories: Memory[] = [];
   const memoryIdSet = new Set<string>();
 
+  // ⚡ Bolt: Parallelize I/O-bound N+1 database queries to resolve agent memories
+  const memoryPromises: Promise<Memory[]>[] = [];
+
   for (const tableName of MEMORY_TABLES) {
-    const memories = await db.getMemories({
-      agentId,
-      tableName,
-      count: Number.MAX_SAFE_INTEGER,
-    });
-    for (const mem of memories) {
-      if (mem.id && !memoryIdSet.has(mem.id)) {
-        memoryIdSet.add(mem.id);
-        // Strip embeddings to reduce file size — they can be regenerated
-        allMemories.push({ ...mem, embedding: undefined });
-      }
-    }
+    memoryPromises.push(
+      db.getMemories({
+        agentId,
+        tableName,
+        count: Number.MAX_SAFE_INTEGER,
+      })
+    );
   }
 
   // Also try querying memories by world
   for (const world of agentWorlds) {
     if (!world.id) continue;
     for (const tableName of MEMORY_TABLES) {
-      const worldMemories = await db.getMemoriesByWorldId({
-        worldId: world.id,
-        count: Number.MAX_SAFE_INTEGER,
-        tableName,
-      });
-      for (const mem of worldMemories) {
-        if (mem.id && !memoryIdSet.has(mem.id)) {
-          memoryIdSet.add(mem.id);
-          allMemories.push({ ...mem, embedding: undefined });
-        }
+      memoryPromises.push(
+        db.getMemoriesByWorldId({
+          worldId: world.id,
+          count: Number.MAX_SAFE_INTEGER,
+          tableName,
+        })
+      );
+    }
+  }
+
+  const memoryArrays = await Promise.all(memoryPromises);
+  for (const memories of memoryArrays) {
+    for (const mem of memories) {
+      if (mem.id && !memoryIdSet.has(mem.id)) {
+        memoryIdSet.add(mem.id);
+        // Strip embeddings to reduce file size — they can be regenerated
+        allMemories.push({ ...mem, embedding: undefined });
       }
     }
   }
@@ -931,15 +936,17 @@ export async function estimateExportSize(
   const db = runtime.adapter;
   const agentId = runtime.agentId;
 
-  let memoriesCount = 0;
-  for (const tableName of MEMORY_TABLES) {
-    const mems = await db.getMemories({
-      agentId,
-      tableName,
-      count: Number.MAX_SAFE_INTEGER,
-    });
-    memoriesCount += mems.length;
-  }
+  // ⚡ Bolt: Parallelize I/O-bound N+1 database queries for size estimation
+  const memoryArrays = await Promise.all(
+    MEMORY_TABLES.map((tableName) =>
+      db.getMemories({
+        agentId,
+        tableName,
+        count: Number.MAX_SAFE_INTEGER,
+      })
+    )
+  );
+  let memoriesCount = memoryArrays.reduce((sum, mems) => sum + mems.length, 0);
 
   const allWorlds = await db.getAllWorlds();
   const agentWorlds = allWorlds.filter((w) => w.agentId === agentId);
