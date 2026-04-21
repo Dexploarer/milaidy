@@ -1,0 +1,3 @@
+## 2024-05-18 - Discovering Accessibility Anti-Patterns with Hover States
+**Learning:** Interactive elements that are hidden using `opacity-0` and revealed via `group-hover:opacity-100` are completely inaccessible to keyboard users because they cannot be seen when focused. Furthermore, using plain text symbols like "×" without `aria-label`s results in screen readers vocalizing them literally (e.g. "times" or "multiply").
+**Action:** Always pair `hover` opacity states with `focus:opacity-100` and `focus-visible:ring-2` to ensure keyboard accessibility. Ensure every literal character icon has a corresponding `aria-label`.
