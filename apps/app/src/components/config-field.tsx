@@ -806,6 +806,7 @@ function MultiselectFieldInner({ fp: props }: { fp: FieldRenderProps }) {
                   type="button"
                   className="inline-flex items-center justify-center w-3.5 h-3.5 text-[10px] rounded-full hover:bg-[var(--accent)] hover:text-white transition-colors cursor-pointer"
                   onClick={() => remove(opt.value)}
+                  aria-label={"Remove " + opt.label}
                 >
                   ×
                 </button>
