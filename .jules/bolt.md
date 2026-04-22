@@ -1,0 +1,3 @@
+## 2024-04-22 - Unnecessary sorting in React components
+**Learning:** By default, React components trigger a full re-render on state changes (such as tracking hovered state, toggling local tooltips, or confirming deletes). Any un-memoized Array `.sort()` occurring in the component body will re-run on every render, introducing an O(N log N) overhead proportional to the array length, potentially causing lag or dropped frames when dealing with long lists.
+**Action:** When handling arrays of data, wrap sorts in `useMemo` so that they only recalculate when the underlying data changes, avoiding unnecessary repeated sorting when unrelated local component state changes.
