@@ -344,6 +344,7 @@ export function MediaGalleryView() {
                 type="button"
                 className="text-[var(--muted)] hover:text-[var(--txt)] bg-transparent border-0 cursor-pointer text-lg px-2"
                 onClick={() => setLightboxItem(null)}
+                aria-label="Close lightbox"
               >
                 ×
               </button>

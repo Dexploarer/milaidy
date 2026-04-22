@@ -373,6 +373,7 @@ function InstallModal({
             type="button"
             className="text-[var(--muted)] hover:text-[var(--txt)] bg-transparent border-0 cursor-pointer text-lg px-2 transition-colors"
             onClick={onClose}
+            aria-label="Close install skill dialog"
           >
             ×
           </button>
@@ -698,6 +699,7 @@ function EditSkillModal({
               type="button"
               className="text-[var(--muted)] hover:text-[var(--txt)] bg-transparent border-0 cursor-pointer text-lg px-2 transition-colors"
               onClick={onClose}
+              aria-label="Close edit skill dialog"
             >
               ×
             </button>
