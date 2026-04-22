@@ -881,6 +881,7 @@ function MemoryDetailModal({
           </div>
           <button
             type="button"
+            aria-label="Close memory detail"
             className="text-[var(--muted)] hover:text-[var(--txt)] bg-transparent border-0 cursor-pointer text-lg px-2"
             onClick={onClose}
           >
