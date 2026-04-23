@@ -61,14 +61,31 @@ export function scoreEntries(
       s += 100;
     else if (ln.includes(lq) || aliases.some((a) => a.includes(lq))) s += 50;
     if (ld.includes(lq)) s += 30;
-    for (const t of p.topics) if (t.toLowerCase().includes(lq)) s += 25;
-    for (const t of extraTerms?.(p) ?? [])
-      if (t.toLowerCase().includes(lq)) s += 25;
-    for (const term of terms) {
-      if (ln.includes(term) || aliases.some((a) => a.includes(term))) s += 15;
-      if (ld.includes(term)) s += 10;
-      for (const t of p.topics) if (t.toLowerCase().includes(term)) s += 8;
+
+    // ⚡ Bolt: Use a loop instead of array map to avoid redundant string allocations
+    const topicsLower: string[] = [];
+    const topicsLen = p.topics.length;
+    for (let i = 0; i < topicsLen; i++) {
+      const tLower = p.topics[i].toLowerCase();
+      topicsLower.push(tLower);
+      if (tLower.includes(lq)) s += 25;
     }
+
+    const lowerExtraTerms = extraTerms?.(p);
+    if (lowerExtraTerms) {
+      for (const t of lowerExtraTerms) if (t.toLowerCase().includes(lq)) s += 25;
+    }
+
+    const termsLen = terms.length;
+    if (termsLen > 0) {
+      for (let i = 0; i < termsLen; i++) {
+        const term = terms[i];
+        if (ln.includes(term) || aliases.some((a) => a.includes(term))) s += 15;
+        if (ld.includes(term)) s += 10;
+        for (let j = 0; j < topicsLen; j++) if (topicsLower[j].includes(term)) s += 8;
+      }
+    }
+
     if (s > 0) {
       if (p.stars > 100) s += 3;
       if (p.stars > 500) s += 3;
