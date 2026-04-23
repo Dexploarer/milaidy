@@ -172,6 +172,7 @@ export function ConversationsSidebar({
                     <button
                       type="button"
                       className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 p-0 m-0 text-left cursor-pointer"
+                      aria-label={`Open conversation: ${conv.title}`}
                       onClick={() => {
                         setConfirmDeleteId(null);
                         void handleSelectConversation(conv.id);
@@ -216,6 +217,7 @@ export function ConversationsSidebar({
                         type="button"
                         data-testid="conv-delete"
                         className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-none bg-transparent text-muted hover:text-danger hover:bg-destructive-subtle cursor-pointer text-sm px-1 py-0.5 rounded flex-shrink-0"
+                        aria-label="Delete conversation"
                         onClick={(e) => {
                           e.stopPropagation();
                           setConfirmDeleteId(conv.id);

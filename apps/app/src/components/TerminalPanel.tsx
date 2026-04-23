@@ -166,6 +166,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
             type="button"
             onClick={handleToggleMinimize}
             className="w-full flex items-center justify-between px-4 py-2 hover:bg-bg-hover transition-colors"
+            aria-label="Expand terminal"
           >
             <div className="flex items-center gap-2">
               <Terminal className="w-4 h-4 text-accent" />
@@ -226,6 +227,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
               onClick={handleClear}
               className="p-1.5 text-muted hover:text-txt hover:bg-bg-hover rounded transition-colors"
               title="Clear terminal"
+              aria-label="Clear terminal output"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -235,6 +237,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
               onClick={handleToggleMinimize}
               className="p-1.5 text-muted hover:text-txt hover:bg-bg-hover rounded transition-colors"
               title={minimized ? "Maximize" : "Minimize"}
+              aria-label={minimized ? "Maximize terminal" : "Minimize terminal"}
             >
               {minimized ? (
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -248,6 +251,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
               onClick={handleClose}
               className="p-1.5 text-muted hover:text-danger hover:bg-danger/10 rounded transition-colors"
               title="Close terminal"
+              aria-label="Close terminal panel"
             >
               <X className="w-3.5 h-3.5" />
             </button>
