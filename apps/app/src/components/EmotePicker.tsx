@@ -396,6 +396,7 @@ export function EmotePicker() {
           {/* Close button */}
           <button
             type="button"
+            aria-label="Close emote picker"
             onClick={closeEmotePicker}
             className="text-gray-400 hover:text-white"
           >
