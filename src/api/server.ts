@@ -4463,7 +4463,12 @@ export function resolveHyperscapeAuthorizationHeader(
 function tokenMatches(expected: string, provided: string): boolean {
   const a = Buffer.from(expected, "utf8");
   const b = Buffer.from(provided, "utf8");
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    // Pad to equal length to avoid length oracle
+    const padded = Buffer.alloc(a.length);
+    b.copy(padded, 0, 0, Math.min(b.length, a.length));
+    return crypto.timingSafeEqual(a, padded) && false;
+  }
   return crypto.timingSafeEqual(a, b);
 }
 
