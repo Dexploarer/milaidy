@@ -78,7 +78,15 @@ export async function handleAuthRoutes(
     const expected = normalizePairingCode(current);
     const a = Buffer.from(expected, "utf8");
     const b = Buffer.from(provided, "utf8");
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    let match = true;
+    if (a.length !== b.length) {
+      const padded = Buffer.alloc(a.length);
+      b.copy(padded, 0, 0, Math.min(b.length, a.length));
+      match = crypto.timingSafeEqual(a, padded) && false;
+    } else {
+      match = crypto.timingSafeEqual(a, b);
+    }
+    if (!match) {
       error(res, "Invalid pairing code", 403);
       return true;
     }
