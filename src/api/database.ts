@@ -970,6 +970,11 @@ async function handleUpdateRow(
     return;
   }
 
+  if (!(await assertTableExists(runtime, tableName))) {
+    sendJsonError(res, `Table "${tableName}" not found`, 404);
+    return;
+  }
+
   const setClauses = Object.entries(body.data).map(([col, val]) =>
     sqlAssign(col, val),
   );
@@ -1013,6 +1018,11 @@ async function handleDeleteRow(
       res,
       "Request body must include a non-empty 'where' object for row identification.",
     );
+    return;
+  }
+
+  if (!(await assertTableExists(runtime, tableName))) {
+    sendJsonError(res, `Table "${tableName}" not found`, 404);
     return;
   }
 
