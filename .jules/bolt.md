@@ -1,0 +1,3 @@
+## 2025-04-26 - React List Sorting Bottlenecks
+**Learning:** In React components that render lists (like `ConversationsSidebar.tsx`), sorting an array inside the render cycle without `useMemo` causes an O(n log n) operation to run on *every single render*. Furthermore, allocating `new Date()` instances for comparison inside the sort callback adds significant heap allocation overhead, compounding the performance issue.
+**Action:** When sorting arrays for rendering, wrap the sorted derived state in `useMemo`. When comparing ISO 8601 strings (like `updatedAt`), use string comparison (`b.updatedAt.localeCompare(a.updatedAt)`) to prevent unnecessary `Date` allocations.
