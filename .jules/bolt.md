@@ -1,0 +1,3 @@
+## 2025-04-27 - Fast Lexicographical Time Sorting
+**Learning:** In heavily used UI components like React sidebars that display lists updated in real-time, relying on `.sort()` blocks combined with inline `new Date(string).getTime()` allocation causes measurable re-render lag due to memory allocation and date parsing overhead on every tick. For standard ISO 8601 strings (like `updatedAt`), the sorting structure is inherently chronologically sound and allows for fast alphabetical comparison.
+**Action:** When implementing real-time list sorting by ISO timestamp on the frontend, always combine array memoization (`useMemo`) with native `.localeCompare()` instead of allocating `Date` objects on every re-render.
