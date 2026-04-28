@@ -1,0 +1,3 @@
+## 2024-04-28 - Component Array Sorting Performance
+**Learning:** In React components like `ConversationsSidebar`, copying and sorting arrays on every render (e.g., `[...conversations].sort(...)`) causes unnecessary object allocation and CPU overhead, especially if the component has local state causing frequent re-renders (like input selection). Additionally, when dealing with standard ISO 8601 timestamp strings, allocating `new Date()` objects purely for chronological sorting is an expensive anti-pattern.
+**Action:** Always wrap array mapping/sorting in `useMemo` when deriving lists from props. Furthermore, use lexicographical string comparison (`b.localeCompare(a)`) to sort ISO 8601 date strings instead of parsing them into `Date` objects.
