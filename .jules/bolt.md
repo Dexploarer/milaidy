@@ -1,0 +1,3 @@
+## 2024-04-29 - Optimize ISO 8601 timestamp sorting in React lists
+**Learning:** In React list rendering, sorting by `new Date(ISOString).getTime()` causes significant object allocation overhead on re-renders, especially for larger lists. While `localeCompare` avoids `Date` allocation, raw string comparison (`> / <`) is even faster for raw ASCII strings like ISO dates, avoiding locale checking overhead.
+**Action:** Use `b.updatedAt > a.updatedAt ? 1 : b.updatedAt < a.updatedAt ? -1 : 0` instead of `new Date()` allocation or `localeCompare` when sorting by ISO 8601 timestamps, and always memoize derived lists with `useMemo` to prevent redundant O(n log n) sorting operations on every re-render.
