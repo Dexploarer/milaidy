@@ -99,6 +99,7 @@ export function LogsView() {
           className="text-xs px-3 py-1.5 border border-border bg-card text-txt cursor-pointer"
           value={logLevelFilter}
           onChange={handleLevelChange}
+          aria-label="Filter by log level"
         >
           <option value="">All levels</option>
           <option value="debug">Debug</option>
@@ -111,6 +112,7 @@ export function LogsView() {
           className="text-xs px-3 py-1.5 border border-border bg-card text-txt cursor-pointer"
           value={logSourceFilter}
           onChange={handleSourceChange}
+          aria-label="Filter by log source"
         >
           <option value="">All sources</option>
           {logSources.map((s) => (
@@ -125,6 +127,7 @@ export function LogsView() {
             className="text-xs px-3 py-1.5 border border-border bg-card text-txt cursor-pointer"
             value={logTagFilter}
             onChange={handleTagChange}
+            aria-label="Filter by log tag"
           >
             <option value="">All tags</option>
             {logTags.map((tag) => (
