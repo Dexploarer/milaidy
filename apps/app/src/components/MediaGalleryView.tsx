@@ -6,7 +6,7 @@
  * APIs (getDatabaseTables, executeDatabaseQuery).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { client, type QueryResult } from "../api-client";
 
 type MediaType = "all" | "image" | "video" | "audio";
@@ -177,11 +177,16 @@ export function MediaGalleryView() {
       }
 
       // Sort by date descending
+      // ⚡ Bolt: Use raw string comparison instead of localeCompare for faster timestamp sorting
       allMedia.sort((a, b) => {
         if (!a.createdAt && !b.createdAt) return 0;
         if (!a.createdAt) return 1;
         if (!b.createdAt) return -1;
-        return b.createdAt.localeCompare(a.createdAt);
+        return b.createdAt > a.createdAt
+          ? 1
+          : b.createdAt < a.createdAt
+            ? -1
+            : 0;
       });
 
       setMedia(allMedia);
@@ -197,16 +202,20 @@ export function MediaGalleryView() {
     loadMedia();
   }, [loadMedia]);
 
-  const filtered = media.filter((m) => {
-    if (filter !== "all" && m.type !== filter) return false;
-    if (
-      search &&
-      !m.filename.toLowerCase().includes(search.toLowerCase()) &&
-      !m.url.toLowerCase().includes(search.toLowerCase())
-    )
-      return false;
-    return true;
-  });
+  // ⚡ Bolt: Memoize the derived filtered list and hoist lowercase conversion to prevent O(n) reallocation and redundant conversions on re-renders
+  const filtered = useMemo(() => {
+    const searchLower = search?.toLowerCase() ?? "";
+    return media.filter((m) => {
+      if (filter !== "all" && m.type !== filter) return false;
+      if (
+        searchLower &&
+        !m.filename.toLowerCase().includes(searchLower) &&
+        !m.url.toLowerCase().includes(searchLower)
+      )
+        return false;
+      return true;
+    });
+  }, [media, filter, search]);
 
   return (
     <div>
